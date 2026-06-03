@@ -16,6 +16,12 @@ export const EXTRACTOR_SOURCE_IDS = [
   "naukri",
   "fiveamsat",
   "wazzuf",
+  "jooble",
+  "ejobs",
+  "bestjobs",
+  "hipo",
+  "undelucram",
+  "olx-ro",
   "manual",
 ] as const;
 
@@ -85,7 +91,18 @@ export const EXTRACTOR_SOURCE_METADATA: Record<
   },
   fiveamsat: { label: "Khamsat", order: 109, category: "pipeline" },
   wazzuf: { label: "WUZZUF", order: 110, category: "pipeline" },
-  manual: { label: "Manual", order: 120, category: "manual" },
+  jooble: {
+    label: "Jooble",
+    order: 115,
+    category: "pipeline",
+    requiresCredentials: true,
+  },
+  ejobs: { label: "eJobs", order: 117, category: "pipeline" },
+  bestjobs: { label: "BestJobs", order: 118, category: "pipeline" },
+  hipo: { label: "Hipo", order: 119, category: "pipeline" },
+  undelucram: { label: "Undelucram", order: 120, category: "pipeline" },
+  "olx-ro": { label: "OLX România", order: 121, category: "pipeline" },
+  manual: { label: "Manual", order: 130, category: "manual" },
 };
 
 export const PIPELINE_EXTRACTOR_SOURCE_IDS = EXTRACTOR_SOURCE_IDS.filter(

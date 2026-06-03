@@ -85,6 +85,24 @@ services:
         - path: ./extractors/wazzuf
           target: /app/extractors/wazzuf
           action: sync+restart
+        - path: ./extractors/jooble
+          target: /app/extractors/jooble
+          action: sync+restart
+        - path: ./extractors/ejobs
+          target: /app/extractors/ejobs
+          action: sync+restart
+        - path: ./extractors/bestjobs
+          target: /app/extractors/bestjobs
+          action: sync+restart
+        - path: ./extractors/hipo
+          target: /app/extractors/hipo
+          action: sync+restart
+        - path: ./extractors/undelucram
+          target: /app/extractors/undelucram
+          action: sync+restart
+        - path: ./extractors/olx-ro
+          target: /app/extractors/olx-ro
+          action: sync+restart
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3001/health"]

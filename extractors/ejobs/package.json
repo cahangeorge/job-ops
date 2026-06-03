@@ -1,0 +1,20 @@
+{
+  "name": "ejobs-extractor",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "eJobs.ro extractor — Romanian job portal scraper",
+  "main": "src/main.ts",
+  "dependencies": {
+    "cheerio": "^1.0.0",
+    "job-ops-shared": "^1.0.0",
+    "tsx": "^4.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "~5.9.0"
+  },
+  "scripts": {
+    "start": "tsx src/main.ts",
+    "check:types": "tsc --noEmit"
+  }
+}

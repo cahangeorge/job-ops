@@ -89,6 +89,12 @@ COPY extractors/ukvisajobs/package*.json ./extractors/ukvisajobs/
 COPY extractors/seek/package*.json ./extractors/seek/
 COPY extractors/fiveamsat/package*.json ./extractors/fiveamsat/
 COPY extractors/wazzuf/package*.json ./extractors/wazzuf/
+COPY extractors/jooble/package*.json ./extractors/jooble/
+COPY extractors/ejobs/package*.json ./extractors/ejobs/
+COPY extractors/bestjobs/package*.json ./extractors/bestjobs/
+COPY extractors/hipo/package*.json ./extractors/hipo/
+COPY extractors/undelucram/package*.json ./extractors/undelucram/
+COPY extractors/olx-ro/package*.json ./extractors/olx-ro/
 COPY extractors/browser-utils/package*.json ./extractors/browser-utils/
 
 # Install build-time Node dependencies on the native builder platform. The
@@ -118,6 +124,12 @@ COPY extractors/ukvisajobs ./extractors/ukvisajobs
 COPY extractors/seek ./extractors/seek
 COPY extractors/fiveamsat ./extractors/fiveamsat
 COPY extractors/wazzuf ./extractors/wazzuf
+COPY extractors/jooble ./extractors/jooble
+COPY extractors/ejobs ./extractors/ejobs
+COPY extractors/bestjobs ./extractors/bestjobs
+COPY extractors/hipo ./extractors/hipo
+COPY extractors/undelucram ./extractors/undelucram
+COPY extractors/olx-ro ./extractors/olx-ro
 COPY extractors/browser-utils ./extractors/browser-utils
 
 # ============================================================================
@@ -164,6 +176,12 @@ COPY extractors/ukvisajobs/package*.json ./extractors/ukvisajobs/
 COPY extractors/seek/package*.json ./extractors/seek/
 COPY extractors/fiveamsat/package*.json ./extractors/fiveamsat/
 COPY extractors/wazzuf/package*.json ./extractors/wazzuf/
+COPY extractors/jooble/package*.json ./extractors/jooble/
+COPY extractors/ejobs/package*.json ./extractors/ejobs/
+COPY extractors/bestjobs/package*.json ./extractors/bestjobs/
+COPY extractors/hipo/package*.json ./extractors/hipo/
+COPY extractors/undelucram/package*.json ./extractors/undelucram/
+COPY extractors/olx-ro/package*.json ./extractors/olx-ro/
 COPY extractors/browser-utils/package*.json ./extractors/browser-utils/
 
 # Install production Node dependencies only.
@@ -258,6 +276,12 @@ COPY extractors/ukvisajobs ./extractors/ukvisajobs
 COPY extractors/seek ./extractors/seek
 COPY extractors/fiveamsat ./extractors/fiveamsat
 COPY extractors/wazzuf ./extractors/wazzuf
+COPY extractors/jooble ./extractors/jooble
+COPY extractors/ejobs ./extractors/ejobs
+COPY extractors/bestjobs ./extractors/bestjobs
+COPY extractors/hipo ./extractors/hipo
+COPY extractors/undelucram ./extractors/undelucram
+COPY extractors/olx-ro ./extractors/olx-ro
 COPY extractors/browser-utils ./extractors/browser-utils
 
 # Create runtime directories.
