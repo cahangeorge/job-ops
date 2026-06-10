@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 import { geminiStrategy } from "./gemini";
 import { glmStrategy } from "./glm";
 import { lmStudioStrategy } from "./lmstudio";
+import { ollamaCloudStrategy } from "./ollama-cloud";
 import { ollamaStrategy } from "./ollama";
 import { openAiStrategy } from "./openai";
 import { openAiCompatibleStrategy } from "./openai-compatible";
 import { openRouterStrategy } from "./openrouter";
+import { opencodeStrategy } from "./opencode";
 
 const schema = {
   name: "test_schema",
@@ -129,6 +131,30 @@ describe("provider adapters", () => {
         expectedResponseFormat: "text",
       },
       {
+        name: "opencode-json_schema",
+        strategy: opencodeStrategy,
+        args: {
+          mode: "json_schema" as const,
+          baseUrl: "https://api.opencode.ai",
+          apiKey: "x",
+          model: "model-a",
+        },
+        expectedUrl: "https://api.opencode.ai/v1/chat/completions",
+        expectedResponseFormat: "json_schema",
+      },
+      {
+        name: "ollama_cloud-json_object",
+        strategy: ollamaCloudStrategy,
+        args: {
+          mode: "json_object" as const,
+          baseUrl: "https://api.ollama.com",
+          apiKey: "x",
+          model: "model-a",
+        },
+        expectedUrl: "https://api.ollama.com/v1/chat/completions",
+        expectedResponseFormat: "json_object",
+      },
+      {
         name: "ollama-none",
         strategy: ollamaStrategy,
         args: {
@@ -174,6 +200,8 @@ describe("provider adapters", () => {
     expect(openRouterStrategy.extractText(response)).toBe("ok");
     expect(glmStrategy.extractText(response)).toBe("ok");
     expect(lmStudioStrategy.extractText(response)).toBe("ok");
+    expect(opencodeStrategy.extractText(response)).toBe("ok");
+    expect(ollamaCloudStrategy.extractText(response)).toBe("ok");
     expect(ollamaStrategy.extractText(response)).toBe("ok");
   });
 

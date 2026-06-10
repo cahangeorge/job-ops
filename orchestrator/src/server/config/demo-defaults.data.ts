@@ -264,6 +264,12 @@ export const DEMO_SOURCE_BASE_URLS: Record<JobSource, string> = {
   naukri: "https://www.naukri.com",
   fiveamsat: "https://khamsat.com",
   wazzuf: "https://wuzzuf.net",
+  jooble: "https://jooble.org",
+  ejobs: "https://www.ejobs.ro",
+  bestjobs: "https://www.bestjobs.ro",
+  hipo: "https://www.hipo.ro",
+  "olx-ro": "https://www.olx.ro",
+  undelucram: "https://www.undelucram.ro",
   manual: "https://example.com",
 };
 

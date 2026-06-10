@@ -141,6 +141,44 @@ const HEALTH_PROBE_CONFIG_BY_SOURCE: Record<
       wazzufMaxJobsPerTerm: "1",
     },
   },
+  jooble: {
+    searchTerm: DEFAULT_HEALTH_SEARCH_TERM,
+    selectedCountry: DEFAULT_HEALTH_SELECTED_COUNTRY,
+    settings: {
+      jobspyResultsWanted: "1",
+    },
+  },
+  ejobs: {
+    searchTerm: DEFAULT_HEALTH_SEARCH_TERM,
+    selectedCountry: "romania",
+    settings: {
+      ejobsMaxJobsPerTerm: "1",
+    },
+  },
+  bestjobs: {
+    searchTerm: DEFAULT_HEALTH_SEARCH_TERM,
+    selectedCountry: "romania",
+    settings: {
+      bestjobsMaxJobsPerTerm: "1",
+    },
+  },
+  hipo: {
+    searchTerm: DEFAULT_HEALTH_SEARCH_TERM,
+    selectedCountry: "romania",
+    settings: {
+      hipoMaxJobsPerTerm: "1",
+    },
+  },
+  "olx-ro": {
+    searchTerm: DEFAULT_HEALTH_SEARCH_TERM,
+    selectedCountry: "romania",
+    settings: {},
+  },
+  undelucram: {
+    searchTerm: DEFAULT_HEALTH_SEARCH_TERM,
+    selectedCountry: "romania",
+    settings: {},
+  },
   manual: {
     searchTerm: DEFAULT_HEALTH_SEARCH_TERM,
     selectedCountry: DEFAULT_HEALTH_SELECTED_COUNTRY,

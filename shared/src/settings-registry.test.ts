@@ -357,6 +357,8 @@ describe("settingsRegistry helpers", () => {
         "google/gemini-3-flash-preview",
       );
       expect(getDefaultModelForProvider("codex")).toBe("");
+      expect(getDefaultModelForProvider("opencode")).toBe("");
+      expect(getDefaultModelForProvider("ollama_cloud")).toBe("");
       expect(getDefaultModelForProvider("openrouter")).toBe(
         "google/gemini-3-flash-preview",
       );

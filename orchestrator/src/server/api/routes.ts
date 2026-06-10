@@ -24,6 +24,11 @@ import { watchlistRouter } from "./routes/watchlist";
 import { webhookRouter } from "./routes/webhook";
 import { workdayRouter } from "./routes/workday";
 import { workspacesRouter } from "./routes/workspaces";
+import { evaluationsRouter } from "./routes/evaluations";
+import { storiesRouter } from "./routes/stories";
+import { interviewPrepRouter } from "./routes/interview-prep";
+import { writingStyleRouter } from "./routes/writing-style";
+import { legitimacyRouter } from "./routes/legitimacy";
 
 export const apiRouter = Router();
 
@@ -47,4 +52,9 @@ apiRouter.use("/workspaces", workspacesRouter);
 apiRouter.use("/auth", authRouter);
 apiRouter.use("/workday", workdayRouter);
 apiRouter.use("/watchlist", watchlistRouter);
+apiRouter.use("/jobs/:id/evaluations", evaluationsRouter);
+apiRouter.use("/stories", storiesRouter);
+apiRouter.use("/interview-prep", interviewPrepRouter);
+apiRouter.use("/writing-style", writingStyleRouter);
+apiRouter.use("/legitimacy", legitimacyRouter);
 apiRouter.use("/", extractorHealthRouter);

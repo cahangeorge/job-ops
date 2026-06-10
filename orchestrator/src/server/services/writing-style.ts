@@ -1,9 +1,12 @@
+import { logger } from "@infra/logger";
 import * as settingsRepo from "@server/repositories/settings";
+import * as writingStyleRepo from "@server/repositories/writing-style";
 import { settingsRegistry } from "@shared/settings-registry";
 import type {
   ChatStyleLanguageMode,
   ChatStyleManualLanguage,
 } from "@shared/types";
+import { createConfiguredLlmService, resolveLlmModel } from "./modelSelection";
 
 export type WritingStyle = {
   tone: string;
@@ -168,4 +171,111 @@ export async function getWritingStyle(): Promise<WritingStyle> {
         ? parsedMaxKeywordsPerSkill
         : null,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Story Bank Writing Style Calibration (new feature)
+// ---------------------------------------------------------------------------
+
+type CalibrationResult = {
+  tone: string;
+  sentenceLength: string;
+  vocabulary: string;
+  structure: string;
+  personalityTraits: string[];
+};
+
+export async function calibrateFromSamples(args: {
+  samples: string[];
+  userId?: string;
+}): Promise<Awaited<ReturnType<typeof writingStyleRepo.upsertProfile>>> {
+  if (args.samples.length === 0) {
+    throw new Error("At least one writing sample is required for calibration");
+  }
+
+  const model = await resolveLlmModel("tailoring");
+  const llm = await createConfiguredLlmService("tailoring");
+
+  const prompt = `Analyze the following writing samples and extract the author's writing style profile.
+
+Writing Samples:
+${args.samples.map((s, i) => `--- Sample ${i + 1} ---\n${s}`).join("\n\n")}
+
+Extract:
+1. Tone (formal/informal, confident/humble, technical/conversational)
+2. Sentence length pattern (short/medium/long, varied/consistent)
+3. Vocabulary level (simple/moderate/advanced, technical jargon usage)
+4. Structure preference (paragraphs/bullets/mixed, how ideas are organized)
+5. Personality traits (analytical/creative/pragmatic/empathetic/etc.)
+
+Return as JSON with keys: tone, sentenceLength, vocabulary, structure, personalityTraits (string array).`;
+
+  const result = await llm.callJson<CalibrationResult>({
+    model,
+    messages: [{ role: "user", content: prompt }],
+    jsonSchema: {
+      name: "writing_style_calibration",
+      schema: {
+        type: "object",
+        properties: {
+          tone: { type: "string" },
+          sentenceLength: { type: "string" },
+          vocabulary: { type: "string" },
+          structure: { type: "string" },
+          personalityTraits: { type: "array", items: { type: "string" } },
+        },
+        required: [
+          "tone",
+          "sentenceLength",
+          "vocabulary",
+          "structure",
+          "personalityTraits",
+        ],
+        additionalProperties: false,
+      },
+    },
+    maxRetries: 2,
+  });
+
+  if (!result.success) {
+    throw new Error(`Writing style calibration failed: ${result.error}`);
+  }
+
+  const profile = await writingStyleRepo.upsertProfile({
+    userId: args.userId ?? "anonymous",
+    tone: result.data.tone,
+    sentenceLength: result.data.sentenceLength,
+    vocabulary: result.data.vocabulary,
+    structure: result.data.structure,
+    personalityTraits: result.data.personalityTraits,
+    sampleCount: args.samples.length,
+  });
+
+  logger.info("Writing style calibrated", {
+    userId: args.userId,
+    sampleCount: args.samples.length,
+    tone: result.data.tone,
+  });
+
+  return profile;
+}
+
+export async function getCalibratedProfile(args: {
+  userId?: string;
+}): Promise<Awaited<
+  ReturnType<typeof writingStyleRepo.getProfileForUser>
+> | null> {
+  if (!args.userId) return null;
+  return writingStyleRepo.getProfileForUser(args.userId);
+}
+
+export async function deleteCalibratedProfile(args: {
+  userId?: string;
+}): Promise<void> {
+  if (!args.userId) return;
+  // Find profile by userId first, then delete by profile ID
+  const profile = await writingStyleRepo.getProfileForUser(args.userId);
+  if (profile) {
+    await writingStyleRepo.deleteProfile(profile.id);
+  }
 }

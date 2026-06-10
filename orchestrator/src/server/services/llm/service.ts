@@ -571,11 +571,13 @@ function normalizeProvider(
     return "openai_compatible";
   }
   if (normalized === "openai") return "openai";
+  if (normalized === "opencode") return "opencode";
   if (normalized === "glm") return "glm";
   if (normalized === "gemini") return "gemini";
   if (normalized === "gemini_cli") return "gemini_cli";
   if (normalized === "lmstudio") return "lmstudio";
   if (normalized === "ollama") return "ollama";
+  if (normalized === "ollama_cloud") return "ollama_cloud";
   if (normalized === "codex") return "codex";
   if (normalized && normalized !== "openrouter") {
     logger.warn("Unknown LLM provider, defaulting to openrouter", {

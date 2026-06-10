@@ -904,6 +904,361 @@ export const tracerClickEvents = sqliteTable(
   }),
 );
 
+// ─── A-G Evaluation ──────────────────────────────────────────────────────────
+
+export const jobEvaluations = sqliteTable(
+  "job_evaluations",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id")
+      .notNull()
+      .default("tenant_default")
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    jobId: text("job_id")
+      .notNull()
+      .references(() => jobs.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull(),
+
+    blockACompleted: integer("block_a_completed", { mode: "boolean" })
+      .notNull()
+      .default(false),
+    blockBCompleted: integer("block_b_completed", { mode: "boolean" })
+      .notNull()
+      .default(false),
+    blockCCompleted: integer("block_c_completed", { mode: "boolean" })
+      .notNull()
+      .default(false),
+    blockDCompleted: integer("block_d_completed", { mode: "boolean" })
+      .notNull()
+      .default(false),
+    blockECompleted: integer("block_e_completed", { mode: "boolean" })
+      .notNull()
+      .default(false),
+    blockFCompleted: integer("block_f_completed", { mode: "boolean" })
+      .notNull()
+      .default(false),
+    blockGCompleted: integer("block_g_completed", { mode: "boolean" })
+      .notNull()
+      .default(false),
+
+    blockAData: text("block_a_data", { mode: "json" }),
+    blockBData: text("block_b_data", { mode: "json" }),
+    blockCData: text("block_c_data", { mode: "json" }),
+    blockDData: text("block_d_data", { mode: "json" }),
+    blockEData: text("block_e_data", { mode: "json" }),
+    blockFData: text("block_f_data", { mode: "json" }),
+    blockGData: text("block_g_data", { mode: "json" }),
+
+    status: text("status", {
+      enum: ["pending", "processing", "completed", "failed", "partial"],
+    })
+      .notNull()
+      .default("pending"),
+
+    totalTokensIn: integer("total_tokens_in"),
+    totalTokensOut: integer("total_tokens_out"),
+    estimatedCostUsd: real("estimated_cost_usd"),
+
+    startedAt: text("started_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+    completedAt: text("completed_at"),
+    errorMessage: text("error_message"),
+  },
+  (table) => ({
+    tenantJobIndex: index("idx_evaluations_tenant_job").on(
+      table.tenantId,
+      table.jobId,
+    ),
+    tenantStatusIndex: index("idx_evaluations_tenant_status").on(
+      table.tenantId,
+      table.status,
+    ),
+    tenantUserIndex: index("idx_evaluations_tenant_user").on(
+      table.tenantId,
+      table.userId,
+    ),
+  }),
+);
+
+export const evaluationBlocks = sqliteTable(
+  "evaluation_blocks",
+  {
+    id: text("id").primaryKey(),
+    evaluationId: text("evaluation_id")
+      .notNull()
+      .references(() => jobEvaluations.id, { onDelete: "cascade" }),
+    tenantId: text("tenant_id")
+      .notNull()
+      .default("tenant_default")
+      .references(() => tenants.id, { onDelete: "cascade" }),
+
+    block: text("block", {
+      enum: ["A", "B", "C", "D", "E", "F", "G"],
+    }).notNull(),
+
+    status: text("status", {
+      enum: ["pending", "processing", "completed", "failed", "cached"],
+    })
+      .notNull()
+      .default("pending"),
+
+    data: text("data", { mode: "json" }),
+    tokensIn: integer("tokens_in"),
+    tokensOut: integer("tokens_out"),
+    estimatedCostUsd: real("estimated_cost_usd"),
+    durationMs: integer("duration_ms"),
+    errorMessage: text("error_message"),
+
+    startedAt: text("started_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+    completedAt: text("completed_at"),
+  },
+  (table) => ({
+    evaluationIndex: index("idx_blocks_evaluation").on(table.evaluationId),
+    tenantBlockIndex: index("idx_blocks_tenant_block").on(
+      table.tenantId,
+      table.block,
+    ),
+  }),
+);
+
+// ─── Story Bank ──────────────────────────────────────────────────────────────
+
+export const stories = sqliteTable(
+  "stories",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id")
+      .notNull()
+      .default("tenant_default")
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull(),
+
+    title: text("title").notNull(),
+    content: text("content").notNull(),
+    tags: text("tags", { mode: "json" }).notNull().default("[]"),
+    skills: text("skills", { mode: "json" }).notNull().default("[]"),
+
+    situation: text("situation"),
+    task: text("task"),
+    action: text("action"),
+    result: text("result"),
+    reflection: text("reflection"),
+
+    version: integer("version").notNull().default(1),
+
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+    updatedAt: text("updated_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+  },
+  (table) => ({
+    tenantIndex: index("idx_stories_tenant").on(table.tenantId),
+    tenantUserIndex: index("idx_stories_tenant_user").on(
+      table.tenantId,
+      table.userId,
+    ),
+  }),
+);
+
+export const storyMappings = sqliteTable(
+  "story_mappings",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id")
+      .notNull()
+      .default("tenant_default")
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    evaluationId: text("evaluation_id")
+      .notNull()
+      .references(() => jobEvaluations.id, { onDelete: "cascade" }),
+    storyId: text("story_id")
+      .notNull()
+      .references(() => stories.id, { onDelete: "cascade" }),
+
+    jobRequirement: text("job_requirement").notNull(),
+    relevanceScore: real("relevance_score").notNull(),
+    starPlusR: text("star_plus_r", { mode: "json" }).notNull(),
+
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+  },
+  (table) => ({
+    tenantEvaluationIndex: index("idx_mappings_tenant_evaluation").on(
+      table.tenantId,
+      table.evaluationId,
+    ),
+    storyIndex: index("idx_mappings_story").on(table.storyId),
+  }),
+);
+
+// ─── Interview Prep ──────────────────────────────────────────────────────────
+
+export const interviewPrepPacks = sqliteTable(
+  "interview_prep_packs",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id")
+      .notNull()
+      .default("tenant_default")
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    jobId: text("job_id")
+      .notNull()
+      .references(() => jobs.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull(),
+
+    audience: text("audience", {
+      enum: ["recruiter", "hiring-manager", "peer", "general"],
+    }).notNull(),
+
+    status: text("status", {
+      enum: ["generating", "completed", "failed"],
+    })
+      .notNull()
+      .default("generating"),
+
+    companyIntel: text("company_intel", { mode: "json" }),
+    questions: text("questions", { mode: "json" }),
+    talkingPoints: text("talking_points", { mode: "json" }),
+
+    generatedAt: text("generated_at"),
+    errorMessage: text("error_message"),
+
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+    updatedAt: text("updated_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+  },
+  (table) => ({
+    tenantJobIndex: index("idx_prep_tenant_job").on(
+      table.tenantId,
+      table.jobId,
+    ),
+    tenantUserIndex: index("idx_prep_tenant_user").on(
+      table.tenantId,
+      table.userId,
+    ),
+  }),
+);
+
+// ─── Writing Style ───────────────────────────────────────────────────────────
+
+export const writingStyleProfiles = sqliteTable(
+  "writing_style_profiles",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id")
+      .notNull()
+      .default("tenant_default")
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull(),
+
+    tone: text("tone").notNull(),
+    sentenceLength: text("sentence_length").notNull(),
+    vocabulary: text("vocabulary").notNull(),
+    structure: text("structure").notNull(),
+    personalityTraits: text("personality_traits", { mode: "json" })
+      .notNull()
+      .default("[]"),
+
+    sampleCount: integer("sample_count").notNull().default(0),
+
+    calibratedAt: text("calibrated_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+    updatedAt: text("updated_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+  },
+  (table) => ({
+    tenantUserIndex: index("idx_style_tenant_user").on(
+      table.tenantId,
+      table.userId,
+    ),
+  }),
+);
+
+// ─── Legitimacy ──────────────────────────────────────────────────────────────
+
+export const legitimacySignals = sqliteTable(
+  "legitimacy_signals",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id")
+      .notNull()
+      .default("tenant_default")
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    jobId: text("job_id")
+      .notNull()
+      .references(() => jobs.id, { onDelete: "cascade" }),
+
+    postingAge: integer("posting_age"),
+    recencyScore: real("recency_score"),
+    descriptionPatternScore: real("description_pattern_score"),
+    companyVerificationScore: real("company_verification_score"),
+    socialPresenceScore: real("social_presence_score"),
+
+    rawSignals: text("raw_signals", { mode: "json" }),
+
+    gatheredAt: text("gathered_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+  },
+  (table) => ({
+    tenantJobIndex: index("idx_signals_tenant_job").on(
+      table.tenantId,
+      table.jobId,
+    ),
+  }),
+);
+
+export const legitimacyScores = sqliteTable(
+  "legitimacy_scores",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id")
+      .notNull()
+      .default("tenant_default")
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    jobId: text("job_id")
+      .notNull()
+      .references(() => jobs.id, { onDelete: "cascade" }),
+    signalId: text("signal_id")
+      .notNull()
+      .references(() => legitimacySignals.id, { onDelete: "cascade" }),
+
+    score: integer("score").notNull(),
+    confidence: text("confidence", {
+      enum: ["high", "medium", "low"],
+    }).notNull(),
+
+    redFlags: text("red_flags", { mode: "json" }).notNull().default("[]"),
+    llmAnalysis: text("llm_analysis"),
+
+    analyzedAt: text("analyzed_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+  },
+  (table) => ({
+    tenantJobIndex: index("idx_legitimacy_tenant_job").on(
+      table.tenantId,
+      table.jobId,
+    ),
+  }),
+);
+
+// ─── Type Exports ────────────────────────────────────────────────────────────
+
 export type UserRow = typeof users.$inferSelect;
 export type NewUserRow = typeof users.$inferInsert;
 export type TenantRow = typeof tenants.$inferSelect;
@@ -966,3 +1321,19 @@ export type TracerLinkRow = typeof tracerLinks.$inferSelect;
 export type NewTracerLinkRow = typeof tracerLinks.$inferInsert;
 export type TracerClickEventRow = typeof tracerClickEvents.$inferSelect;
 export type NewTracerClickEventRow = typeof tracerClickEvents.$inferInsert;
+export type JobEvaluationRow = typeof jobEvaluations.$inferSelect;
+export type NewJobEvaluationRow = typeof jobEvaluations.$inferInsert;
+export type EvaluationBlockRow = typeof evaluationBlocks.$inferSelect;
+export type NewEvaluationBlockRow = typeof evaluationBlocks.$inferInsert;
+export type StoryRow = typeof stories.$inferSelect;
+export type NewStoryRow = typeof stories.$inferInsert;
+export type StoryMappingRow = typeof storyMappings.$inferSelect;
+export type NewStoryMappingRow = typeof storyMappings.$inferInsert;
+export type InterviewPrepPackRow = typeof interviewPrepPacks.$inferSelect;
+export type NewInterviewPrepPackRow = typeof interviewPrepPacks.$inferInsert;
+export type WritingStyleProfileRow = typeof writingStyleProfiles.$inferSelect;
+export type NewWritingStyleProfileRow = typeof writingStyleProfiles.$inferInsert;
+export type LegitimacySignalRow = typeof legitimacySignals.$inferSelect;
+export type NewLegitimacySignalRow = typeof legitimacySignals.$inferInsert;
+export type LegitimacyScoreRow = typeof legitimacyScores.$inferSelect;
+export type NewLegitimacyScoreRow = typeof legitimacyScores.$inferInsert;

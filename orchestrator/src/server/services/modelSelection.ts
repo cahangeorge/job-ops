@@ -77,9 +77,11 @@ function getDefaultBaseUrlForProvider(
 ): string | null {
   const normalized = provider?.trim().toLowerCase().replace(/-/g, "_");
   if (normalized === "ollama") return "http://localhost:11434";
+  if (normalized === "ollama_cloud") return "https://api.ollama.com";
   if (normalized === "lmstudio") return "http://localhost:1234";
   if (normalized === "openai") return "https://api.openai.com";
   if (normalized === "openai_compatible") return "https://api.openai.com";
+  if (normalized === "opencode") return "https://api.opencode.ai";
   if (normalized === "glm") return "https://api.z.ai/api/paas/v4";
   if (normalized === "gemini") {
     return "https://generativelanguage.googleapis.com";

@@ -5,16 +5,20 @@ import { geminiCliStrategy } from "./gemini_cli";
 import { glmStrategy } from "./glm";
 import { lmStudioStrategy } from "./lmstudio";
 import { ollamaStrategy } from "./ollama";
+import { ollamaCloudStrategy } from "./ollama-cloud";
 import { openAiStrategy } from "./openai";
 import { openAiCompatibleStrategy } from "./openai-compatible";
 import { openRouterStrategy } from "./openrouter";
+import { opencodeStrategy } from "./opencode";
 
 export const strategies: Record<LlmProvider, ProviderStrategy> = {
   openrouter: openRouterStrategy,
   lmstudio: lmStudioStrategy,
   ollama: ollamaStrategy,
+  ollama_cloud: ollamaCloudStrategy,
   openai: openAiStrategy,
   openai_compatible: openAiCompatibleStrategy,
+  opencode: opencodeStrategy,
   glm: glmStrategy,
   gemini: geminiStrategy,
   gemini_cli: geminiCliStrategy,

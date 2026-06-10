@@ -1285,6 +1285,169 @@ function seedLegacyOwnerFromBasicAuth(): void {
   sqlite.exec("DELETE FROM auth_sessions");
 }
 
+// ─── A-G Evaluation & New Feature Tables ──────────────────────────────────────
+
+console.log("📊 Creating A-G evaluation & new feature tables...");
+
+sqlite.exec(`
+  CREATE TABLE IF NOT EXISTS job_evaluations (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL DEFAULT 'tenant_default' REFERENCES tenants(id) ON DELETE CASCADE,
+    job_id TEXT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL,
+    block_a_completed INTEGER NOT NULL DEFAULT 0,
+    block_b_completed INTEGER NOT NULL DEFAULT 0,
+    block_c_completed INTEGER NOT NULL DEFAULT 0,
+    block_d_completed INTEGER NOT NULL DEFAULT 0,
+    block_e_completed INTEGER NOT NULL DEFAULT 0,
+    block_f_completed INTEGER NOT NULL DEFAULT 0,
+    block_g_completed INTEGER NOT NULL DEFAULT 0,
+    block_a_data TEXT,
+    block_b_data TEXT,
+    block_c_data TEXT,
+    block_d_data TEXT,
+    block_e_data TEXT,
+    block_f_data TEXT,
+    block_g_data TEXT,
+    status TEXT NOT NULL DEFAULT 'pending',
+    total_tokens_in INTEGER,
+    total_tokens_out INTEGER,
+    estimated_cost_usd REAL,
+    started_at TEXT NOT NULL DEFAULT (datetime('now')),
+    completed_at TEXT,
+    error_message TEXT
+  )
+`);
+sqlite.exec("CREATE INDEX IF NOT EXISTS idx_evaluations_tenant_job ON job_evaluations(tenant_id, job_id)");
+sqlite.exec("CREATE INDEX IF NOT EXISTS idx_evaluations_tenant_status ON job_evaluations(tenant_id, status)");
+sqlite.exec("CREATE INDEX IF NOT EXISTS idx_evaluations_tenant_user ON job_evaluations(tenant_id, user_id)");
+
+sqlite.exec(`
+  CREATE TABLE IF NOT EXISTS evaluation_blocks (
+    id TEXT PRIMARY KEY,
+    evaluation_id TEXT NOT NULL REFERENCES job_evaluations(id) ON DELETE CASCADE,
+    tenant_id TEXT NOT NULL DEFAULT 'tenant_default' REFERENCES tenants(id) ON DELETE CASCADE,
+    block TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    data TEXT,
+    tokens_in INTEGER,
+    tokens_out INTEGER,
+    estimated_cost_usd REAL,
+    duration_ms INTEGER,
+    error_message TEXT,
+    started_at TEXT NOT NULL DEFAULT (datetime('now')),
+    completed_at TEXT
+  )
+`);
+sqlite.exec("CREATE INDEX IF NOT EXISTS idx_blocks_evaluation ON evaluation_blocks(evaluation_id)");
+sqlite.exec("CREATE INDEX IF NOT EXISTS idx_blocks_tenant_block ON evaluation_blocks(tenant_id, block)");
+
+sqlite.exec(`
+  CREATE TABLE IF NOT EXISTS stories (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL DEFAULT 'tenant_default' REFERENCES tenants(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    tags TEXT NOT NULL DEFAULT '[]',
+    skills TEXT NOT NULL DEFAULT '[]',
+    situation TEXT,
+    task TEXT,
+    action TEXT,
+    result TEXT,
+    reflection TEXT,
+    version INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )
+`);
+sqlite.exec("CREATE INDEX IF NOT EXISTS idx_stories_tenant ON stories(tenant_id)");
+sqlite.exec("CREATE INDEX IF NOT EXISTS idx_stories_tenant_user ON stories(tenant_id, user_id)");
+
+sqlite.exec(`
+  CREATE TABLE IF NOT EXISTS story_mappings (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL DEFAULT 'tenant_default' REFERENCES tenants(id) ON DELETE CASCADE,
+    evaluation_id TEXT NOT NULL REFERENCES job_evaluations(id) ON DELETE CASCADE,
+    story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
+    job_requirement TEXT NOT NULL,
+    relevance_score REAL NOT NULL,
+    star_plus_r TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )
+`);
+sqlite.exec("CREATE INDEX IF NOT EXISTS idx_mappings_tenant_evaluation ON story_mappings(tenant_id, evaluation_id)");
+sqlite.exec("CREATE INDEX IF NOT EXISTS idx_mappings_story ON story_mappings(story_id)");
+
+sqlite.exec(`
+  CREATE TABLE IF NOT EXISTS interview_prep_packs (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL DEFAULT 'tenant_default' REFERENCES tenants(id) ON DELETE CASCADE,
+    job_id TEXT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL,
+    audience TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'generating',
+    company_intel TEXT,
+    questions TEXT,
+    talking_points TEXT,
+    generated_at TEXT,
+    error_message TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )
+`);
+sqlite.exec("CREATE INDEX IF NOT EXISTS idx_prep_tenant_job ON interview_prep_packs(tenant_id, job_id)");
+sqlite.exec("CREATE INDEX IF NOT EXISTS idx_prep_tenant_user ON interview_prep_packs(tenant_id, user_id)");
+
+sqlite.exec(`
+  CREATE TABLE IF NOT EXISTS writing_style_profiles (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL DEFAULT 'tenant_default' REFERENCES tenants(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL,
+    tone TEXT NOT NULL,
+    sentence_length TEXT NOT NULL,
+    vocabulary TEXT NOT NULL,
+    structure TEXT NOT NULL,
+    personality_traits TEXT NOT NULL DEFAULT '[]',
+    sample_count INTEGER NOT NULL DEFAULT 0,
+    calibrated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )
+`);
+sqlite.exec("CREATE INDEX IF NOT EXISTS idx_style_tenant_user ON writing_style_profiles(tenant_id, user_id)");
+
+sqlite.exec(`
+  CREATE TABLE IF NOT EXISTS legitimacy_signals (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL DEFAULT 'tenant_default' REFERENCES tenants(id) ON DELETE CASCADE,
+    job_id TEXT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+    posting_age INTEGER,
+    recency_score REAL,
+    description_pattern_score REAL,
+    company_verification_score REAL,
+    social_presence_score REAL,
+    raw_signals TEXT,
+    gathered_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )
+`);
+sqlite.exec("CREATE INDEX IF NOT EXISTS idx_signals_tenant_job ON legitimacy_signals(tenant_id, job_id)");
+
+sqlite.exec(`
+  CREATE TABLE IF NOT EXISTS legitimacy_scores (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL DEFAULT 'tenant_default' REFERENCES tenants(id) ON DELETE CASCADE,
+    job_id TEXT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+    signal_id TEXT NOT NULL REFERENCES legitimacy_signals(id) ON DELETE CASCADE,
+    score INTEGER NOT NULL,
+    confidence TEXT NOT NULL,
+    red_flags TEXT NOT NULL DEFAULT '[]',
+    llm_analysis TEXT,
+    analyzed_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )
+`);
+sqlite.exec("CREATE INDEX IF NOT EXISTS idx_legitimacy_tenant_job ON legitimacy_scores(tenant_id, job_id)");
+
 console.log("🔐 Applying tenancy compatibility migrations...");
 ensureTenantColumns();
 rebuildSettingsTable();
