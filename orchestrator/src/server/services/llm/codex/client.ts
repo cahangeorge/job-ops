@@ -9,6 +9,7 @@ import {
   type LlmRequestOptions,
 } from "../types";
 import { truncate } from "../utils/string";
+import { resolveCodexCommand } from "./command";
 
 const DEFAULT_STARTUP_TIMEOUT_MS = 15_000;
 const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
@@ -307,7 +308,7 @@ class CodexAppServerSession {
     signal?: AbortSignal;
     startupTimeoutMs?: number;
   }): Promise<CodexAppServerSession> {
-    const command = process.env.CODEX_APP_SERVER_BIN?.trim() || "codex";
+    const command = resolveCodexCommand();
     const proc = spawn(command, ["app-server", "--listen", "stdio://"], {
       stdio: "pipe",
       cwd: process.cwd(),
