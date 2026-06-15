@@ -1,5 +1,6 @@
 import * as api from "@client/api";
 import {
+  CareerOpsQuickActions,
   JobBriefPane,
   JobDescriptionPanel,
   JobHeader,
@@ -262,7 +263,7 @@ export const JobDetailPanel: React.FC<JobDetailPanelProps> = ({
   const markAsAppliedMutation = useMarkAsAppliedMutation();
   const skipJobMutation = useSkipJobMutation();
   const { isRescoring, rescoreJob } = useRescoreJob(onJobUpdated);
-  const { personName } = useProfile();
+  const { personName, profile } = useProfile();
 
   const jobLink = selectedJob
     ? selectedJob.applicationLink || selectedJob.jobUrl
@@ -728,6 +729,10 @@ export const JobDetailPanel: React.FC<JobDetailPanelProps> = ({
             description={selectedJob.jobDescription}
             jobUrl={selectedJob.jobUrl}
             onSave={handleSaveDescription}
+          />
+          <CareerOpsQuickActions
+            job={selectedJob}
+            resumeSummaryFallback={profile?.basics?.summary ?? null}
           />
         </TabsContent>
 

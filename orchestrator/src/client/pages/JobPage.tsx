@@ -39,6 +39,7 @@ import {
   useSkipJobMutation,
   useUpdateJobMutation,
 } from "@/client/hooks/queries/useJobMutations";
+import { useProfile } from "@/client/hooks/useProfile";
 import { useQueryErrorToast } from "@/client/hooks/useQueryErrorToast";
 import { showErrorToast } from "@/client/lib/error-toast";
 import { uploadJobPdfFromFile } from "@/client/lib/job-pdf-upload";
@@ -137,6 +138,7 @@ export const JobPage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
+  const { profile } = useProfile();
   const [isLogModalOpen, setIsLogModalOpen] = React.useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false);
   const [isEditDetailsOpen, setIsEditDetailsOpen] = React.useState(false);
@@ -913,6 +915,7 @@ export const JobPage: React.FC = () => {
               onCopyJobInfo={() => void handleCopyJobInfo()}
               onRescore={() => void handleRescore()}
               onCheckSponsor={() => void handleCheckSponsor()}
+              resumeSummaryFallback={profile?.basics?.summary ?? null}
             />
           )}
         </div>

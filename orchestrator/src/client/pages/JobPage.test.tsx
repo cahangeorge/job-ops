@@ -88,6 +88,9 @@ vi.mock("../api", () => ({
   rescoreJob: vi.fn(),
   generateJobPdf: vi.fn(),
   checkSponsor: vi.fn(),
+  getProfile: vi.fn().mockResolvedValue({
+    basics: { summary: "Base profile summary" },
+  }),
 }));
 
 vi.mock("../components/JobHeader", () => ({

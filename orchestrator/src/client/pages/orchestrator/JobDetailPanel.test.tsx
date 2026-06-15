@@ -133,8 +133,15 @@ vi.mock("@client/api", () => ({
   generateJobPdf: vi.fn(),
   markAsApplied: vi.fn(),
   skipJob: vi.fn(),
-  getProfile: vi.fn().mockResolvedValue({}),
+  getCareerOpsAvailability: vi.fn().mockResolvedValue(true),
+  getProfile: vi.fn().mockResolvedValue({
+    basics: { summary: "Base profile summary" },
+  }),
   getResumeProjectsCatalog: vi.fn().mockResolvedValue([]),
+  analyzeAtsKeywords: vi.fn(),
+  generateCoverLetter: vi.fn(),
+  generateNegotiationScripts: vi.fn(),
+  scanCompanyPortal: vi.fn(),
 }));
 
 vi.mock("sonner", () => ({
@@ -175,6 +182,10 @@ describe("JobDetailPanel", () => {
     });
 
     expect(screen.getByText("Start Tailoring")).toBeInTheDocument();
+    expect(screen.getByTestId("career-ops-quick-actions")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Scan company jobs" }),
+    ).toBeDisabled();
     expect(
       screen.getByText(
         "Base description extracted from the job listing, editable if something looks off. Used by the Ghostwriter and for fit assessment.",

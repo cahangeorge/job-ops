@@ -1,8 +1,18 @@
 import { createJob } from "@shared/testing/factories.js";
-import { render, screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
+import { renderWithQueryClient } from "@/client/test/renderWithQueryClient";
 import { JobPageRightSidebar } from "./JobPageRightSidebar";
+
+vi.mock("@client/api", () => ({
+  getCareerOpsAvailability: vi.fn().mockResolvedValue(true),
+  analyzeAtsKeywords: vi.fn(),
+  generateCoverLetter: vi.fn(),
+  generateNegotiationScripts: vi.fn(),
+  scanCompanyPortal: vi.fn(),
+  createJobNote: vi.fn(),
+}));
 
 vi.mock("@/components/ui/dropdown-menu", () => ({
   DropdownMenu: ({ children }: { children: ReactNode }) => <>{children}</>,
@@ -38,7 +48,7 @@ function renderRightSidebar(overrides: Parameters<typeof createJob>[0] = {}) {
     ...overrides,
   });
 
-  return render(
+  return renderWithQueryClient(
     <JobPageRightSidebar
       job={job}
       tasks={[]}
@@ -69,12 +79,13 @@ function renderRightSidebar(overrides: Parameters<typeof createJob>[0] = {}) {
       onCopyJobInfo={noop}
       onRescore={noop}
       onCheckSponsor={noop}
+      resumeSummaryFallback="Base profile summary"
     />,
   );
 }
 
 describe("JobPageRightSidebar actions", () => {
-  it("includes the orchestrator detail menu actions on the job page", () => {
+  it("includes the orchestrator detail menu actions on the job page", async () => {
     renderRightSidebar();
 
     expect(
@@ -98,6 +109,18 @@ describe("JobPageRightSidebar actions", () => {
     expect(
       screen.getByRole("button", { name: /download old pdf/i }),
     ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /ats fit/i })).toBeInTheDocument(),
+    );
+    expect(
+      screen.getByRole("button", { name: /cover letter/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /negotiation/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /scan company jobs/i }),
+    ).toBeDisabled();
   });
 
   it("uses upload wording when the job has no resume PDF", () => {

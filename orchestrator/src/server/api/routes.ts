@@ -25,6 +25,12 @@ import { webhookRouter } from "./routes/webhook";
 import { workdayRouter } from "./routes/workday";
 import { workspacesRouter } from "./routes/workspaces";
 
+import { coverLetterRouter } from "./routes/cover-letter";
+import { negotiationRouter } from "./routes/negotiation";
+import { atsRouter } from "./routes/ats";
+import { portalScannerRouter } from "./routes/portal-scanner";
+import { careerOpsRouter } from "./routes/career-ops";
+
 export const apiRouter = Router();
 
 apiRouter.use("/jobs", jobsRouter);
@@ -47,4 +53,9 @@ apiRouter.use("/workspaces", workspacesRouter);
 apiRouter.use("/auth", authRouter);
 apiRouter.use("/workday", workdayRouter);
 apiRouter.use("/watchlist", watchlistRouter);
+apiRouter.use("/cover-letter", coverLetterRouter);
+apiRouter.use("/negotiation", negotiationRouter);
+apiRouter.use("/ats", atsRouter);
+apiRouter.use("/portal-scanner", portalScannerRouter);
+apiRouter.use("/career-ops", careerOpsRouter);
 apiRouter.use("/", extractorHealthRouter);

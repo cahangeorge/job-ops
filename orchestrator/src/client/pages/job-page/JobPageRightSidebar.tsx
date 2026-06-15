@@ -15,6 +15,7 @@ import {
   XCircle,
 } from "lucide-react";
 import type React from "react";
+import { CareerOpsQuickActions } from "@/client/components/CareerOpsQuickActions";
 import { TooltipWhenDisabled } from "@/client/components/TooltipWhenDisabled";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -57,6 +58,7 @@ type JobPageRightSidebarProps = {
   onCopyJobInfo: () => void;
   onRescore: () => void;
   onCheckSponsor: () => void;
+  resumeSummaryFallback?: string | null;
 };
 
 export const JobPageRightSidebar: React.FC<JobPageRightSidebarProps> = ({
@@ -89,6 +91,7 @@ export const JobPageRightSidebar: React.FC<JobPageRightSidebarProps> = ({
   onCopyJobInfo,
   onRescore,
   onCheckSponsor,
+  resumeSummaryFallback,
 }) => (
   <aside className="space-y-4 xl:sticky xl:top-5">
     <section className="rounded-xl border border-border/50 bg-card/85 p-3">
@@ -174,6 +177,12 @@ export const JobPageRightSidebar: React.FC<JobPageRightSidebarProps> = ({
             Edit Tailoring
           </Button>
         )}
+
+        <CareerOpsQuickActions
+          job={job}
+          resumeSummaryFallback={resumeSummaryFallback}
+          className="mt-2"
+        />
 
         {job.pdfPath && (
           <TooltipWhenDisabled

@@ -1,3 +1,4 @@
+export { CareerOpsQuickActions } from "./CareerOpsQuickActions";
 export { FitAssessmentContent } from "./FitAssessmentContent";
 export { JobBriefPane } from "./JobBriefPane";
 export { JobDescriptionPanel } from "./JobDescriptionPanel";

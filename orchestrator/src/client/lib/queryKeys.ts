@@ -10,6 +10,10 @@ export const queryKeys = {
     all: ["settings"] as const,
     current: () => [...queryKeys.settings.all, "current"] as const,
   },
+  careerOps: {
+    all: ["career-ops"] as const,
+    availability: () => [...queryKeys.careerOps.all, "availability"] as const,
+  },
   profile: {
     all: ["profile"] as const,
     current: () => [...queryKeys.profile.all, "current"] as const,
