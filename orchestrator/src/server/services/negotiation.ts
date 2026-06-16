@@ -19,7 +19,14 @@ const NEGOTIATION_SCHEMA: JsonSchemaDefinition = {
       competingOfferLeverage: { type: "string" },
       timeline: { type: "string" },
     },
-    required: ["openingScript", "counterOfferScript", "timeline"],
+    required: [
+      "openingScript",
+      "counterOfferScript",
+      "geographicDiscountPushback",
+      "benefitsNegotiation",
+      "competingOfferLeverage",
+      "timeline",
+    ],
     additionalProperties: false,
   },
 };
