@@ -7,6 +7,7 @@ export type CareerOpsFeatureStatus =
 
 export type CareerOpsFeatureSurface =
   | "job-page-action"
+  | "job-detail-panel"
   | "coverage-page"
   | "standalone-page"
   | "api-only"
@@ -116,13 +117,15 @@ export const CAREER_OPS_FEATURES: CareerOpsFeature[] = [
     label: "Interview Prep",
     description:
       "Prepare company-specific interview intel, questions, answer outlines, and STAR+R stories.",
-    status: "missing",
-    surface: "not-wired",
+    status: "partial",
+    surface: "job-detail-panel",
     sourceArea: "interview-prep",
     sourcePath: "vendor/career-ops/modes/interview.md",
-    missingReason: "No native JobOps route or component identified yet.",
+    jobOpsPath: "orchestrator/src/client/pages/job-page/InterviewPrepPanel.tsx",
+    missingReason:
+      "JobOps now has a job-detail Interview Prep panel using evaluation guidance and Story Bank proof points, but it does not yet call a dedicated interview-prep generation service.",
     nextStep:
-      "Port interview prep as a job-detail panel that can save outputs to job notes.",
+      "Add LLM-backed question/answer-outline generation and persist generated prep artifacts to notes.",
   },
   {
     id: "story-bank",

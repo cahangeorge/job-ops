@@ -77,6 +77,7 @@ import { getDeleteEventDescription } from "./job/deleteEventDescription";
 import { JobTimeline } from "./job/Timeline";
 import { JobDocumentsPanel } from "./job-page/JobDocumentsPanel";
 import { JobEmailsPanel } from "./job-page/JobEmailsPanel";
+import { InterviewPrepPanel } from "./job-page/InterviewPrepPanel";
 import { JobNotesCard } from "./job-page/JobNotesCard";
 import {
   type JobMemoryView,
@@ -90,6 +91,7 @@ const normalizeMemoryView = (view: string | undefined): JobMemoryView => {
   if (
     view === "documents" ||
     view === "timeline" ||
+    view === "interview-prep" ||
     view === "emails" ||
     view === "ghostwriter"
   ) {
@@ -855,6 +857,10 @@ export const JobPage: React.FC = () => {
             )}
 
             {activeMemoryView === "emails" && <JobEmailsPanel jobId={job.id} />}
+
+            {activeMemoryView === "interview-prep" && (
+              <InterviewPrepPanel job={job} />
+            )}
 
             {activeMemoryView === "ghostwriter" && (
               <section className="">

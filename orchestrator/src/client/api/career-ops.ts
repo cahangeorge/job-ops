@@ -134,6 +134,7 @@ export type CareerOpsFeatureStatus =
 
 export type CareerOpsFeatureSurface =
   | "job-page-action"
+  | "job-detail-panel"
   | "coverage-page"
   | "standalone-page"
   | "api-only"

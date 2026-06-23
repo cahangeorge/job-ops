@@ -77,6 +77,7 @@ vi.mock("../api", () => ({
   getJobTasks: vi.fn(),
   getJobNotes: vi.fn(),
   getJobEmails: vi.fn(),
+  getInterviewStories: vi.fn(),
   createJobNote: vi.fn(),
   updateJobNote: vi.fn(),
   deleteJobNote: vi.fn(),
@@ -184,6 +185,25 @@ beforeEach(() => {
   vi.mocked(api.getJobEmails).mockResolvedValue({
     items: [],
     total: 0,
+  });
+  vi.mocked(api.getInterviewStories).mockResolvedValue({
+    stories: [
+      {
+        id: "story-1",
+        tenantId: "tenant_default",
+        title: "Scale incident",
+        situation: "Traffic spiked during launch.",
+        task: "Keep the platform online.",
+        action: "Added queue backpressure.",
+        result: "Error rate dropped below 1%.",
+        reflection: null,
+        skills: "systems",
+        tags: "reliability",
+        isMasterStory: true,
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+    ],
   });
   vi.mocked(api.createJobNote).mockImplementation(async (jobId, input) => {
     const created = makeNote({
@@ -436,6 +456,37 @@ describe("JobPage notes", () => {
     expect(toast.success).toHaveBeenCalledWith("Note deleted");
     await waitFor(() =>
       expect(screen.queryByText("Why this company")).toBeNull(),
+    );
+  });
+});
+
+describe("JobPage interview prep", () => {
+  it("renders the Interview Prep panel and can save selected stories to notes", async () => {
+    vi.mocked(api.getJob).mockResolvedValue(
+      createJob({
+        id: "job-1",
+        title: "Senior Platform Engineer",
+        employer: "Acme Labs",
+        evaluationInterviewPrep: "Expect incident response questions.",
+      }) as Job,
+    );
+
+    renderJobPage("/job/job-1/interview-prep");
+
+    expect(await screen.findByTestId("interview-prep-panel")).toBeInTheDocument();
+    expect(await screen.findByText("Scale incident")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: /Use story Scale incident/i }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Save prep to notes" }));
+
+    await waitFor(() => expect(api.createJobNote).toHaveBeenCalled());
+    expect(vi.mocked(api.createJobNote).mock.calls[0]?.[0]).toBe("job-1");
+    expect(vi.mocked(api.createJobNote).mock.calls[0]?.[1]?.title).toBe(
+      "Interview prep — Acme Labs",
+    );
+    expect(vi.mocked(api.createJobNote).mock.calls[0]?.[1]?.content).toContain(
+      "Scale incident",
     );
   });
 });

@@ -37,7 +37,7 @@ describe("CareerOps feature registry", () => {
     );
   });
 
-  it("marks backend-only CareerOps ports as partial api-only features", () => {
+  it("marks ported CareerOps surfaces as partial features", () => {
     expect(CAREER_OPS_FEATURES).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -45,6 +45,12 @@ describe("CareerOps feature registry", () => {
           status: "partial",
           surface: "standalone-page",
           jobOpsPath: "orchestrator/src/client/pages/StoryBankPage.tsx",
+        }),
+        expect.objectContaining({
+          id: "interview-prep",
+          status: "partial",
+          surface: "job-detail-panel",
+          jobOpsPath: "orchestrator/src/client/pages/job-page/InterviewPrepPanel.tsx",
         }),
         expect.objectContaining({
           id: "batch-processing",
