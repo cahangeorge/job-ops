@@ -30,14 +30,14 @@ describe("CareerOps feature registry", () => {
     );
     expect(missing.map((feature) => feature.id)).toEqual(
       expect.arrayContaining([
-        "interview-prep",
         "liveness-checker",
         "follow-up-cadence",
+        "pattern-analysis",
       ]),
     );
   });
 
-  it("marks ported CareerOps surfaces as partial features", () => {
+  it("marks ported CareerOps surfaces with their current status and location", () => {
     expect(CAREER_OPS_FEATURES).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -48,7 +48,7 @@ describe("CareerOps feature registry", () => {
         }),
         expect.objectContaining({
           id: "interview-prep",
-          status: "partial",
+          status: "implemented",
           surface: "job-detail-panel",
           jobOpsPath: "orchestrator/src/client/pages/job-page/InterviewPrepPanel.tsx",
         }),

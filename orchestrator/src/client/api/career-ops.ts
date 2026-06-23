@@ -121,6 +121,44 @@ export interface BatchJobInputs {
   profile?: Record<string, unknown>;
 }
 
+export interface InterviewPrepStoryInput {
+  id: string;
+  title: string;
+  situation?: string;
+  task?: string;
+  action?: string;
+  result?: string;
+  reflection?: string | null;
+  skills?: string | null;
+  tags?: string | null;
+  isMasterStory?: boolean;
+}
+
+export interface GenerateInterviewPrepInput {
+  jobTitle: string;
+  employer: string;
+  jobDescription?: string | null;
+  resumeSummary?: string | null;
+  companyResearch?: string | null;
+  evaluationInterviewPrep?: string | null;
+  targetQuestions?: string | null;
+  stories?: InterviewPrepStoryInput[];
+}
+
+export interface InterviewPrepAnswerOutline {
+  question: string;
+  outline: string;
+  storyIds: string[];
+}
+
+export interface GenerateInterviewPrepResult {
+  prepGuidance: string;
+  targetQuestions: string[];
+  answerOutlines: InterviewPrepAnswerOutline[];
+  recommendedStoryIds: string[];
+  interviewerQuestions: string[];
+}
+
 export interface BatchCoverLettersRequest {
   inputs: BatchCoverLetterInput[];
 }
@@ -190,6 +228,15 @@ export async function scanCompanyPortal(
   input: PortalScannerInput,
 ): Promise<PortalScanResult> {
   return fetchApi<PortalScanResult>("/portal-scanner/scan", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function generateInterviewPrep(
+  input: GenerateInterviewPrepInput,
+): Promise<GenerateInterviewPrepResult> {
+  return fetchApi<GenerateInterviewPrepResult>("/interview-prep/generate", {
     method: "POST",
     body: JSON.stringify(input),
   });

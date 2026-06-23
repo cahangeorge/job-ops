@@ -1,9 +1,10 @@
+import type { GenerateInterviewPrepResult } from "@client/api";
 import * as api from "@client/api";
 import { showErrorToast } from "@client/lib/error-toast";
 import { queryKeys } from "@client/lib/queryKeys";
 import type { InterviewStory, Job } from "@shared/types.js";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BookOpenCheck, FileText, Loader2, Save } from "lucide-react";
+import { BookOpenCheck, FileText, Loader2, Save, Sparkles } from "lucide-react";
 import type React from "react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -37,13 +38,41 @@ function storyToMarkdown(story: InterviewStory): string {
     .join("\n");
 }
 
+function answerOutlinesToMarkdown(
+  outlines: GenerateInterviewPrepResult["answerOutlines"] | undefined,
+): string {
+  if (!outlines?.length) return "No generated answer outlines yet.";
+
+  return outlines
+    .map((outline) =>
+      [
+        `### ${outline.question}`,
+        outline.outline,
+        outline.storyIds.length > 0
+          ? `Story IDs: ${outline.storyIds.join(", ")}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join("\n"),
+    )
+    .join("\n\n");
+}
+
+function interviewerQuestionsToMarkdown(
+  questions: string[] | undefined,
+): string {
+  if (!questions?.length) return "No generated interviewer questions yet.";
+  return questions.map((question) => `- ${question}`).join("\n");
+}
+
 export function buildInterviewPrepNoteContent(input: {
   job: Job;
   prepGuidance: string;
   targetQuestions: string;
   stories: InterviewStory[];
+  generatedPrep?: GenerateInterviewPrepResult | null;
 }): string {
-  const { job, prepGuidance, targetQuestions, stories } = input;
+  const { job, prepGuidance, targetQuestions, stories, generatedPrep } = input;
   const storySection =
     stories.length > 0
       ? stories.map(storyToMarkdown).join("\n\n")
@@ -62,6 +91,12 @@ export function buildInterviewPrepNoteContent(input: {
     "",
     "## Target questions",
     targetQuestions.trim() || DEFAULT_TARGET_QUESTIONS,
+    "",
+    "## Generated answer outlines",
+    answerOutlinesToMarkdown(generatedPrep?.answerOutlines),
+    "",
+    "## Questions to ask the interviewer",
+    interviewerQuestionsToMarkdown(generatedPrep?.interviewerQuestions),
     "",
     "## Reusable STAR+R stories",
     storySection,
@@ -90,6 +125,8 @@ export const InterviewPrepPanel: React.FC<InterviewPrepPanelProps> = ({ job }) =
       "Review the job description, company context, and saved proof points before the interview.",
   );
   const [targetQuestions, setTargetQuestions] = useState(DEFAULT_TARGET_QUESTIONS);
+  const [generatedPrep, setGeneratedPrep] =
+    useState<GenerateInterviewPrepResult | null>(null);
 
   const storiesQuery = useQuery({
     queryKey: queryKeys.storyBank.list(),
@@ -103,6 +140,41 @@ export const InterviewPrepPanel: React.FC<InterviewPrepPanelProps> = ({ job }) =
     [selectedStoryIds, stories],
   );
 
+  const generateMutation = useMutation({
+    mutationFn: () =>
+      api.generateInterviewPrep({
+        jobTitle: job.title,
+        employer: job.employer,
+        jobDescription: job.jobDescription,
+        resumeSummary: job.tailoredSummary || job.suitabilityReason,
+        companyResearch: job.companyDescription,
+        evaluationInterviewPrep: prepGuidance,
+        targetQuestions,
+        stories: stories.map((story) => ({
+          id: story.id,
+          title: story.title,
+          situation: story.situation,
+          task: story.task,
+          action: story.action,
+          result: story.result,
+          reflection: story.reflection,
+          skills: story.skills,
+          tags: story.tags,
+          isMasterStory: story.isMasterStory,
+        })),
+      }),
+    onSuccess: (result) => {
+      setGeneratedPrep(result);
+      setPrepGuidance(result.prepGuidance);
+      setTargetQuestions(result.targetQuestions.join("\n"));
+      setSelectedStoryIds(new Set(result.recommendedStoryIds));
+      toast.success("Interview prep generated");
+    },
+    onError: (error) => {
+      showErrorToast(error, "Failed to generate interview prep");
+    },
+  });
+
   const saveMutation = useMutation({
     mutationFn: () =>
       api.createJobNote(job.id, {
@@ -112,6 +184,7 @@ export const InterviewPrepPanel: React.FC<InterviewPrepPanelProps> = ({ job }) =
           prepGuidance,
           targetQuestions,
           stories: selectedStories,
+          generatedPrep,
         }),
       }),
     onSuccess: async () => {
@@ -151,7 +224,23 @@ export const InterviewPrepPanel: React.FC<InterviewPrepPanelProps> = ({ job }) =
                 Build a job-specific interview plan from CareerOps evaluation data and reusable Story Bank proof points.
               </CardDescription>
             </div>
-            <Badge variant="secondary">{selectedStories.length} stories selected</Badge>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="secondary">{selectedStories.length} stories selected</Badge>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => generateMutation.mutate()}
+                disabled={generateMutation.isPending || storiesQuery.isLoading}
+              >
+                {generateMutation.isPending ? (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+                )}
+                Generate prep with AI
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-5">
@@ -178,6 +267,35 @@ export const InterviewPrepPanel: React.FC<InterviewPrepPanelProps> = ({ job }) =
               className="min-h-28"
             />
           </div>
+
+          {generatedPrep && (
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="rounded-xl border border-border/60 bg-background/30 p-4">
+                <h3 className="text-sm font-semibold">Generated answer outlines</h3>
+                <div className="mt-3 space-y-3 text-sm text-muted-foreground">
+                  {generatedPrep.answerOutlines.map((outline) => (
+                    <div key={outline.question} className="space-y-1">
+                      <div className="font-medium text-foreground">
+                        {outline.question}
+                      </div>
+                      <p>{outline.outline}</p>
+                      {outline.storyIds.length > 0 && (
+                        <p className="text-xs">Stories: {outline.storyIds.join(", ")}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="rounded-xl border border-border/60 bg-background/30 p-4">
+                <h3 className="text-sm font-semibold">Questions to ask</h3>
+                <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-muted-foreground">
+                  {generatedPrep.interviewerQuestions.map((question) => (
+                    <li key={question}>{question}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
 
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-3">

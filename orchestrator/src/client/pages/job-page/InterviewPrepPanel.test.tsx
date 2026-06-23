@@ -6,6 +6,7 @@ import { InterviewPrepPanel } from "./InterviewPrepPanel";
 
 vi.mock("@client/api", () => ({
   createJobNote: vi.fn(),
+  generateInterviewPrep: vi.fn(),
   getInterviewStories: vi.fn(),
 }));
 
@@ -50,6 +51,22 @@ describe("InterviewPrepPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(api.getInterviewStories).mockResolvedValue({ stories: [story] });
+    vi.mocked(api.generateInterviewPrep).mockResolvedValue({
+      prepGuidance: "Focus on incident leadership and queue scaling tradeoffs.",
+      targetQuestions: [
+        "Tell me about a production incident.",
+        "How do you scale queue workers safely?",
+      ],
+      answerOutlines: [
+        {
+          question: "Tell me about a production incident.",
+          outline: "Use Scale incident and emphasize measurable recovery.",
+          storyIds: ["story-1"],
+        },
+      ],
+      recommendedStoryIds: ["story-1"],
+      interviewerQuestions: ["What reliability metrics define success?"],
+    });
     vi.mocked(api.createJobNote).mockResolvedValue({
       id: "note-1",
       jobId: "job-1",
@@ -96,6 +113,49 @@ describe("InterviewPrepPanel", () => {
     );
     expect(vi.mocked(api.createJobNote).mock.calls[0]?.[1]?.content).toContain(
       "Error rate dropped below 1%.",
+    );
+  });
+
+  it("generates interview prep with AI, recommends stories, and saves generated outlines", async () => {
+    renderPanel();
+
+    await screen.findByText("Scale incident");
+    fireEvent.click(screen.getByRole("button", { name: "Generate prep with AI" }));
+
+    await waitFor(() => expect(api.generateInterviewPrep).toHaveBeenCalled());
+    expect(vi.mocked(api.generateInterviewPrep).mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({
+        jobTitle: "Senior Platform Engineer",
+        employer: "Acme Labs",
+        evaluationInterviewPrep:
+          "Expect distributed systems, incident response, and stakeholder communication questions.",
+        stories: [
+          expect.objectContaining({ id: "story-1", title: "Scale incident" }),
+        ],
+      }),
+    );
+
+    expect(
+      await screen.findByDisplayValue(/queue scaling tradeoffs/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByDisplayValue(/How do you scale queue workers safely/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Use Scale incident and emphasize measurable recovery/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("checkbox", { name: /Use story Scale incident/i }),
+    ).toBeChecked();
+
+    fireEvent.click(screen.getByRole("button", { name: "Save prep to notes" }));
+
+    await waitFor(() => expect(api.createJobNote).toHaveBeenCalled());
+    expect(vi.mocked(api.createJobNote).mock.calls[0]?.[1]?.content).toContain(
+      "Use Scale incident and emphasize measurable recovery.",
+    );
+    expect(vi.mocked(api.createJobNote).mock.calls[0]?.[1]?.content).toContain(
+      "What reliability metrics define success?",
     );
   });
 });

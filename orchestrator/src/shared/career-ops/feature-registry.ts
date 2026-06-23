@@ -117,15 +117,11 @@ export const CAREER_OPS_FEATURES: CareerOpsFeature[] = [
     label: "Interview Prep",
     description:
       "Prepare company-specific interview intel, questions, answer outlines, and STAR+R stories.",
-    status: "partial",
+    status: "implemented",
     surface: "job-detail-panel",
     sourceArea: "interview-prep",
     sourcePath: "vendor/career-ops/modes/interview.md",
     jobOpsPath: "orchestrator/src/client/pages/job-page/InterviewPrepPanel.tsx",
-    missingReason:
-      "JobOps now has a job-detail Interview Prep panel using evaluation guidance and Story Bank proof points, but it does not yet call a dedicated interview-prep generation service.",
-    nextStep:
-      "Add LLM-backed question/answer-outline generation and persist generated prep artifacts to notes.",
   },
   {
     id: "story-bank",
@@ -138,9 +134,9 @@ export const CAREER_OPS_FEATURES: CareerOpsFeature[] = [
     sourcePath: "vendor/career-ops/interview-prep/story-bank.md",
     jobOpsPath: "orchestrator/src/client/pages/StoryBankPage.tsx",
     missingReason:
-      "JobOps now has structured story-bank persistence, API routes, and a dedicated UI, but it is not wired into interview-prep generation yet.",
+      "JobOps has structured story-bank persistence, API routes, a dedicated UI, and Interview Prep generation wiring; remaining parity work is richer story reuse analytics and tagging workflows.",
     nextStep:
-      "Connect saved stories to the Interview Prep panel so users can reuse STAR+R proof points for a target job.",
+      "Add story usage history and smarter tag/skill recommendations across interview prep sessions.",
   },
   {
     id: "liveness-checker",
