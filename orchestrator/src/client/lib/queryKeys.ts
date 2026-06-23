@@ -14,6 +14,10 @@ export const queryKeys = {
     all: ["career-ops"] as const,
     availability: () => [...queryKeys.careerOps.all, "availability"] as const,
   },
+  storyBank: {
+    all: ["story-bank"] as const,
+    list: () => [...queryKeys.storyBank.all, "list"] as const,
+  },
   profile: {
     all: ["profile"] as const,
     current: () => [...queryKeys.profile.all, "current"] as const,

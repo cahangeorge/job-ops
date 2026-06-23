@@ -135,6 +135,7 @@ export type CareerOpsFeatureStatus =
 export type CareerOpsFeatureSurface =
   | "job-page-action"
   | "coverage-page"
+  | "standalone-page"
   | "api-only"
   | "not-wired";
 

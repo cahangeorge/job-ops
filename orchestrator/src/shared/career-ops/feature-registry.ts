@@ -8,6 +8,7 @@ export type CareerOpsFeatureStatus =
 export type CareerOpsFeatureSurface =
   | "job-page-action"
   | "coverage-page"
+  | "standalone-page"
   | "api-only"
   | "not-wired";
 
@@ -128,14 +129,15 @@ export const CAREER_OPS_FEATURES: CareerOpsFeature[] = [
     label: "Story Bank",
     description:
       "Maintain reusable STAR+R proof-point stories across evaluations and interviews.",
-    status: "missing",
-    surface: "not-wired",
+    status: "partial",
+    surface: "standalone-page",
     sourceArea: "interview-prep",
     sourcePath: "vendor/career-ops/interview-prep/story-bank.md",
+    jobOpsPath: "orchestrator/src/client/pages/StoryBankPage.tsx",
     missingReason:
-      "JobOps notes exist, but no structured reusable story bank exists yet.",
+      "JobOps now has structured story-bank persistence, API routes, and a dedicated UI, but it is not wired into interview-prep generation yet.",
     nextStep:
-      "Add a reusable story-bank data model or adapt existing notes/profile storage.",
+      "Connect saved stories to the Interview Prep panel so users can reuse STAR+R proof points for a target job.",
   },
   {
     id: "liveness-checker",
@@ -185,13 +187,14 @@ export const CAREER_OPS_FEATURES: CareerOpsFeature[] = [
     description:
       "Run batch evaluation/generation workflows over multiple job opportunities.",
     status: "partial",
-    surface: "coverage-page",
+    surface: "api-only",
     sourceArea: "batch",
     sourcePath: "vendor/career-ops/modes/batch.md",
+    jobOpsPath: "orchestrator/src/server/api/routes/batch.ts",
     missingReason:
-      "JobOps has emerging batch route files, but no visible CareerOps parity surface yet.",
+      "JobOps now has batch scoring and cover-letter API routes, but no dedicated batch UI yet.",
     nextStep:
-      "Expose implemented batch capabilities in UI and map remaining CareerOps batch modes.",
+      "Expose batch score and batch cover-letter workflows in the Jobs UI and map remaining CareerOps batch modes.",
   },
   {
     id: "profile-onboarding",

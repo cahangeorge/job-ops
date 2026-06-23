@@ -36,4 +36,23 @@ describe("CareerOps feature registry", () => {
       ]),
     );
   });
+
+  it("marks backend-only CareerOps ports as partial api-only features", () => {
+    expect(CAREER_OPS_FEATURES).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "story-bank",
+          status: "partial",
+          surface: "standalone-page",
+          jobOpsPath: "orchestrator/src/client/pages/StoryBankPage.tsx",
+        }),
+        expect.objectContaining({
+          id: "batch-processing",
+          status: "partial",
+          surface: "api-only",
+          jobOpsPath: "orchestrator/src/server/api/routes/batch.ts",
+        }),
+      ]),
+    );
+  });
 });

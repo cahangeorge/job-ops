@@ -1,6 +1,8 @@
 import type {
   ApplicationStage,
   ApplicationTask,
+  CreateInterviewStoryInput,
+  InterviewStory,
   Job,
   JobActionRequest,
   JobActionResponse,
@@ -18,6 +20,7 @@ import type {
   StageTransitionTarget,
   TracerAnalyticsResponse,
   TracerReadinessResponse,
+  UpdateInterviewStoryInput,
 } from "@shared/types";
 import { formatUserFacingError } from "@/client/lib/error-format";
 import {
@@ -156,6 +159,41 @@ export async function getJobEmails(
       limit: options?.limit,
     }),
   );
+}
+
+export interface InterviewStoriesResponse {
+  stories: InterviewStory[];
+}
+
+export async function getInterviewStories(): Promise<InterviewStoriesResponse> {
+  return fetchApi<InterviewStoriesResponse>(
+    withQuery("/interview-stories", { t: Date.now() }),
+  );
+}
+
+export async function createInterviewStory(
+  input: CreateInterviewStoryInput,
+): Promise<InterviewStory> {
+  return fetchApi<InterviewStory>("/interview-stories", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateInterviewStory(
+  id: string,
+  input: UpdateInterviewStoryInput,
+): Promise<InterviewStory> {
+  return fetchApi<InterviewStory>(`/interview-stories/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function deleteInterviewStory(id: string): Promise<void> {
+  await fetchApi<{ deleted: boolean }>(`/interview-stories/${id}`, {
+    method: "DELETE",
+  });
 }
 
 export async function createJobNote(

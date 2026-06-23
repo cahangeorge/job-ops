@@ -1,4 +1,5 @@
 import {
+  BookOpenCheck,
   BriefcaseBusiness,
   Columns3,
   Eye,
@@ -56,6 +57,12 @@ export const NAV_LINKS: NavLink[] = [
     label: "CareerOps Coverage",
     icon: BriefcaseBusiness,
     activePaths: ["/career-ops"],
+  },
+  {
+    to: "/story-bank",
+    label: "Story Bank",
+    icon: BookOpenCheck,
+    activePaths: ["/story-bank"],
   },
   { to: "/watchlist", label: "Watchlist", icon: Eye },
   { to: "/settings", label: "Settings", icon: Settings },
