@@ -155,6 +155,28 @@ describe("Career Ops API routes", () => {
     vi.restoreAllMocks();
   });
 
+  it("returns CareerOps availability with coverage registry", async () => {
+    const healthRes = await invokeRoute({
+      router: careerOpsRouter,
+      method: "get",
+      path: "/health",
+    });
+
+    expect(healthRes.statusCode).toBe(200);
+    expect(healthRes.body).toMatchObject({
+      ok: true,
+      data: {
+        available: true,
+        actions: ["ats", "cover-letter", "negotiation", "portal-scanner"],
+        features: expect.arrayContaining([
+          expect.objectContaining({ id: "ats", status: "implemented" }),
+          expect.objectContaining({ id: "interview-prep", status: "missing" }),
+          expect.objectContaining({ id: "liveness-checker", status: "missing" }),
+        ]),
+      },
+    });
+  });
+
   it("runs ATS analysis and returns the service result", async () => {
     const healthRes = await invokeRoute({
       router: careerOpsRouter,

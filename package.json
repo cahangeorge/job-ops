@@ -24,6 +24,7 @@
     "typst-theme:generate": "node ./scripts/generate-typst-themes.mjs",
     "typst-theme:validate": "node ./scripts/generate-typst-themes.mjs --check && npm --workspace orchestrator run test:run -- src/server/services/resume-renderer/typst.test.ts",
     "release:set-version": "node ./scripts/set-orchestrator-version.mjs",
+    "careerops:audit": "node scripts/audit-careerops-submodule.mjs",
     "knip": "knip"
   },
   "devDependencies": {

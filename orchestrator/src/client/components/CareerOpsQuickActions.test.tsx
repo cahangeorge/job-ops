@@ -257,6 +257,33 @@ describe("CareerOpsQuickActions", () => {
     );
   });
 
+  it("does not render missing CareerOps registry items as job-page action buttons", async () => {
+    renderQuickActions(
+      <CareerOpsQuickActions
+        job={createJob({
+          tailoredSummary: "Built resilient backend systems.",
+        })}
+        resumeSummaryFallback="Profile baseline summary"
+      />,
+    );
+
+    expect(
+      await screen.findByRole("button", { name: "ATS Fit" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Cover Letter" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Negotiation" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /interview prep/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /liveness/i }),
+    ).not.toBeInTheDocument();
+  });
+
   it("stays hidden when the backend does not expose Career Ops routes", async () => {
     vi.mocked(api.getCareerOpsAvailability).mockRejectedValueOnce(
       new Error("Server error (500): Expected JSON but received HTML."),

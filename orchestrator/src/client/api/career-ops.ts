@@ -125,9 +125,36 @@ export interface BatchCoverLettersRequest {
   inputs: BatchCoverLetterInput[];
 }
 
+export type CareerOpsFeatureStatus =
+  | "implemented"
+  | "partial"
+  | "missing"
+  | "planned"
+  | "blocked";
+
+export type CareerOpsFeatureSurface =
+  | "job-page-action"
+  | "coverage-page"
+  | "api-only"
+  | "not-wired";
+
+export interface CareerOpsFeature {
+  id: string;
+  label: string;
+  description: string;
+  status: CareerOpsFeatureStatus;
+  surface: CareerOpsFeatureSurface;
+  sourceArea: string;
+  jobOpsPath?: string;
+  sourcePath?: string;
+  missingReason?: string;
+  nextStep?: string;
+}
+
 export interface CareerOpsAvailabilityResponse {
   available: boolean;
   actions?: string[];
+  features?: CareerOpsFeature[];
 }
 
 export async function analyzeAtsKeywords(
@@ -166,8 +193,10 @@ export async function scanCompanyPortal(
   });
 }
 
+export async function getCareerOpsCoverage(): Promise<CareerOpsAvailabilityResponse> {
+  return fetchApi<CareerOpsAvailabilityResponse>("/career-ops/health");
+}
+
 export async function getCareerOpsAvailability(): Promise<boolean> {
-  return fetchApi<CareerOpsAvailabilityResponse>("/career-ops/health").then(
-    (response) => response.available === true,
-  );
+  return getCareerOpsCoverage().then((response) => response.available === true);
 }

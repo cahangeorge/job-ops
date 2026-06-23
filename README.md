@@ -55,6 +55,49 @@ Open `http://localhost:3005` and follow the onboarding wizard. You'll be searchi
 
 ---
 
+## CareerOps Reference Submodule
+
+CareerOps is included as a pinned reference submodule under `vendor/career-ops`:
+
+```text
+https://github.com/santifer/career-ops.git
+```
+
+JobOps does **not** import CareerOps code at runtime. The submodule is used for feature parity audits and guided porting; production behavior comes from native JobOps routes, services, and React components.
+
+Clone with submodules:
+
+```bash
+git clone --recurse-submodules https://github.com/cahangeorge/job-ops.git
+```
+
+If already cloned:
+
+```bash
+git submodule update --init --recursive
+```
+
+Audit CareerOps parity registry coverage:
+
+```bash
+npm run careerops:audit
+```
+
+Update the CareerOps reference intentionally:
+
+```bash
+cd vendor/career-ops
+git fetch origin
+git checkout <approved-commit-sha>
+cd ../..
+git add vendor/career-ops
+git commit -m "chore: update CareerOps reference"
+```
+
+Porting rule: add or update `orchestrator/src/shared/career-ops/feature-registry.ts` first, then implement missing features natively in JobOps. Missing/planned features belong on the `/career-ops` coverage page, not as broken job-page quick-action buttons.
+
+---
+
 ## How It Works
 
 | Step | What happens |
