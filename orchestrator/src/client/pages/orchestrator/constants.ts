@@ -96,6 +96,13 @@ export type SponsorFilter =
   | "potential"
   | "not_found"
   | "unknown";
+export type LegitimacyFilter =
+  | "all"
+  | "high"
+  | "medium"
+  | "low"
+  | "unknown";
+export type GhostJobFilter = "all" | "hide" | "only";
 export type SalaryFilterMode = "at_least" | "at_most" | "between";
 
 export interface SalaryFilter {

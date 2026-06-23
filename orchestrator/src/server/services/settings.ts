@@ -34,12 +34,16 @@ import { resolveRxResumeBaseResumeId } from "./rxresume/baseResumeId";
 function resolveDefaultLlmBaseUrl(provider: string): string {
   const normalized = provider.trim().toLowerCase().replace(/-/g, "_");
   if (normalized === "ollama") return "http://localhost:11434";
+  if (normalized === "ollama_cloud") return "https://ollama.com";
   if (normalized === "lmstudio") return "http://localhost:1234";
   if (normalized === "openai") {
     return "https://api.openai.com";
   }
   if (normalized === "openai_compatible") {
     return "https://api.openai.com";
+  }
+  if (normalized === "opencode_go") {
+    return "http://localhost:8080";
   }
   if (normalized === "glm") {
     return "https://api.z.ai/api/paas/v4";

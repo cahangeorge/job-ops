@@ -3,8 +3,10 @@ import { useMemo } from "react";
 import type {
   DateFilterDimension,
   FilterTab,
+  GhostJobFilter,
   JobDateFilter,
   JobSort,
+  LegitimacyFilter,
   SalaryFilter,
   SponsorFilter,
 } from "./constants";
@@ -17,12 +19,23 @@ const getSponsorCategory = (score: number | null): SponsorFilter => {
   return "not_found";
 };
 
+export const getLegitimacyCategory = (
+  score: number | null | undefined,
+): Exclude<LegitimacyFilter, "all"> => {
+  if (score == null) return "unknown";
+  if (score >= 80) return "high";
+  if (score >= 50) return "medium";
+  return "low";
+};
+
 export const useFilteredJobs = (
   jobs: JobListItem[],
   activeTab: FilterTab,
   dateFilter: JobDateFilter,
   sourceFilter: JobSource | "all",
   sponsorFilter: SponsorFilter,
+  legitimacyFilter: LegitimacyFilter,
+  ghostJobFilter: GhostJobFilter,
   salaryFilter: SalaryFilter,
   sort: JobSort,
 ) =>
@@ -62,6 +75,20 @@ export const useFilteredJobs = (
       filtered = filtered.filter(
         (job) => getSponsorCategory(job.sponsorMatchScore) === sponsorFilter,
       );
+    }
+
+    if (legitimacyFilter !== "all") {
+      filtered = filtered.filter(
+        (job) =>
+          getLegitimacyCategory(job.evaluationLegitimacyScore) ===
+          legitimacyFilter,
+      );
+    }
+
+    if (ghostJobFilter === "hide") {
+      filtered = filtered.filter((job) => job.isGhostJob !== true);
+    } else if (ghostJobFilter === "only") {
+      filtered = filtered.filter((job) => job.isGhostJob === true);
     }
 
     const hasMin =
@@ -109,6 +136,8 @@ export const useFilteredJobs = (
     dateFilter,
     sourceFilter,
     sponsorFilter,
+    legitimacyFilter,
+    ghostJobFilter,
     salaryFilter,
     sort,
   ]);

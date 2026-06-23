@@ -218,6 +218,20 @@ export interface Job {
   sponsorMatchNames: string | null; // JSON array of matched sponsor names (when 100% matches or top match)
   appliedDuplicateMatch?: AppliedDuplicateMatch | null; // Included on detail responses and may be omitted on list responses
 
+  // Structured 6-block evaluation (from Career Ops)
+  evaluationRoleSummary: string | null;
+  evaluationCvMatchScore: number | null;
+  evaluationCvMatchReason: string | null;
+  evaluationLevelStrategy: string | null;
+  evaluationCompResearch: string | null;
+  evaluationPersonalization: string | null;
+  evaluationInterviewPrep: string | null;
+  evaluationLegitimacyScore: number | null;
+  evaluationLegitimacyReason: string | null;
+  evaluationOverallGrade: string | null;
+  archetype: string | null;
+  isGhostJob: boolean | null;
+
   // JobSpy fields (nullable for non-JobSpy sources)
   jobType: string | null;
   salarySource: string | null;
@@ -283,7 +297,10 @@ export type JobListItem = Pick<
   | "readyAt"
   | "appliedAt"
   | "updatedAt"
->;
+> & {
+  evaluationLegitimacyScore?: Job["evaluationLegitimacyScore"];
+  isGhostJob?: Job["isGhostJob"];
+};
 
 export interface CreateJobInput {
   source: JobSource;
@@ -560,6 +577,18 @@ export interface UpdateJobInput {
   appliedAt?: string;
   sponsorMatchScore?: number;
   sponsorMatchNames?: string;
+  evaluationRoleSummary?: string | null;
+  evaluationCvMatchScore?: number | null;
+  evaluationCvMatchReason?: string | null;
+  evaluationLevelStrategy?: string | null;
+  evaluationCompResearch?: string | null;
+  evaluationPersonalization?: string | null;
+  evaluationInterviewPrep?: string | null;
+  evaluationLegitimacyScore?: number | null;
+  evaluationLegitimacyReason?: string | null;
+  evaluationOverallGrade?: string | null;
+  archetype?: string | null;
+  isGhostJob?: boolean | null;
 }
 
 export interface CreateJobNoteInput {
@@ -571,3 +600,23 @@ export interface UpdateJobNoteInput {
   title: string;
   content: string;
 }
+
+
+export interface InterviewStory {
+  id: string;
+  tenantId: string;
+  title: string;
+  situation: string;
+  task: string;
+  action: string;
+  result: string;
+  reflection: string | null;
+  skills: string | null;
+  tags: string | null;
+  isMasterStory: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type CreateInterviewStoryInput = Omit<InterviewStory, 'id' | 'tenantId' | 'createdAt' | 'updatedAt'>;
+export type UpdateInterviewStoryInput = Partial<CreateInterviewStoryInput>;

@@ -217,6 +217,8 @@ vi.mock("./orchestrator/OrchestratorFilters", () => ({
     onOpenCommandBar,
     onSourceFilterChange,
     onSponsorFilterChange,
+    onLegitimacyFilterChange,
+    onGhostJobFilterChange,
     onSalaryFilterChange,
     onDateFilterChange,
     onResetFilters,
@@ -228,6 +230,8 @@ vi.mock("./orchestrator/OrchestratorFilters", () => ({
     onOpenCommandBar: () => void;
     onSourceFilterChange: (source: string) => void;
     onSponsorFilterChange: (value: string) => void;
+    onLegitimacyFilterChange: (value: string) => void;
+    onGhostJobFilterChange: (value: string) => void;
     onSalaryFilterChange: (value: {
       mode: "at_least" | "at_most" | "between";
       min: number | null;

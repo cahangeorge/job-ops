@@ -64,10 +64,11 @@ export async function scoreJobsStep(args: {
         return;
       }
 
-      const [{ score, reason }, jobBrief] = await Promise.all([
+      const [result, jobBrief] = await Promise.all([
         scoreJobSuitability(job, args.profile),
         generateJobBrief(job.jobDescription, { jobId: job.id }),
       ]);
+      const { score, reason } = result;
       if (args.shouldCancel?.()) return;
 
       let sponsorMatchScore = 0;
@@ -99,6 +100,18 @@ export async function scoreJobsStep(args: {
         jobBrief,
         sponsorMatchScore,
         sponsorMatchNames,
+        evaluationRoleSummary: result.roleSummary ?? null,
+        evaluationCvMatchScore: result.cvMatchScore ?? null,
+        evaluationCvMatchReason: result.cvMatchReason ?? null,
+        evaluationLevelStrategy: result.levelStrategy ?? null,
+        evaluationCompResearch: result.compResearch ?? null,
+        evaluationPersonalization: result.personalization ?? null,
+        evaluationInterviewPrep: result.interviewPrep ?? null,
+        evaluationLegitimacyScore: result.legitimacyScore ?? null,
+        evaluationLegitimacyReason: result.legitimacyReason ?? null,
+        evaluationOverallGrade: result.overallGrade ?? null,
+        archetype: result.archetype ?? null,
+        isGhostJob: result.isGhostJob ?? null,
         ...(shouldAutoSkip ? { status: "skipped" } : {}),
       });
 

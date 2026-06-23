@@ -4,8 +4,10 @@ import { useSearchParams } from "react-router-dom";
 import type {
   DateFilterDimension,
   DateFilterPreset,
+  GhostJobFilter,
   JobDateFilter,
   JobSort,
+  LegitimacyFilter,
   SalaryFilter,
   SalaryFilterMode,
   SponsorFilter,
@@ -19,6 +21,14 @@ const allowedSponsorFilters: SponsorFilter[] = [
   "not_found",
   "unknown",
 ];
+const allowedLegitimacyFilters: LegitimacyFilter[] = [
+  "all",
+  "high",
+  "medium",
+  "low",
+  "unknown",
+];
+const allowedGhostJobFilters: GhostJobFilter[] = ["all", "hide", "only"];
 const allowedSalaryModes: SalaryFilterMode[] = [
   "at_least",
   "at_most",
@@ -102,6 +112,48 @@ export const useOrchestratorFilters = () => {
         (prev) => {
           if (value === "all") prev.delete("sponsor");
           else prev.set("sponsor", value);
+          return prev;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
+
+  const legitimacyFilter = useMemo((): LegitimacyFilter => {
+    const raw = searchParams.get("legitimacy") ?? "all";
+    return allowedLegitimacyFilters.includes(raw as LegitimacyFilter)
+      ? (raw as LegitimacyFilter)
+      : "all";
+  }, [searchParams]);
+
+  const setLegitimacyFilter = useCallback(
+    (value: LegitimacyFilter) => {
+      setSearchParams(
+        (prev) => {
+          if (value === "all") prev.delete("legitimacy");
+          else prev.set("legitimacy", value);
+          return prev;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
+
+  const ghostJobFilter = useMemo((): GhostJobFilter => {
+    const raw = searchParams.get("ghost") ?? "all";
+    return allowedGhostJobFilters.includes(raw as GhostJobFilter)
+      ? (raw as GhostJobFilter)
+      : "all";
+  }, [searchParams]);
+
+  const setGhostJobFilter = useCallback(
+    (value: GhostJobFilter) => {
+      setSearchParams(
+        (prev) => {
+          if (value === "all") prev.delete("ghost");
+          else prev.set("ghost", value);
           return prev;
         },
         { replace: true },
@@ -240,6 +292,8 @@ export const useOrchestratorFilters = () => {
       (prev) => {
         prev.delete("source");
         prev.delete("sponsor");
+        prev.delete("legitimacy");
+        prev.delete("ghost");
         prev.delete("salaryMode");
         prev.delete("salaryMin");
         prev.delete("salaryMax");
@@ -261,6 +315,10 @@ export const useOrchestratorFilters = () => {
     setSourceFilter,
     sponsorFilter,
     setSponsorFilter,
+    legitimacyFilter,
+    setLegitimacyFilter,
+    ghostJobFilter,
+    setGhostJobFilter,
     salaryFilter,
     setSalaryFilter,
     dateFilter,

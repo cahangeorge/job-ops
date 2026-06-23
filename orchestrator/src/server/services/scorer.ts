@@ -19,8 +19,20 @@ export class LlmNotConfiguredError extends Error {
 }
 
 interface SuitabilityResult {
-  score: number | null; // 0-100, or null when scoring failed
-  reason: string; // Explanation
+  score: number | null;
+  reason: string;
+  roleSummary?: string;
+  cvMatchScore?: number;
+  cvMatchReason?: string;
+  levelStrategy?: string;
+  compResearch?: string;
+  personalization?: string;
+  interviewPrep?: string;
+  legitimacyScore?: number;
+  legitimacyReason?: string;
+  overallGrade?: string;
+  archetype?: string;
+  isGhostJob?: boolean;
 }
 
 type ScoringPreferences = {
@@ -30,22 +42,70 @@ type ScoringPreferences = {
 
 type ProfileRecord = Record<string, unknown>;
 
-/** JSON schema for suitability scoring response */
+/** JSON schema for structured 6-block evaluation */
 const SCORING_SCHEMA: JsonSchemaDefinition = {
-  name: "job_suitability_score",
+  name: "job_suitability_evaluation",
   schema: {
     type: "object",
     properties: {
       score: {
         type: "integer",
-        description: "Suitability score from 0 to 100",
+        description: "Overall suitability score from 0 to 100",
       },
       reason: {
         type: "string",
-        description: "Brief 1-2 sentence explanation of the score",
+        description: "Brief 1-2 sentence summary of the evaluation",
+      },
+      roleSummary: {
+        type: "string",
+        description: "2-3 sentence summary of what this role actually entails",
+      },
+      cvMatchScore: {
+        type: "integer",
+        description: "How well CV matches this role, 0-100",
+      },
+      cvMatchReason: {
+        type: "string",
+        description: "Specific strengths and gaps vs the role requirements",
+      },
+      levelStrategy: {
+        type: "string",
+        description: "Recommended seniority level to apply for and why",
+      },
+      compResearch: {
+        type: "string",
+        description: "Salary/ compensation analysis for this role type and location",
+      },
+      personalization: {
+        type: "string",
+        description: "Key angles to personalize application: company-specific problems you could solve",
+      },
+      interviewPrep: {
+        type: "string",
+        description: "2-3 likely interview questions with suggested STAR story angles",
+      },
+      legitimacyScore: {
+        type: "integer",
+        description: "Likelihood this is a real active role, 0-100. Check for red flags: vague description, no company info, unrealistic requirements, stock photos, missing salary, too-good-to-be-true promises",
+      },
+      legitimacyReason: {
+        type: "string",
+        description: "Why this posting seems legitimate or suspicious",
+      },
+      overallGrade: {
+        type: "string",
+        description: "Letter grade A-F based on overall fit. A=strong match, B=good match, C=decent, D=weak match, F=avoid",
+      },
+      archetype: {
+        type: "string",
+        description: "Role archetype: LLMOps, Agentic, FullStack, Backend, Frontend, DevOps, PM, Data, Research, General",
+      },
+      isGhostJob: {
+        type: "boolean",
+        description: "True if this appears to be a stale, expired, or fake posting",
       },
     },
-    required: ["score", "reason"],
+    required: ["score", "reason", "roleSummary", "cvMatchScore", "cvMatchReason", "levelStrategy", "compResearch", "personalization", "interviewPrep", "legitimacyScore", "legitimacyReason", "overallGrade", "archetype", "isGhostJob"],
     additionalProperties: false,
   },
 };
@@ -112,7 +172,22 @@ export async function scoreJobSuitability(
   });
 
   const llm = await createConfiguredLlmService("scoring");
-  const result = await llm.callJson<{ score: number; reason: string }>({
+  const result = await llm.callJson<{
+    score: number;
+    reason: string;
+    roleSummary?: string;
+    cvMatchScore?: number;
+    cvMatchReason?: string;
+    levelStrategy?: string;
+    compResearch?: string;
+    personalization?: string;
+    interviewPrep?: string;
+    legitimacyScore?: number;
+    legitimacyReason?: string;
+    overallGrade?: string;
+    archetype?: string;
+    isGhostJob?: boolean;
+  }>({
     model,
     messages: [{ role: "user", content: prompt }],
     jsonSchema: SCORING_SCHEMA,
@@ -154,6 +229,18 @@ export async function scoreJobSuitability(
   return {
     score: penaltyResult.score,
     reason: penaltyResult.reason,
+    roleSummary: result.data.roleSummary,
+    cvMatchScore: result.data.cvMatchScore,
+    cvMatchReason: result.data.cvMatchReason,
+    levelStrategy: result.data.levelStrategy,
+    compResearch: result.data.compResearch,
+    personalization: result.data.personalization,
+    interviewPrep: result.data.interviewPrep,
+    legitimacyScore: result.data.legitimacyScore,
+    legitimacyReason: result.data.legitimacyReason,
+    overallGrade: result.data.overallGrade,
+    archetype: result.data.archetype,
+    isGhostJob: result.data.isGhostJob,
   };
 }
 
@@ -450,15 +537,42 @@ export async function scoreAndRankJobs(
   jobs: Job[],
   profile: Record<string, unknown>,
 ): Promise<
-  Array<Job & { suitabilityScore: number | null; suitabilityReason: string }>
+  Array<Job & { 
+    suitabilityScore: number | null; 
+    suitabilityReason: string;
+    evaluationRoleSummary: string | null;
+    evaluationCvMatchScore: number | null;
+    evaluationCvMatchReason: string | null;
+    evaluationLevelStrategy: string | null;
+    evaluationCompResearch: string | null;
+    evaluationPersonalization: string | null;
+    evaluationInterviewPrep: string | null;
+    evaluationLegitimacyScore: number | null;
+    evaluationLegitimacyReason: string | null;
+    evaluationOverallGrade: string | null;
+    archetype: string | null;
+    isGhostJob: boolean | null;
+  }>
 > {
   const scoredJobs = await Promise.all(
     jobs.map(async (job) => {
-      const { score, reason } = await scoreJobSuitability(job, profile);
+      const result = await scoreJobSuitability(job, profile);
       return {
         ...job,
-        suitabilityScore: score,
-        suitabilityReason: reason,
+        suitabilityScore: result.score,
+        suitabilityReason: result.reason,
+        evaluationRoleSummary: result.roleSummary ?? null,
+        evaluationCvMatchScore: result.cvMatchScore ?? null,
+        evaluationCvMatchReason: result.cvMatchReason ?? null,
+        evaluationLevelStrategy: result.levelStrategy ?? null,
+        evaluationCompResearch: result.compResearch ?? null,
+        evaluationPersonalization: result.personalization ?? null,
+        evaluationInterviewPrep: result.interviewPrep ?? null,
+        evaluationLegitimacyScore: result.legitimacyScore ?? null,
+        evaluationLegitimacyReason: result.legitimacyReason ?? null,
+        evaluationOverallGrade: result.overallGrade ?? null,
+        archetype: result.archetype ?? null,
+        isGhostJob: result.isGhostJob ?? null,
       };
     }),
   );

@@ -3,8 +3,8 @@
  * Extracts ATS keywords from job descriptions and helps optimize resume text.
  */
 
-import { createConfiguredLlmService, resolveLlmModel } from "./modelSelection";
 import type { JsonSchemaDefinition } from "./llm/types";
+import { createConfiguredLlmService, resolveLlmModel } from "./modelSelection";
 
 export interface AtsKeywordInput {
   jobDescription: string;
@@ -31,13 +31,23 @@ const ATS_SCHEMA: JsonSchemaDefinition = {
         type: "array",
         items: {
           type: "object",
-          properties: { keyword: { type: "string" }, count: { type: "number" } },
+          properties: {
+            keyword: { type: "string" },
+            count: { type: "number" },
+          },
           required: ["keyword", "count"],
+          additionalProperties: false,
         },
       },
       optimizedSummary: { type: "string" },
     },
-    required: ["requiredKeywords", "preferredKeywords", "missingKeywords", "keywordDensity", "optimizedSummary"],
+    required: [
+      "requiredKeywords",
+      "preferredKeywords",
+      "missingKeywords",
+      "keywordDensity",
+      "optimizedSummary",
+    ],
     additionalProperties: false,
   },
 };

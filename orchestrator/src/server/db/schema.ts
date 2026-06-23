@@ -173,6 +173,20 @@ export const jobs = sqliteTable(
     sponsorMatchScore: real("sponsor_match_score"),
     sponsorMatchNames: text("sponsor_match_names"),
 
+    // Structured 6-block evaluation
+    evaluationRoleSummary: text("evaluation_role_summary"),
+    evaluationCvMatchScore: real("evaluation_cv_match_score"),
+    evaluationCvMatchReason: text("evaluation_cv_match_reason"),
+    evaluationLevelStrategy: text("evaluation_level_strategy"),
+    evaluationCompResearch: text("evaluation_comp_research"),
+    evaluationPersonalization: text("evaluation_personalization"),
+    evaluationInterviewPrep: text("evaluation_interview_prep"),
+    evaluationLegitimacyScore: real("evaluation_legitimacy_score"),
+    evaluationLegitimacyReason: text("evaluation_legitimacy_reason"),
+    evaluationOverallGrade: text("evaluation_overall_grade"),
+    archetype: text("archetype"),
+    isGhostJob: integer("is_ghost_job", { mode: "boolean" }).default(false),
+
     // Timestamps
     discoveredAt: text("discovered_at")
       .notNull()
@@ -198,6 +212,25 @@ export const jobs = sqliteTable(
     ),
   }),
 );
+
+export const interviewStories = sqliteTable("interview_stories", {
+  id: text("id").primaryKey(),
+  tenantId: text("tenant_id")
+    .notNull()
+    .default("tenant_default")
+    .references(() => tenants.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  situation: text("situation").notNull(),
+  task: text("task").notNull(),
+  action: text("action").notNull(),
+  result: text("result").notNull(),
+  reflection: text("reflection"),
+  skills: text("skills"),
+  tags: text("tags"),
+  isMasterStory: integer("is_master_story", { mode: "boolean" }).notNull().default(false),
+  createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+  updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),
+});
 
 export const stageEvents = sqliteTable("stage_events", {
   id: text("id").primaryKey(),

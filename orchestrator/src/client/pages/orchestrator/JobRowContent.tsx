@@ -1,6 +1,7 @@
 import { isAwaitingAiScore } from "@client/components";
 import type { JobListItem } from "@shared/types.js";
 import { Loader2, XCircle } from "lucide-react";
+import { useState, type ReactNode } from "react";
 import { isPdfRegenerating, isPdfStale } from "@/client/lib/pdf-freshness";
 import {
   Tooltip,
@@ -10,6 +11,12 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { defaultStatusToken, statusTokens } from "./constants";
+import { getLegitimacyCategory } from "./useFilteredJobs";
+
+type LegitimacyBadgeCategory = Exclude<
+  ReturnType<typeof getLegitimacyCategory>,
+  "all"
+>;
 
 interface JobRowContentProps {
   job: JobListItem;
@@ -26,6 +33,79 @@ function getSuitabilityScoreTone(score: number): string {
   return "text-muted-foreground/60";
 }
 
+const legitimacyBadgeTokens: Record<
+  LegitimacyBadgeCategory,
+  {
+    label: string;
+    className: string;
+    tooltip: string;
+  }
+> = {
+  high: {
+    label: "High legitimacy",
+    tooltip:
+      "A high-confidence role based on company and posting signals.",
+    className:
+      "border-emerald-200/70 bg-emerald-50 text-emerald-700 dark:border-emerald-400/25 dark:bg-emerald-400/10 dark:text-emerald-200",
+  },
+  medium: {
+    label: "Medium legitimacy",
+    tooltip:
+      "A medium-confidence role with some positive company and posting signals.",
+    className:
+      "border-sky-200/70 bg-sky-50 text-sky-700 dark:border-sky-400/25 dark:bg-sky-400/10 dark:text-sky-200",
+  },
+  low: {
+    label: "Low legitimacy",
+    tooltip:
+      "A low-confidence role with weak or concerning company and posting signals.",
+    className:
+      "border-rose-200/70 bg-rose-50 text-rose-700 dark:border-rose-400/25 dark:bg-rose-400/10 dark:text-rose-200",
+  },
+  unknown: {
+    label: "Unknown legitimacy",
+    tooltip:
+      "There is not enough information to estimate this role's legitimacy.",
+    className:
+      "border-muted bg-muted/50 text-muted-foreground dark:border-muted-foreground/20",
+  },
+} as const;
+
+const ghostJobTooltip =
+  "This posting may be stale, low-intent, or unlikely to lead to a real hire.";
+
+function BadgeTooltip({
+  children,
+  content,
+}: {
+  children: ReactNode;
+  content: string;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <TooltipProvider delayDuration={0}>
+      <Tooltip open={isOpen} onOpenChange={setIsOpen}>
+        <TooltipTrigger asChild>
+          <span
+            onMouseEnter={() => setIsOpen(true)}
+            onMouseLeave={() => setIsOpen(false)}
+          >
+            {children}
+          </span>
+        </TooltipTrigger>
+        <TooltipContent
+          aria-label="Job badge explanation"
+          side="top"
+          className="max-w-60 text-xs"
+        >
+          {content}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
 export const JobRowContent = ({
   job,
   isSelected = false,
@@ -40,6 +120,8 @@ export const JobRowContent = ({
   const suitabilityTone = getSuitabilityScoreTone(job.suitabilityScore ?? 0);
   const showStalePdf = isPdfStale(job);
   const showRegeneratingPdf = isPdfRegenerating(job);
+  const legitimacyBadge =
+    legitimacyBadgeTokens[getLegitimacyCategory(job.evaluationLegitimacyScore)];
 
   return (
     <div className={cn("flex min-w-0 flex-1 items-center gap-3", className)}>
@@ -69,12 +151,33 @@ export const JobRowContent = ({
             <span className="before:content-['_in_']">{job.location}</span>
           )}
         </div>
-        {(job.salary?.trim() || showRegeneratingPdf || showStalePdf) && (
+        {(job.salary?.trim() ||
+          showRegeneratingPdf ||
+          showStalePdf ||
+          legitimacyBadge ||
+          job.isGhostJob === true) && (
           <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5">
             {job.salary?.trim() && (
               <span className="truncate text-xs text-muted-foreground">
                 {job.salary}
               </span>
+            )}
+            <BadgeTooltip content={legitimacyBadge.tooltip}>
+              <span
+                className={cn(
+                  "inline-flex shrink-0 rounded-sm border px-1.5 py-0.5 text-[10px] font-medium leading-none",
+                  legitimacyBadge.className,
+                )}
+              >
+                {legitimacyBadge.label}
+              </span>
+            </BadgeTooltip>
+            {job.isGhostJob === true && (
+              <BadgeTooltip content={ghostJobTooltip}>
+                <span className="inline-flex shrink-0 rounded-sm border border-fuchsia-200/70 bg-fuchsia-50 px-1.5 py-0.5 text-[10px] font-medium leading-none text-fuchsia-700 dark:border-fuchsia-400/25 dark:bg-fuchsia-400/10 dark:text-fuchsia-200">
+                  Ghost job
+                </span>
+              </BadgeTooltip>
             )}
             {showRegeneratingPdf && (
               <span className="inline-flex shrink-0 items-center gap-1 rounded-sm border border-blue-200/70 bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium leading-none text-blue-700 dark:border-blue-400/25 dark:bg-blue-400/10 dark:text-blue-200">

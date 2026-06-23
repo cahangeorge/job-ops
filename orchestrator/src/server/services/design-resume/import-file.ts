@@ -42,6 +42,7 @@ type SupportedRuntimeProvider =
   | "gemini_cli"
   | "openai_compatible"
   | "ollama"
+  | "ollama_cloud"
   | "lmstudio";
 
 const DESIGN_RESUME_IMPORT_CLI_JSON_SCHEMA: JsonSchemaDefinition = {
@@ -140,6 +141,7 @@ function normalizeRuntimeProvider(
   if (mapped === "gemini_cli") return "gemini_cli";
   if (mapped === "openai_compatible") return "openai_compatible";
   if (mapped === "ollama") return "ollama";
+  if (mapped === "ollama_cloud") return "ollama_cloud";
   if (mapped === "lmstudio") return "lmstudio";
   return null;
 }
@@ -695,6 +697,12 @@ function extractGeminiText(response: unknown): string | null {
   return text || null;
 }
 
+function extractOllamaChatText(response: unknown): string | null {
+  const payload = asRecord(response);
+  const message = asRecord(payload?.message);
+  return trimText(message?.content) || null;
+}
+
 function extractProbablyJsonObject(content: string): string {
   const stripped = content
     .replace(/^```(?:json)?\s*/i, "")
@@ -919,6 +927,7 @@ function isTextOnlyImportProvider(provider: SupportedRuntimeProvider): boolean {
     provider === "openai_compatible" ||
     provider === "glm" ||
     provider === "ollama" ||
+    provider === "ollama_cloud" ||
     provider === "lmstudio"
   );
 }
@@ -1258,6 +1267,69 @@ function getDefaultChatCompletionsBaseUrl(
   return "https://api.openai.com";
 }
 
+async function extractWithOllamaCloud(args: {
+  apiKey: string | null;
+  baseUrl: string | null;
+  model: string;
+  mediaType: SupportedImportMediaType;
+  fileName: string;
+  documentText: string;
+  requestId: string | undefined;
+}): Promise<string> {
+  const url = joinUrl(
+    (args.baseUrl || "https://ollama.com").replace(/\/api\/?$/i, ""),
+    "/api/chat",
+  );
+  const response = await fetch(url, {
+    method: "POST",
+    headers: buildHeaders({
+      apiKey: args.apiKey,
+      provider: "ollama_cloud",
+    }),
+    body: JSON.stringify({
+      model: args.model,
+      stream: false,
+      messages: [
+        {
+          role: "system",
+          content: SYSTEM_PROMPT,
+        },
+        {
+          role: "user",
+          content: buildDocumentTextPrompt(
+            args.documentText,
+            args.fileName,
+            args.mediaType,
+          ),
+        },
+      ],
+    }),
+    signal: AbortSignal.timeout(LOCAL_CHAT_COMPLETIONS_TIMEOUT_MS),
+  });
+
+  if (!response.ok) {
+    const detail = parseErrorMessage(await getResponseDetail(response));
+    throw new AppError({
+      status: response.status >= 500 ? 502 : 503,
+      message: detail || `ollama_cloud returned ${response.status}.`,
+      details: {
+        provider: "ollama_cloud",
+        model: args.model,
+        requestId: args.requestId ?? null,
+      },
+    });
+  }
+
+  const payload = await response.json();
+  const text = extractOllamaChatText(payload);
+  if (!text) {
+    throw upstreamError(
+      "ollama_cloud returned an empty response for resume import.",
+    );
+  }
+  return text;
+}
+
 async function extractWithTextChatCompletions(args: {
   provider: "openai_compatible" | "glm" | "ollama" | "lmstudio";
   apiKey: string | null;
@@ -1415,7 +1487,24 @@ async function extractResumeFromProvider(args: {
       );
     }
     return extractWithTextChatCompletions({
-      provider: args.provider,
+      provider: args.provider as "openai_compatible" | "glm" | "ollama" | "lmstudio",
+      apiKey: args.apiKey || null,
+      baseUrl: args.baseUrl,
+      model: args.model,
+      mediaType: args.mediaType,
+      fileName: args.fileName,
+      documentText: text,
+      requestId: args.requestId,
+    });
+  }
+  if (args.provider === "ollama_cloud") {
+    const text = args.documentText?.trim();
+    if (!text) {
+      throw badRequest(
+        `ollama_cloud resume import requires plain-text resume content (DOCX or extracted PDF text).`,
+      );
+    }
+    return extractWithOllamaCloud({
       apiKey: args.apiKey || null,
       baseUrl: args.baseUrl,
       model: args.model,

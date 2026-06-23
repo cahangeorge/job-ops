@@ -1069,6 +1069,38 @@ const migrations = [
        ORDER BY se.occurred_at DESC, se.id DESC
        LIMIT 1
      ), 'applied') = 'closed'`,
+  `ALTER TABLE jobs ADD COLUMN evaluation_role_summary TEXT`,
+  `ALTER TABLE jobs ADD COLUMN evaluation_cv_match_score REAL`,
+  `ALTER TABLE jobs ADD COLUMN evaluation_cv_match_reason TEXT`,
+  `ALTER TABLE jobs ADD COLUMN evaluation_level_strategy TEXT`,
+  `ALTER TABLE jobs ADD COLUMN evaluation_comp_research TEXT`,
+  `ALTER TABLE jobs ADD COLUMN evaluation_personalization TEXT`,
+  `ALTER TABLE jobs ADD COLUMN evaluation_interview_prep TEXT`,
+  `ALTER TABLE jobs ADD COLUMN evaluation_legitimacy_score REAL`,
+  `ALTER TABLE jobs ADD COLUMN evaluation_legitimacy_reason TEXT`,
+  `ALTER TABLE jobs ADD COLUMN evaluation_overall_grade TEXT`,
+  `ALTER TABLE jobs ADD COLUMN archetype TEXT`,
+  `ALTER TABLE jobs ADD COLUMN is_ghost_job INTEGER DEFAULT 0`,
+
+  // Feature: Interview Story Bank
+  `CREATE TABLE IF NOT EXISTS interview_stories (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL DEFAULT 'tenant_default',
+    title TEXT NOT NULL,
+    situation TEXT NOT NULL,
+    task TEXT NOT NULL,
+    action TEXT NOT NULL,
+    result TEXT NOT NULL,
+    reflection TEXT,
+    skills TEXT,
+    tags TEXT,
+    is_master_story INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_interview_stories_tenant ON interview_stories(tenant_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_interview_stories_tags ON interview_stories(tags)`,
+
 ];
 
 console.log("🔧 Running database migrations...");
@@ -1102,7 +1134,10 @@ for (const migration of migrations) {
           .includes("alter table job_chat_threads add column") ||
         migration
           .toLowerCase()
-          .includes("alter table analytics_install_state add column")) &&
+          .includes("alter table analytics_install_state add column") ||
+        migration
+          .toLowerCase()
+          .includes("alter table jobs add column")) &&
       message.toLowerCase().includes("duplicate column name");
 
     if (isDuplicateColumn) {

@@ -37,8 +37,10 @@ import type {
   DateFilterDimension,
   DateFilterPreset,
   FilterTab,
+  GhostJobFilter,
   JobDateFilter,
   JobSort,
+  LegitimacyFilter,
   SalaryFilter,
   SalaryFilterMode,
   SponsorFilter,
@@ -60,6 +62,10 @@ interface OrchestratorFiltersProps {
   onSourceFilterChange: (value: JobSource | "all") => void;
   sponsorFilter: SponsorFilter;
   onSponsorFilterChange: (value: SponsorFilter) => void;
+  legitimacyFilter: LegitimacyFilter;
+  onLegitimacyFilterChange: (value: LegitimacyFilter) => void;
+  ghostJobFilter: GhostJobFilter;
+  onGhostJobFilterChange: (value: GhostJobFilter) => void;
   salaryFilter: SalaryFilter;
   onSalaryFilterChange: (value: SalaryFilter) => void;
   dateFilter: JobDateFilter;
@@ -91,6 +97,26 @@ const salaryModeOptions: Array<{
   { value: "at_least", label: "at least" },
   { value: "at_most", label: "at most" },
   { value: "between", label: "between" },
+];
+
+const legitimacyOptions: Array<{
+  value: LegitimacyFilter;
+  label: string;
+}> = [
+  { value: "all", label: "All legitimacy scores" },
+  { value: "high", label: "High legitimacy" },
+  { value: "medium", label: "Medium legitimacy" },
+  { value: "low", label: "Low legitimacy" },
+  { value: "unknown", label: "Unchecked legitimacy" },
+];
+
+const ghostJobOptions: Array<{
+  value: GhostJobFilter;
+  label: string;
+}> = [
+  { value: "all", label: "Include all jobs" },
+  { value: "hide", label: "Hide ghost jobs" },
+  { value: "only", label: "Only ghost jobs" },
 ];
 
 const sortFieldOrder: JobSort["key"][] = [
@@ -195,6 +221,10 @@ export const OrchestratorFilters: React.FC<OrchestratorFiltersProps> = ({
   onSourceFilterChange,
   sponsorFilter,
   onSponsorFilterChange,
+  legitimacyFilter,
+  onLegitimacyFilterChange,
+  ghostJobFilter,
+  onGhostJobFilterChange,
   salaryFilter,
   onSalaryFilterChange,
   dateFilter,
@@ -219,6 +249,8 @@ export const OrchestratorFilters: React.FC<OrchestratorFiltersProps> = ({
     () =>
       Number(sourceFilter !== "all") +
       Number(sponsorFilter !== "all") +
+      Number(legitimacyFilter !== "all") +
+      Number(ghostJobFilter !== "all") +
       Number(dateFilter.dimensions.length > 0) +
       Number(
         (typeof salaryFilter.min === "number" && salaryFilter.min > 0) ||
@@ -227,6 +259,8 @@ export const OrchestratorFilters: React.FC<OrchestratorFiltersProps> = ({
     [
       sourceFilter,
       sponsorFilter,
+      legitimacyFilter,
+      ghostJobFilter,
       dateFilter.dimensions.length,
       salaryFilter.min,
       salaryFilter.max,
@@ -506,6 +540,52 @@ export const OrchestratorFilters: React.FC<OrchestratorFiltersProps> = ({
                               : "outline"
                           }
                           onClick={() => onSponsorFilterChange(option.value)}
+                        >
+                          {option.label}
+                        </Button>
+                      ))}
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle>Legitimacy</CardTitle>
+                    </CardHeader>
+                    <CardContent className="flex flex-wrap gap-2">
+                      {legitimacyOptions.map((option) => (
+                        <Button
+                          key={option.value}
+                          type="button"
+                          size="sm"
+                          variant={
+                            legitimacyFilter === option.value
+                              ? "default"
+                              : "outline"
+                          }
+                          onClick={() => onLegitimacyFilterChange(option.value)}
+                        >
+                          {option.label}
+                        </Button>
+                      ))}
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle>Ghost jobs</CardTitle>
+                    </CardHeader>
+                    <CardContent className="flex flex-wrap gap-2">
+                      {ghostJobOptions.map((option) => (
+                        <Button
+                          key={option.value}
+                          type="button"
+                          size="sm"
+                          variant={
+                            ghostJobFilter === option.value
+                              ? "default"
+                              : "outline"
+                          }
+                          onClick={() => onGhostJobFilterChange(option.value)}
                         >
                           {option.label}
                         </Button>

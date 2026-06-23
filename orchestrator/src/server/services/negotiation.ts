@@ -3,9 +3,8 @@
  * Generates salary negotiation scripts and counter-offer strategies.
  */
 
-import { createConfiguredLlmService, resolveLlmModel } from "./modelSelection";
 import type { JsonSchemaDefinition } from "./llm/types";
-
+import { createConfiguredLlmService, resolveLlmModel } from "./modelSelection";
 
 const NEGOTIATION_SCHEMA: JsonSchemaDefinition = {
   name: "negotiation_scripts",

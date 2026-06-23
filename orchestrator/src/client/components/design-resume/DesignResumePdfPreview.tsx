@@ -243,6 +243,7 @@ export function DesignResumePdfPreview({
     if (!pdfDocument || renderWidth <= 0 || pageCount <= 0) return;
 
     let cancelled = false;
+    const activeRenderTasks: { cancel?: () => void }[] = [];
     setIsRenderingPages(true);
 
     void (async () => {
@@ -274,13 +275,23 @@ export function DesignResumePdfPreview({
           canvasContext: context,
           viewport,
         });
-        await renderTask.promise;
+        activeRenderTasks.push(renderTask);
+
+        try {
+          await renderTask.promise;
+        } catch {
+          if (cancelled) return;
+          throw new Error(`Failed to render page ${pageNumber}.`);
+        }
       }
 
       if (cancelled) return;
 
-      restoreScrollSnapshot(viewerRef.current, pendingScrollRestoreRef.current);
-      pendingScrollRestoreRef.current = null;
+      window.setTimeout(() => {
+        if (cancelled) return;
+        restoreScrollSnapshot(viewerRef.current, pendingScrollRestoreRef.current);
+        pendingScrollRestoreRef.current = null;
+      }, 0);
       setIsRenderingPages(false);
       setPreviewState("ready");
     })().catch((error: unknown) => {
@@ -296,6 +307,7 @@ export function DesignResumePdfPreview({
 
     return () => {
       cancelled = true;
+      activeRenderTasks.forEach((task) => task.cancel?.());
     };
   }, [pageCount, pdfDocument, renderWidth]);
 

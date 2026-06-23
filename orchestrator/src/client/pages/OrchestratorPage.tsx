@@ -48,6 +48,10 @@ export const OrchestratorPage: React.FC = () => {
     setSourceFilter,
     sponsorFilter,
     setSponsorFilter,
+    legitimacyFilter,
+    setLegitimacyFilter,
+    ghostJobFilter,
+    setGhostJobFilter,
     salaryFilter,
     setSalaryFilter,
     dateFilter,
@@ -230,6 +234,8 @@ export const OrchestratorPage: React.FC = () => {
     dateFilter,
     sourceFilter,
     sponsorFilter,
+    legitimacyFilter,
+    ghostJobFilter,
     salaryFilter,
     sort,
   );
@@ -353,6 +359,8 @@ export const OrchestratorPage: React.FC = () => {
       for (const key of [
         "source",
         "sponsor",
+        "legitimacy",
+        "ghost",
         "salaryMode",
         "salaryMin",
         "salaryMax",
@@ -518,6 +526,10 @@ export const OrchestratorPage: React.FC = () => {
             onSourceFilterChange={setSourceFilter}
             sponsorFilter={sponsorFilter}
             onSponsorFilterChange={setSponsorFilter}
+            legitimacyFilter={legitimacyFilter}
+            onLegitimacyFilterChange={setLegitimacyFilter}
+            ghostJobFilter={ghostJobFilter}
+            onGhostJobFilterChange={setGhostJobFilter}
             salaryFilter={salaryFilter}
             onSalaryFilterChange={setSalaryFilter}
             dateFilter={dateFilter}

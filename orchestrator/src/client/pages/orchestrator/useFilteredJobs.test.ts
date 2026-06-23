@@ -36,6 +36,8 @@ describe("useFilteredJobs", () => {
         defaultDateFilter,
         "all",
         "all",
+        "all",
+        "all",
         { mode: "at_least", min: null, max: null },
         { key: "score", direction: "desc" },
       ),
@@ -75,6 +77,8 @@ describe("useFilteredJobs", () => {
         },
         "all",
         "all",
+        "all",
+        "all",
         { mode: "at_least", min: null, max: null },
         { key: "score", direction: "desc" },
       ),
@@ -109,6 +113,8 @@ describe("useFilteredJobs", () => {
           endDate: "2026-04-06",
           preset: "custom",
         },
+        "all",
+        "all",
         "all",
         "all",
         { mode: "at_least", min: null, max: null },
@@ -151,6 +157,8 @@ describe("useFilteredJobs", () => {
           endDate: "2026-04-06",
           preset: "custom",
         },
+        "all",
+        "all",
         "all",
         "all",
         { mode: "at_least", min: null, max: null },
@@ -212,12 +220,63 @@ describe("useFilteredJobs", () => {
         },
         "linkedin",
         "confirmed",
+        "all",
+        "all",
         { mode: "at_least", min: 70000, max: null },
         { key: "score", direction: "desc" },
       ),
     );
 
     expect(result.current.map((job) => job.id)).toEqual(["match"]);
+  });
+
+  it("filters by legitimacy band and ghost-job mode", () => {
+    const jobs: Job[] = [
+      {
+        ...baseJob,
+        id: "high-legit",
+        evaluationLegitimacyScore: 91,
+        isGhostJob: false,
+      },
+      {
+        ...baseJob,
+        id: "ghost",
+        evaluationLegitimacyScore: 22,
+        isGhostJob: true,
+      },
+      {
+        ...baseJob,
+        id: "unknown",
+        evaluationLegitimacyScore: null,
+        isGhostJob: null,
+      },
+    ];
+
+    const { result, rerender } = renderHook(
+      ({ legitimacy, ghost }: { legitimacy: any; ghost: any }) =>
+        useFilteredJobs(
+          jobs,
+          "all",
+          defaultDateFilter,
+          "all",
+          "all",
+          legitimacy,
+          ghost,
+          { mode: "at_least", min: null, max: null },
+          { key: "score", direction: "desc" },
+        ),
+      {
+        initialProps: { legitimacy: "high", ghost: "hide" },
+      },
+    );
+
+    expect(result.current.map((job) => job.id)).toEqual(["high-legit"]);
+
+    rerender({ legitimacy: "all", ghost: "only" });
+    expect(result.current.map((job) => job.id)).toEqual(["ghost"]);
+
+    rerender({ legitimacy: "unknown", ghost: "all" });
+    expect(result.current.map((job) => job.id)).toEqual(["unknown"]);
   });
 
   it("sorts by posting date while keeping missing values last", () => {
@@ -245,6 +304,8 @@ describe("useFilteredJobs", () => {
           jobs,
           "all",
           defaultDateFilter,
+          "all",
+          "all",
           "all",
           "all",
           { mode: "at_least", min: null, max: null },

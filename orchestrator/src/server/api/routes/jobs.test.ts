@@ -44,13 +44,20 @@ describe.sequential("Jobs API routes", () => {
 
   it("supports lightweight and full jobs list views", async () => {
     const { createJob } = await import("@server/repositories/jobs");
-    await createJob({
+    const { db } = await import("@server/db");
+    const { jobs } = await import("@server/db/schema");
+    const { eq } = await import("drizzle-orm");
+    const job = await createJob({
       source: "manual",
       title: "List View Role",
       employer: "Acme",
       jobUrl: "https://example.com/job/list-view",
       jobDescription: "Heavy description that should not be in list mode",
     });
+    await db
+      .update(jobs)
+      .set({ evaluationLegitimacyScore: 88, isGhostJob: false })
+      .where(eq(jobs.id, job.id));
 
     const listRes = await fetch(`${baseUrl}/api/jobs?view=list`);
     const listBody = await listRes.json();
@@ -59,6 +66,8 @@ describe.sequential("Jobs API routes", () => {
     expect(typeof listBody.meta.requestId).toBe("string");
     expect(listBody.data.jobs[0].id).toBeTruthy();
     expect(listBody.data.jobs[0].title).toBe("List View Role");
+    expect(listBody.data.jobs[0].evaluationLegitimacyScore).toBe(88);
+    expect(listBody.data.jobs[0].isGhostJob).toBe(false);
     expect(listBody.data.jobs[0]).not.toHaveProperty("jobDescription");
     expect(listBody.data.jobs[0]).not.toHaveProperty("appliedDuplicateMatch");
     expect(typeof listBody.data.revision).toBe("string");

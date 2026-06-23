@@ -406,7 +406,9 @@ export function useOnboardingFlow() {
           : normalizedProvider === "openai" ||
               normalizedProvider === "glm" ||
               normalizedProvider === "gemini" ||
-              normalizedProvider === "gemini_cli"
+              normalizedProvider === "gemini_cli" ||
+              normalizedProvider === "opencode_go" ||
+              normalizedProvider === "ollama_cloud"
             ? `Default for ${providerConfig.label}: ${defaultModel}.`
             : "You can fine-tune models later in Settings.",
       });

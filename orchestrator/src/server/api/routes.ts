@@ -5,6 +5,7 @@
 import { Router } from "express";
 import { authRouter } from "./routes/auth";
 import { backupRouter } from "./routes/backup";
+import { batchRouter } from "./routes/batch";
 import { databaseRouter } from "./routes/database";
 import { demoRouter } from "./routes/demo";
 import { designResumeRouter } from "./routes/design-resume";
@@ -30,6 +31,7 @@ import { negotiationRouter } from "./routes/negotiation";
 import { atsRouter } from "./routes/ats";
 import { portalScannerRouter } from "./routes/portal-scanner";
 import { careerOpsRouter } from "./routes/career-ops";
+import { interviewStoriesRouter } from "./routes/interview-stories-router";
 
 export const apiRouter = Router();
 
@@ -48,6 +50,7 @@ apiRouter.use("/design-resume", designResumeRouter);
 apiRouter.use("/visa-sponsors", visaSponsorsRouter);
 apiRouter.use("/onboarding", onboardingRouter);
 apiRouter.use("/backups", backupRouter);
+apiRouter.use("/batch", batchRouter);
 apiRouter.use("/tracer-links", tracerLinksRouter);
 apiRouter.use("/workspaces", workspacesRouter);
 apiRouter.use("/auth", authRouter);
@@ -58,4 +61,5 @@ apiRouter.use("/negotiation", negotiationRouter);
 apiRouter.use("/ats", atsRouter);
 apiRouter.use("/portal-scanner", portalScannerRouter);
 apiRouter.use("/career-ops", careerOpsRouter);
+apiRouter.use("/interview-stories", interviewStoriesRouter);
 apiRouter.use("/", extractorHealthRouter);

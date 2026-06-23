@@ -11,7 +11,13 @@ import {
   vi,
 } from "vitest";
 import { trackProductEvent } from "@/lib/analytics";
-import type { FilterTab, JobSort, SponsorFilter } from "./constants";
+import type {
+  FilterTab,
+  GhostJobFilter,
+  JobSort,
+  LegitimacyFilter,
+  SponsorFilter,
+} from "./constants";
 import { OrchestratorFilters } from "./OrchestratorFilters";
 
 vi.mock("@/lib/analytics", async (importOriginal) => {
@@ -45,7 +51,7 @@ beforeEach(() => {
 const renderFilters = (
   overrides?: Partial<ComponentProps<typeof OrchestratorFilters>>,
 ) => {
-  const props = {
+  const props: ComponentProps<typeof OrchestratorFilters> = {
     activeTab: "ready" as FilterTab,
     onTabChange: vi.fn(),
     counts: {
@@ -59,6 +65,10 @@ const renderFilters = (
     onSourceFilterChange: vi.fn(),
     sponsorFilter: "all" as SponsorFilter,
     onSponsorFilterChange: vi.fn(),
+    legitimacyFilter: "all" as LegitimacyFilter,
+    onLegitimacyFilterChange: vi.fn(),
+    ghostJobFilter: "all" as GhostJobFilter,
+    onGhostJobFilterChange: vi.fn(),
     salaryFilter: {
       mode: "at_least" as const,
       min: null,
@@ -109,7 +119,7 @@ describe("OrchestratorFilters", () => {
     ).toHaveLength(2);
   });
 
-  it("updates source, sponsor, salary range, and sort from the drawer", async () => {
+  it("updates source, sponsor, legitimacy, ghost-job, salary range, and sort from the drawer", async () => {
     const { props } = renderFilters();
 
     fireEvent.click(screen.getByRole("button", { name: /^filters/i }));
@@ -119,6 +129,12 @@ describe("OrchestratorFilters", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Potential sponsor" }));
     expect(props.onSponsorFilterChange).toHaveBeenCalledWith("potential");
+
+    fireEvent.click(screen.getByRole("button", { name: "High legitimacy" }));
+    expect(props.onLegitimacyFilterChange).toHaveBeenCalledWith("high");
+
+    fireEvent.click(screen.getByRole("button", { name: "Hide ghost jobs" }));
+    expect(props.onGhostJobFilterChange).toHaveBeenCalledWith("hide");
 
     fireEvent.change(screen.getByLabelText("Minimum"), {
       target: { value: "65000" },

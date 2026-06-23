@@ -171,4 +171,5 @@ describe("App demo banner", () => {
 
     expect(screen.getByText("design-resume-page")).toBeInTheDocument();
   });
+
 });

@@ -243,6 +243,130 @@ describe("JobListPanel", () => {
     );
   });
 
+  it("shows legitimacy badges for high, medium, low, and unknown jobs", () => {
+    const jobs = [
+      createJob({
+        id: "job-high",
+        title: "High Legitimacy",
+        evaluationLegitimacyScore: 91,
+      }),
+      createJob({
+        id: "job-medium",
+        title: "Medium Legitimacy",
+        evaluationLegitimacyScore: 65,
+      }),
+      createJob({
+        id: "job-low",
+        title: "Low Legitimacy",
+        evaluationLegitimacyScore: 32,
+      }),
+      createJob({
+        id: "job-unknown",
+        title: "Unknown Legitimacy",
+        evaluationLegitimacyScore: null,
+      }),
+    ];
+
+    render(
+      <JobListPanel
+        isLoading={false}
+        jobs={jobs}
+        activeJobs={jobs}
+        selectedJobId={null}
+        selectedJobIds={new Set()}
+        activeTab="ready"
+        onSelectJob={vi.fn()}
+        onToggleSelectJob={vi.fn()}
+        onToggleSelectAll={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("High legitimacy")).toBeInTheDocument();
+    expect(screen.getByText("Medium legitimacy")).toBeInTheDocument();
+    expect(screen.getByText("Low legitimacy")).toBeInTheDocument();
+    expect(screen.getByText("Unknown legitimacy")).toBeInTheDocument();
+  });
+
+  it("shows ghost-job badges without replacing the applied duplicate indicator", () => {
+    const jobs = [
+      createJob({
+        id: "job-ghost",
+        title: "Ghosted Role",
+        isGhostJob: true,
+      }),
+      createJob({
+        id: "job-repost",
+        title: "Repost Role",
+        isGhostJob: true,
+        appliedDuplicateMatch: {
+          jobId: "job-applied",
+          title: "Repost Role",
+          employer: "Acme Labs",
+          appliedAt: "2026-04-01T10:00:00.000Z",
+          score: 96,
+          titleScore: 97,
+          employerScore: 95,
+        },
+      }),
+    ];
+
+    render(
+      <JobListPanel
+        isLoading={false}
+        jobs={jobs}
+        activeJobs={jobs}
+        selectedJobId={null}
+        selectedJobIds={new Set()}
+        activeTab="ready"
+        onSelectJob={vi.fn()}
+        onToggleSelectJob={vi.fn()}
+        onToggleSelectAll={vi.fn()}
+      />,
+    );
+
+    expect(screen.getAllByText("Ghost job")).toHaveLength(2);
+    expect(screen.getByTitle("Previously Applied")).toHaveClass("bg-yellow-400");
+  });
+
+  it("explains legitimacy and ghost-job badges with tooltips", async () => {
+    const jobs = [
+      createJob({
+        id: "job-high",
+        title: "Tooltip High Legitimacy",
+        evaluationLegitimacyScore: 91,
+        isGhostJob: true,
+      }),
+    ];
+
+    render(
+      <JobListPanel
+        isLoading={false}
+        jobs={jobs}
+        activeJobs={jobs}
+        selectedJobId={null}
+        selectedJobIds={new Set()}
+        activeTab="ready"
+        onSelectJob={vi.fn()}
+        onToggleSelectJob={vi.fn()}
+        onToggleSelectAll={vi.fn()}
+      />,
+    );
+
+    fireEvent.mouseEnter(screen.getByText("High legitimacy"));
+    expect(
+      await screen.findByText(
+        /high-confidence role based on company and posting signals/i,
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.mouseEnter(screen.getByText("Ghost job"));
+    expect(
+      await screen.findByText(
+        /posting may be stale, low-intent, or unlikely to lead to a real hire/i,
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("toggles row selection and select-all", () => {
     const onToggleSelectJob = vi.fn();
     const onToggleSelectAll = vi.fn();

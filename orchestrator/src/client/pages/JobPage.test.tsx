@@ -318,6 +318,33 @@ describe("JobPage notes", () => {
     );
   });
 
+  it("selects the requested note from the notes URL query param", async () => {
+    notesStore = [
+      makeNote({
+        id: "note-older",
+        title: "Recruiter contact",
+        content: "Reach out to Jane.",
+        updatedAt: "2026-01-01T09:00:00.000Z",
+      }),
+      makeNote({
+        id: "note-newer",
+        title: "Why this company",
+        content:
+          "# Strong fit\n\n- Great mission\n- Good team\n\n[Team](https://example.com)",
+        updatedAt: "2026-01-01T12:00:00.000Z",
+      }),
+    ];
+
+    renderJobPage("/job/job-1/notes?noteId=note-older");
+
+    await waitFor(() =>
+      expect(screen.getByTestId("location-probe")).toHaveTextContent(
+        "/job/job-1/notes?noteId=note-older",
+      ),
+    );
+    expect(await screen.findByText("Reach out to Jane.")).toBeInTheDocument();
+  });
+
   it("switches between markdown view and TipTap edit mode inline", async () => {
     notesStore = [];
 

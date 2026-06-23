@@ -69,6 +69,39 @@ describe("useOrchestratorFilters", () => {
     });
   });
 
+  it("parses legitimacy and ghost-job query params", () => {
+    const { Wrapper } = createWrapper("/all?legitimacy=medium&ghost=only");
+    const { result } = renderHook(() => useOrchestratorFilters(), {
+      wrapper: Wrapper,
+    });
+
+    expect(result.current.legitimacyFilter).toBe("medium");
+    expect(result.current.ghostJobFilter).toBe("only");
+  });
+
+  it("round-trips legitimacy and ghost-job params and resets them", () => {
+    const { Wrapper, getLocation } = createWrapper("/all");
+    const { result } = renderHook(() => useOrchestratorFilters(), {
+      wrapper: Wrapper,
+    });
+
+    act(() => {
+      result.current.setLegitimacyFilter("high");
+    });
+    act(() => {
+      result.current.setGhostJobFilter("hide");
+    });
+
+    expect(getLocation()).toContain("legitimacy=high");
+    expect(getLocation()).toContain("ghost=hide");
+
+    act(() => {
+      result.current.resetFilters();
+    });
+
+    expect(getLocation()).toBe("/all");
+  });
+
   it("round-trips date filter params and resets them", () => {
     const { Wrapper, getLocation } = createWrapper("/all");
     const { result } = renderHook(() => useOrchestratorFilters(), {

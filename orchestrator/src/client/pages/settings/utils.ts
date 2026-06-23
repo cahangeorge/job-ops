@@ -24,8 +24,10 @@ export const LLM_PROVIDERS = [
   "openrouter",
   "lmstudio",
   "ollama",
+  "ollama_cloud",
   "openai",
   "openai_compatible",
+  "opencode_go",
   "glm",
   "gemini",
   "gemini_cli",
@@ -39,14 +41,18 @@ export const LLM_MODEL_SUGGESTION_PROVIDERS = [
   "gemini",
   "gemini_cli",
   "ollama",
+  "ollama_cloud",
+  "opencode_go",
 ] as const;
 
 export const LLM_PROVIDER_LABELS: Record<LlmProviderId, string> = {
   openrouter: "OpenRouter",
   lmstudio: "LM Studio",
   ollama: "Ollama",
+  ollama_cloud: "Ollama Cloud",
   openai: "OpenAI",
   openai_compatible: "OpenAI-compatible",
+  opencode_go: "OpenCode Go",
   glm: "GLM",
   gemini: "Gemini",
   gemini_cli: "Gemini (CLI)",
@@ -59,13 +65,17 @@ const PROVIDERS_WITH_API_KEY = new Set<LlmProviderId>([
   "openai_compatible",
   "glm",
   "gemini",
+  "opencode_go",
+  "ollama_cloud",
 ]);
 
 const PROVIDERS_WITH_BASE_URL = new Set<LlmProviderId>([
   "lmstudio",
   "ollama",
+  "ollama_cloud",
   "openai_compatible",
   "glm",
+  "opencode_go",
 ]);
 
 const PROVIDER_HINTS: Record<LlmProviderId, string> = {
@@ -73,9 +83,11 @@ const PROVIDER_HINTS: Record<LlmProviderId, string> = {
     "OpenRouter uses your API key and supports model routing across providers.",
   lmstudio: "LM Studio runs locally via its OpenAI-compatible server.",
   ollama: "Ollama typically runs locally and does not require an API key.",
+  ollama_cloud: "Ollama Cloud uses the native Ollama API. Base URL: https://ollama.com (not /v1). Requires API key.",
   openai: "OpenAI uses the Responses API with structured outputs.",
   openai_compatible:
     "Use a bearer token with any chat-completions-compatible endpoint.",
+  opencode_go: "OpenCode Go uses an OpenAI-compatible endpoint with your API key.",
   glm: "GLM uses the Z.AI chat completions API (OpenAI-compatible) with your API key.",
   gemini: "Gemini uses the native AI Studio API and requires a key.",
   gemini_cli:
@@ -94,12 +106,18 @@ const PROVIDER_KEY_HELPERS: Record<
   },
   lmstudio: { text: "No API key required for LM Studio" },
   ollama: { text: "No API key required for Ollama" },
+  ollama_cloud: {
+    text: "Create a key at your Ollama Cloud provider",
+  },
   openai: {
     text: "Create a key at platform.openai.com",
     href: "https://platform.openai.com/api-keys",
   },
   openai_compatible: {
     text: "Use the bearer token issued by your compatible provider",
+  },
+  opencode_go: {
+    text: "Create a key at your OpenCode Go provider",
   },
   glm: {
     text: "Create a key at z.ai",
@@ -118,16 +136,20 @@ const PROVIDER_KEY_HELPERS: Record<
 const BASE_URL_PROVIDERS = [
   "lmstudio",
   "ollama",
+  "ollama_cloud",
   "openai_compatible",
   "glm",
+  "opencode_go",
 ] as const;
 type BaseUrlProviderId = (typeof BASE_URL_PROVIDERS)[number];
 
 const PROVIDER_BASE_URLS: Record<BaseUrlProviderId, string> = {
   lmstudio: "http://localhost:1234",
   ollama: "http://localhost:11434",
+  ollama_cloud: "https://ollama.com",
   openai_compatible: "https://api.example.com/v1/chat/completions",
   glm: "https://api.z.ai/api/paas/v4",
+  opencode_go: "http://localhost:8080",
 };
 
 export function normalizeLlmProvider(

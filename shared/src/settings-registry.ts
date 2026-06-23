@@ -100,6 +100,10 @@ export function getDefaultModelForProvider(
     return DEFAULT_GLM_MODEL;
   }
 
+  if (normalizedProvider === "opencode_go" || normalizedProvider === "ollama_cloud") {
+    return DEFAULT_GEMINI_MODEL;
+  }
+
   if (normalizedProvider === "codex") {
     return DEFAULT_CODEX_MODEL;
   }

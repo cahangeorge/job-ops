@@ -117,7 +117,9 @@ function getDefaultValidationBaseUrl(
 ): string | undefined {
   if (provider === "lmstudio") return "http://localhost:1234";
   if (provider === "ollama") return "http://localhost:11434";
+  if (provider === "ollama_cloud") return "https://ollama.com";
   if (provider === "openai_compatible") return "https://api.openai.com";
+  if (provider === "opencode_go") return "http://localhost:8080";
   if (provider === "glm") return "https://api.z.ai/api/paas/v4";
   return undefined;
 }
@@ -207,7 +209,9 @@ async function resolveLlmConfig(input: {
   const usesBaseUrl =
     provider === "lmstudio" ||
     provider === "ollama" ||
+    provider === "ollama_cloud" ||
     provider === "glm" ||
+    provider === "opencode_go" ||
     provider === "openai_compatible";
   const hasExplicitBaseUrlOverride =
     input.baseUrl !== undefined && input.baseUrl !== null;

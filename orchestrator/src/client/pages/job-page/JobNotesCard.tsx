@@ -2,6 +2,7 @@ import type { JobNote } from "@shared/types.js";
 import { useQuery } from "@tanstack/react-query";
 import { Edit2, FileText, PlusCircle, Trash2 } from "lucide-react";
 import React from "react";
+import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import * as api from "@/client/api";
 import { ConfirmDelete } from "@/client/components/ConfirmDelete";
@@ -37,6 +38,7 @@ type JobNotesCardProps = {
 };
 
 export const JobNotesCard: React.FC<JobNotesCardProps> = ({ jobId }) => {
+  const [searchParams] = useSearchParams();
   const [editorState, setEditorState] = React.useState<
     { mode: "create" } | { mode: "edit"; noteId: string } | null
   >(null);
@@ -66,6 +68,7 @@ export const JobNotesCard: React.FC<JobNotesCardProps> = ({ jobId }) => {
     () => sortNotesByUpdatedAtDesc(notesQuery.data ?? []),
     [notesQuery.data],
   );
+  const requestedNoteId = searchParams.get("noteId");
   const selectedNote = React.useMemo(
     () => notes.find((note) => note.id === selectedNoteId) ?? notes[0] ?? null,
     [notes, selectedNoteId],
@@ -181,10 +184,19 @@ export const JobNotesCard: React.FC<JobNotesCardProps> = ({ jobId }) => {
       return;
     }
 
+    if (
+      requestedNoteId &&
+      requestedNoteId !== selectedNoteId &&
+      notes.some((note) => note.id === requestedNoteId)
+    ) {
+      setSelectedNoteId(requestedNoteId);
+      return;
+    }
+
     if (!selectedNoteId || !notes.some((note) => note.id === selectedNoteId)) {
       setSelectedNoteId(notes[0]?.id ?? null);
     }
-  }, [editorState, notes, selectedNoteId]);
+  }, [editorState, notes, requestedNoteId, selectedNoteId]);
 
   const startViewingNote = React.useCallback(
     (note: JobNote) => {

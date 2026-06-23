@@ -225,7 +225,8 @@ export class LlmService {
       this.provider !== "openai" &&
       this.provider !== "glm" &&
       this.provider !== "gemini" &&
-      this.provider !== "ollama"
+      this.provider !== "ollama" &&
+      this.provider !== "ollama_cloud"
     ) {
       return [];
     }
@@ -239,6 +240,9 @@ export class LlmService {
       }
       if (this.provider === "glm") {
         return this.listGlmModels();
+      }
+      if (this.provider === "ollama_cloud") {
+        return this.listOllamaCloudModels();
       }
       return this.listOllamaModels();
     })();
@@ -554,6 +558,31 @@ export class LlmService {
       .map((entry) => entry.name?.trim() || entry.model?.trim() || "")
       .filter(Boolean);
   }
+
+  private async listOllamaCloudModels(): Promise<string[]> {
+    const response = await fetch(
+      joinUrl(this.baseUrl.replace(/\/api\/?$/i, ""), "/api/tags"),
+      {
+        method: "GET",
+        headers: buildHeaders({
+          apiKey: this.apiKey,
+          provider: this.provider,
+        }),
+      },
+    );
+
+    if (!response.ok) {
+      const detail = await getResponseDetail(response);
+      throw new Error(detail || `Ollama Cloud returned ${response.status}.`);
+    }
+
+    const payload = (await response.json()) as {
+      models?: Array<{ name?: string | null; model?: string | null }>;
+    };
+    return (payload.models ?? [])
+      .map((entry) => entry.name?.trim() || entry.model?.trim() || "")
+      .filter(Boolean);
+  }
 }
 
 function normalizeProvider(
@@ -576,6 +605,8 @@ function normalizeProvider(
   if (normalized === "gemini_cli") return "gemini_cli";
   if (normalized === "lmstudio") return "lmstudio";
   if (normalized === "ollama") return "ollama";
+  if (normalized === "ollama_cloud") return "ollama_cloud";
+  if (normalized === "opencode_go") return "opencode_go";
   if (normalized === "codex") return "codex";
   if (normalized && normalized !== "openrouter") {
     logger.warn("Unknown LLM provider, defaulting to openrouter", {

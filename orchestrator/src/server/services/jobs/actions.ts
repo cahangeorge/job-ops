@@ -222,15 +222,28 @@ export async function executeJobActionForJob(
           return rawProfile as Record<string, unknown>;
         })();
 
-    const [{ score, reason }, jobBrief] = await Promise.all([
+    const [result, jobBrief] = await Promise.all([
       scoreJobSuitability(job, profile),
       generateJobBrief(job.jobDescription, { jobId: job.id }),
     ]);
+    const { score, reason } = result;
 
     const updated = await jobsRepo.updateJob(job.id, {
       suitabilityScore: score,
       suitabilityReason: reason,
       jobBrief,
+      evaluationRoleSummary: result.roleSummary ?? null,
+      evaluationCvMatchScore: result.cvMatchScore ?? null,
+      evaluationCvMatchReason: result.cvMatchReason ?? null,
+      evaluationLevelStrategy: result.levelStrategy ?? null,
+      evaluationCompResearch: result.compResearch ?? null,
+      evaluationPersonalization: result.personalization ?? null,
+      evaluationInterviewPrep: result.interviewPrep ?? null,
+      evaluationLegitimacyScore: result.legitimacyScore ?? null,
+      evaluationLegitimacyReason: result.legitimacyReason ?? null,
+      evaluationOverallGrade: result.overallGrade ?? null,
+      archetype: result.archetype ?? null,
+      isGhostJob: result.isGhostJob ?? null,
     });
     if (!updated) {
       throw new AppError({
