@@ -168,6 +168,9 @@ const migrations = [
     pdf_fingerprint TEXT,
     pdf_generated_at TEXT,
     tracer_links_enabled INTEGER NOT NULL DEFAULT 0,
+    posting_liveness_status TEXT NOT NULL DEFAULT 'unknown',
+    posting_liveness_checked_at INTEGER,
+    posting_liveness_reason TEXT,
     discovered_at TEXT NOT NULL DEFAULT (datetime('now')),
     processed_at TEXT,
     ready_at TEXT,
@@ -1081,6 +1084,9 @@ const migrations = [
   `ALTER TABLE jobs ADD COLUMN evaluation_overall_grade TEXT`,
   `ALTER TABLE jobs ADD COLUMN archetype TEXT`,
   `ALTER TABLE jobs ADD COLUMN is_ghost_job INTEGER DEFAULT 0`,
+  `ALTER TABLE jobs ADD COLUMN posting_liveness_status TEXT NOT NULL DEFAULT 'unknown'`,
+  `ALTER TABLE jobs ADD COLUMN posting_liveness_checked_at INTEGER`,
+  `ALTER TABLE jobs ADD COLUMN posting_liveness_reason TEXT`,
 
   // Feature: Interview Story Bank
   `CREATE TABLE IF NOT EXISTS interview_stories (

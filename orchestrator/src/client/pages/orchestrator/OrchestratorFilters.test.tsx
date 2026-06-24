@@ -15,6 +15,7 @@ import type {
   FilterTab,
   GhostJobFilter,
   JobSort,
+  LivenessFilter,
   LegitimacyFilter,
   SponsorFilter,
 } from "./constants";
@@ -69,6 +70,8 @@ const renderFilters = (
     onLegitimacyFilterChange: vi.fn(),
     ghostJobFilter: "all" as GhostJobFilter,
     onGhostJobFilterChange: vi.fn(),
+    livenessFilter: "all" as LivenessFilter,
+    onLivenessFilterChange: vi.fn(),
     salaryFilter: {
       mode: "at_least" as const,
       min: null,
@@ -119,7 +122,7 @@ describe("OrchestratorFilters", () => {
     ).toHaveLength(2);
   });
 
-  it("updates source, sponsor, legitimacy, ghost-job, salary range, and sort from the drawer", async () => {
+  it("updates source, sponsor, legitimacy, ghost-job, liveness, salary range, and sort from the drawer", async () => {
     const { props } = renderFilters();
 
     fireEvent.click(screen.getByRole("button", { name: /^filters/i }));
@@ -135,6 +138,9 @@ describe("OrchestratorFilters", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Hide ghost jobs" }));
     expect(props.onGhostJobFilterChange).toHaveBeenCalledWith("hide");
+
+    fireEvent.click(screen.getByRole("button", { name: "Expired postings" }));
+    expect(props.onLivenessFilterChange).toHaveBeenCalledWith("expired");
 
     fireEvent.change(screen.getByLabelText("Minimum"), {
       target: { value: "65000" },

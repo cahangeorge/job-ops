@@ -172,6 +172,13 @@ export const jobs = sqliteTable(
       .default(false),
     sponsorMatchScore: real("sponsor_match_score"),
     sponsorMatchNames: text("sponsor_match_names"),
+    postingLivenessStatus: text("posting_liveness_status")
+      .notNull()
+      .default("unknown"),
+    postingLivenessCheckedAt: integer("posting_liveness_checked_at", {
+      mode: "number",
+    }),
+    postingLivenessReason: text("posting_liveness_reason"),
 
     // Structured 6-block evaluation
     evaluationRoleSummary: text("evaluation_role_summary"),

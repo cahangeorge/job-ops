@@ -167,11 +167,23 @@ describe("Career Ops API routes", () => {
       ok: true,
       data: {
         available: true,
-        actions: ["ats", "cover-letter", "negotiation", "portal-scanner"],
+        actions: [
+          "ats",
+          "cover-letter",
+          "negotiation",
+          "portal-scanner",
+          "liveness-checker",
+        ],
         features: expect.arrayContaining([
           expect.objectContaining({ id: "ats", status: "implemented" }),
-          expect.objectContaining({ id: "interview-prep", status: "missing" }),
-          expect.objectContaining({ id: "liveness-checker", status: "missing" }),
+          expect.objectContaining({
+            id: "interview-prep",
+            status: "implemented",
+          }),
+          expect.objectContaining({
+            id: "liveness-checker",
+            status: "implemented",
+          }),
         ]),
       },
     });

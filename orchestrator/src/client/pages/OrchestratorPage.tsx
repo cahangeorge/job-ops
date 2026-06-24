@@ -52,6 +52,8 @@ export const OrchestratorPage: React.FC = () => {
     setLegitimacyFilter,
     ghostJobFilter,
     setGhostJobFilter,
+    livenessFilter,
+    setLivenessFilter,
     salaryFilter,
     setSalaryFilter,
     dateFilter,
@@ -236,6 +238,7 @@ export const OrchestratorPage: React.FC = () => {
     sponsorFilter,
     legitimacyFilter,
     ghostJobFilter,
+    livenessFilter,
     salaryFilter,
     sort,
   );
@@ -530,6 +533,8 @@ export const OrchestratorPage: React.FC = () => {
             onLegitimacyFilterChange={setLegitimacyFilter}
             ghostJobFilter={ghostJobFilter}
             onGhostJobFilterChange={setGhostJobFilter}
+            livenessFilter={livenessFilter}
+            onLivenessFilterChange={setLivenessFilter}
             salaryFilter={salaryFilter}
             onSalaryFilterChange={setSalaryFilter}
             dateFilter={dateFilter}

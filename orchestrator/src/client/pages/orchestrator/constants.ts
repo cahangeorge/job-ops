@@ -103,6 +103,7 @@ export type LegitimacyFilter =
   | "low"
   | "unknown";
 export type GhostJobFilter = "all" | "hide" | "only";
+export type LivenessFilter = "all" | "live" | "expired" | "uncertain" | "unknown";
 export type SalaryFilterMode = "at_least" | "at_most" | "between";
 
 export interface SalaryFilter {

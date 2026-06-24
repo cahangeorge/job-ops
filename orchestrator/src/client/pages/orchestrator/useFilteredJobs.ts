@@ -7,6 +7,7 @@ import type {
   JobDateFilter,
   JobSort,
   LegitimacyFilter,
+  LivenessFilter,
   SalaryFilter,
   SponsorFilter,
 } from "./constants";
@@ -36,10 +37,24 @@ export const useFilteredJobs = (
   sponsorFilter: SponsorFilter,
   legitimacyFilter: LegitimacyFilter,
   ghostJobFilter: GhostJobFilter,
-  salaryFilter: SalaryFilter,
-  sort: JobSort,
+  livenessFilterOrSalaryFilter: LivenessFilter | SalaryFilter,
+  salaryFilterOrSort: SalaryFilter | JobSort,
+  sortMaybe?: JobSort,
 ) =>
   useMemo(() => {
+    const livenessFilter =
+      typeof livenessFilterOrSalaryFilter === "string"
+        ? livenessFilterOrSalaryFilter
+        : "all";
+    const salaryFilter =
+      typeof livenessFilterOrSalaryFilter === "string"
+        ? (salaryFilterOrSort as SalaryFilter)
+        : livenessFilterOrSalaryFilter;
+    const sort =
+      typeof livenessFilterOrSalaryFilter === "string"
+        ? (sortMaybe as JobSort)
+        : (salaryFilterOrSort as JobSort);
+
     let filtered = [...jobs];
 
     if (activeTab === "ready") {
@@ -91,6 +106,12 @@ export const useFilteredJobs = (
       filtered = filtered.filter((job) => job.isGhostJob === true);
     }
 
+    if (livenessFilter !== "all") {
+      filtered = filtered.filter(
+        (job) => (job.postingLivenessStatus ?? "unknown") === livenessFilter,
+      );
+    }
+
     const hasMin =
       typeof salaryFilter.min === "number" &&
       Number.isFinite(salaryFilter.min) &&
@@ -138,8 +159,9 @@ export const useFilteredJobs = (
     sponsorFilter,
     legitimacyFilter,
     ghostJobFilter,
-    salaryFilter,
-    sort,
+    livenessFilterOrSalaryFilter,
+    salaryFilterOrSort,
+    sortMaybe,
   ]);
 
 const matchesDateDimension = (

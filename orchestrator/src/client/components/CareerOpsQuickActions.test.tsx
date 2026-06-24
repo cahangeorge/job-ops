@@ -10,6 +10,7 @@ import { CareerOpsQuickActions } from "./CareerOpsQuickActions";
 vi.mock("@client/api", () => ({
   getCareerOpsAvailability: vi.fn(),
   analyzeAtsKeywords: vi.fn(),
+  checkJobPostingLiveness: vi.fn(),
   generateCoverLetter: vi.fn(),
   generateNegotiationScripts: vi.fn(),
   scanCompanyPortal: vi.fn(),
@@ -89,6 +90,11 @@ describe("CareerOpsQuickActions", () => {
       createdAt: "2026-01-02T12:00:00.000Z",
       updatedAt: "2026-01-02T12:00:00.000Z",
     });
+    vi.mocked(api.checkJobPostingLiveness).mockResolvedValue({
+      status: "live",
+      checkedAt: 1_800_000_000_000,
+      reason: "Apply signal found",
+    });
   });
 
   it("renders actions and disables company scan when portal cannot be inferred", () => {
@@ -103,6 +109,9 @@ describe("CareerOpsQuickActions", () => {
       ).toBeInTheDocument();
       expect(
         screen.getByRole("button", { name: "Negotiation" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Check posting" }),
       ).toBeInTheDocument();
       expect(
         screen.getByRole("button", { name: "Scan company jobs" }),

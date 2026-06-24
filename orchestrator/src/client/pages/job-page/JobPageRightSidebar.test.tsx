@@ -8,6 +8,11 @@ import { JobPageRightSidebar } from "./JobPageRightSidebar";
 vi.mock("@client/api", () => ({
   getCareerOpsAvailability: vi.fn().mockResolvedValue(true),
   analyzeAtsKeywords: vi.fn(),
+  checkJobPostingLiveness: vi.fn().mockResolvedValue({
+    status: "live",
+    checkedAt: 1_800_000_000_000,
+    reason: "Apply signal found",
+  }),
   generateCoverLetter: vi.fn(),
   generateNegotiationScripts: vi.fn(),
   scanCompanyPortal: vi.fn(),
@@ -118,6 +123,9 @@ describe("JobPageRightSidebar actions", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /negotiation/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /check posting/i }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /scan company jobs/i }),

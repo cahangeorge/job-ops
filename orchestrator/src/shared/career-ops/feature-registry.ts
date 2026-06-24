@@ -143,14 +143,15 @@ export const CAREER_OPS_FEATURES: CareerOpsFeature[] = [
     label: "Job Posting Liveness Checker",
     description:
       "Check whether a saved job posting is still live, expired, removed, or stale.",
-    status: "missing",
-    surface: "not-wired",
+    status: "implemented",
+    surface: "job-page-action",
     sourceArea: "liveness",
     sourcePath: "vendor/career-ops/check-liveness.mjs",
+    jobOpsPath: "orchestrator/src/server/api/routes/liveness.ts",
     missingReason:
-      "No JobOps UI or scheduled job currently exposes CareerOps liveness checks.",
+      "JobOps now has native posting liveness checks, persistence, row badges, filters, and job-page actions.",
     nextStep:
-      "Port liveness as a batch action and row badge on job lists.",
+      "Add batch liveness sweeps before tailoring and PDF generation.",
   },
   {
     id: "follow-up-cadence",

@@ -8,6 +8,7 @@ import type {
   JobDateFilter,
   JobSort,
   LegitimacyFilter,
+  LivenessFilter,
   SalaryFilter,
   SalaryFilterMode,
   SponsorFilter,
@@ -29,6 +30,13 @@ const allowedLegitimacyFilters: LegitimacyFilter[] = [
   "unknown",
 ];
 const allowedGhostJobFilters: GhostJobFilter[] = ["all", "hide", "only"];
+const allowedLivenessFilters: LivenessFilter[] = [
+  "all",
+  "live",
+  "expired",
+  "uncertain",
+  "unknown",
+];
 const allowedSalaryModes: SalaryFilterMode[] = [
   "at_least",
   "at_most",
@@ -154,6 +162,27 @@ export const useOrchestratorFilters = () => {
         (prev) => {
           if (value === "all") prev.delete("ghost");
           else prev.set("ghost", value);
+          return prev;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
+
+  const livenessFilter = useMemo((): LivenessFilter => {
+    const raw = searchParams.get("liveness") ?? "all";
+    return allowedLivenessFilters.includes(raw as LivenessFilter)
+      ? (raw as LivenessFilter)
+      : "all";
+  }, [searchParams]);
+
+  const setLivenessFilter = useCallback(
+    (value: LivenessFilter) => {
+      setSearchParams(
+        (prev) => {
+          if (value === "all") prev.delete("liveness");
+          else prev.set("liveness", value);
           return prev;
         },
         { replace: true },
@@ -294,6 +323,7 @@ export const useOrchestratorFilters = () => {
         prev.delete("sponsor");
         prev.delete("legitimacy");
         prev.delete("ghost");
+        prev.delete("liveness");
         prev.delete("salaryMode");
         prev.delete("salaryMin");
         prev.delete("salaryMax");
@@ -319,6 +349,8 @@ export const useOrchestratorFilters = () => {
     setLegitimacyFilter,
     ghostJobFilter,
     setGhostJobFilter,
+    livenessFilter,
+    setLivenessFilter,
     salaryFilter,
     setSalaryFilter,
     dateFilter,

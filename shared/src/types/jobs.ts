@@ -159,6 +159,11 @@ export type JobPdfFreshness =
   | "current"
   | "stale"
   | "regenerating";
+export type JobPostingLivenessStatus =
+  | "unknown"
+  | "live"
+  | "expired"
+  | "uncertain";
 
 export interface AppliedDuplicateMatch {
   jobId: string;
@@ -225,6 +230,9 @@ export interface Job {
   tracerLinksEnabled: boolean; // Rewrite outbound resume links to tracer links on next PDF generation
   sponsorMatchScore: number | null; // 0-100 fuzzy match score with visa sponsors
   sponsorMatchNames: string | null; // JSON array of matched sponsor names (when 100% matches or top match)
+  postingLivenessStatus: JobPostingLivenessStatus;
+  postingLivenessCheckedAt: number | null;
+  postingLivenessReason: string | null;
   appliedDuplicateMatch?: AppliedDuplicateMatch | null; // Included on detail responses and may be omitted on list responses
   followUpUrgency?: JobFollowUpUrgency;
   nextFollowUpAt?: number | null;
@@ -315,6 +323,9 @@ export type JobListItem = Pick<
 > & {
   evaluationLegitimacyScore?: Job["evaluationLegitimacyScore"];
   isGhostJob?: Job["isGhostJob"];
+  postingLivenessStatus?: JobPostingLivenessStatus;
+  postingLivenessCheckedAt?: number | null;
+  postingLivenessReason?: string | null;
 };
 
 export interface CreateJobInput {

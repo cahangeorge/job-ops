@@ -60,6 +60,7 @@ type JobPageRightSidebarProps = {
   onCopyJobInfo: () => void;
   onRescore: () => void;
   onCheckSponsor: () => void;
+  onCheckPostingLiveness?: () => void;
   resumeSummaryFallback?: string | null;
 };
 
@@ -94,6 +95,7 @@ export const JobPageRightSidebar: React.FC<JobPageRightSidebarProps> = ({
   onCopyJobInfo,
   onRescore,
   onCheckSponsor,
+  onCheckPostingLiveness,
   resumeSummaryFallback,
 }) => (
   <aside className="space-y-4 xl:sticky xl:top-5">
@@ -199,6 +201,19 @@ export const JobPageRightSidebar: React.FC<JobPageRightSidebarProps> = ({
           resumeSummaryFallback={resumeSummaryFallback}
           className="mt-2"
         />
+
+        {jobLink && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-9 w-full justify-start"
+            onClick={onCheckPostingLiveness}
+            disabled={isBusy}
+          >
+            <RefreshCcw className="mr-1.5 h-3.5 w-3.5" />
+            Check posting
+          </Button>
+        )}
 
         {job.pdfPath && (
           <TooltipWhenDisabled

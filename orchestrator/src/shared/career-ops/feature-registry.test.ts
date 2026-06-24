@@ -18,6 +18,7 @@ describe("CareerOps feature registry", () => {
       "cover-letter",
       "negotiation",
       "portal-scanner",
+      "liveness-checker",
     ]);
   });
 
@@ -30,7 +31,6 @@ describe("CareerOps feature registry", () => {
     );
     expect(missing.map((feature) => feature.id)).toEqual(
       expect.arrayContaining([
-        "liveness-checker",
         "follow-up-cadence",
         "pattern-analysis",
       ]),

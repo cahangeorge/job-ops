@@ -74,6 +74,27 @@ const legitimacyBadgeTokens: Record<
 const ghostJobTooltip =
   "This posting may be stale, low-intent, or unlikely to lead to a real hire.";
 
+const livenessBadgeTokens = {
+  live: {
+    label: "Posting live",
+    tooltip: "The posting recently showed active apply signals.",
+    className:
+      "border-emerald-200/70 bg-emerald-50 text-emerald-700 dark:border-emerald-400/25 dark:bg-emerald-400/10 dark:text-emerald-200",
+  },
+  expired: {
+    label: "Posting expired",
+    tooltip: "The posting appears closed or no longer available.",
+    className:
+      "border-rose-200/70 bg-rose-50 text-rose-700 dark:border-rose-400/25 dark:bg-rose-400/10 dark:text-rose-200",
+  },
+  uncertain: {
+    label: "Liveness uncertain",
+    tooltip: "The latest liveness check could not confirm whether this posting is still open.",
+    className:
+      "border-amber-200/70 bg-amber-50 text-amber-700 dark:border-amber-400/25 dark:bg-amber-400/10 dark:text-amber-200",
+  },
+} as const;
+
 function BadgeTooltip({
   children,
   content,
@@ -122,6 +143,12 @@ export const JobRowContent = ({
   const showRegeneratingPdf = isPdfRegenerating(job);
   const legitimacyBadge =
     legitimacyBadgeTokens[getLegitimacyCategory(job.evaluationLegitimacyScore)];
+  const livenessBadge =
+    job.postingLivenessStatus === "live" ||
+    job.postingLivenessStatus === "expired" ||
+    job.postingLivenessStatus === "uncertain"
+      ? livenessBadgeTokens[job.postingLivenessStatus]
+      : null;
 
   return (
     <div className={cn("flex min-w-0 flex-1 items-center gap-3", className)}>
@@ -155,6 +182,7 @@ export const JobRowContent = ({
           showRegeneratingPdf ||
           showStalePdf ||
           legitimacyBadge ||
+          livenessBadge ||
           job.isGhostJob === true) && (
           <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5">
             {job.salary?.trim() && (
@@ -172,6 +200,22 @@ export const JobRowContent = ({
                 {legitimacyBadge.label}
               </span>
             </BadgeTooltip>
+            {livenessBadge && (
+              <BadgeTooltip
+                content={
+                  job.postingLivenessReason ?? livenessBadge.tooltip
+                }
+              >
+                <span
+                  className={cn(
+                    "inline-flex shrink-0 rounded-sm border px-1.5 py-0.5 text-[10px] font-medium leading-none",
+                    livenessBadge.className,
+                  )}
+                >
+                  {livenessBadge.label}
+                </span>
+              </BadgeTooltip>
+            )}
             {job.isGhostJob === true && (
               <BadgeTooltip content={ghostJobTooltip}>
                 <span className="inline-flex shrink-0 rounded-sm border border-fuchsia-200/70 bg-fuchsia-50 px-1.5 py-0.5 text-[10px] font-medium leading-none text-fuchsia-700 dark:border-fuchsia-400/25 dark:bg-fuchsia-400/10 dark:text-fuchsia-200">
