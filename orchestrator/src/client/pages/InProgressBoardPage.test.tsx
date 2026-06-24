@@ -58,6 +58,7 @@ vi.mock("../api", () => ({
   getJobStageEvents: vi.fn(),
   transitionJobStage: vi.fn(),
   updateJobStageEvent: vi.fn(),
+  createJobNote: vi.fn(),
 }));
 
 vi.mock("canvas-confetti", () => ({
@@ -96,9 +97,12 @@ const makeJob = (overrides: Partial<JobListItem>): JobListItem => ({
   salaryMinAmount: null,
   salaryMaxAmount: null,
   salaryCurrency: null,
+  followUpUrgency: "urgent",
+  followUpReason: "Technical interview follow-up is due.",
+  nextFollowUpAt: null,
   discoveredAt: "2026-01-01T00:00:00.000Z",
   readyAt: null,
-  appliedAt: null,
+  appliedAt: "2025-12-30T00:00:00.000Z",
   updatedAt: "2026-01-01T00:00:00.000Z",
   ...overrides,
 });
@@ -137,6 +141,14 @@ beforeEach(() => {
   vi.mocked(api.transitionJobStage).mockResolvedValue(
     makeEvent({ toStage: "offer", title: "Offer" }),
   );
+  vi.mocked(api.createJobNote).mockResolvedValue({
+    id: "note-1",
+    jobId: "job-1",
+    title: "Follow-up draft",
+    content: "Draft body",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  });
 });
 
 describe("InProgressBoardPage", () => {
@@ -275,5 +287,30 @@ describe("InProgressBoardPage", () => {
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith("Failed to load board");
     });
+  });
+
+  it("renders follow-up urgency and saves a follow-up draft from the card", async () => {
+    render(
+      <MemoryRouter>
+        <InProgressBoardPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Urgent reply")).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /create follow-up draft for backend engineer/i }),
+    );
+
+    await waitFor(() => {
+      expect(api.createJobNote).toHaveBeenCalledWith(
+        "job-1",
+        expect.objectContaining({
+          title: expect.stringContaining("Follow-up draft"),
+          content: expect.stringContaining("Acme"),
+        }),
+      );
+    });
+
   });
 });

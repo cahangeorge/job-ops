@@ -328,6 +328,33 @@ export async function listJobNotesByIds(
   return rows.map(mapRowToJobNote);
 }
 
+export async function listJobNotesForJobIds(
+  jobIds: readonly string[],
+): Promise<JobNote[]> {
+  const normalizedJobIds = Array.from(
+    new Set(jobIds.map((jobId) => jobId.trim()).filter(Boolean)),
+  );
+  if (normalizedJobIds.length === 0) return [];
+
+  const tenantId = getActiveTenantId();
+  const rows = await db
+    .select()
+    .from(jobNotes)
+    .where(
+      and(
+        eq(jobNotes.tenantId, tenantId),
+        inArray(jobNotes.jobId, normalizedJobIds),
+      ),
+    )
+    .orderBy(
+      desc(jobNotes.updatedAt),
+      desc(jobNotes.createdAt),
+      desc(jobNotes.id),
+    );
+
+  return rows.map(mapRowToJobNote);
+}
+
 export async function getJobNoteById(noteId: string): Promise<JobNote | null> {
   const tenantId = getActiveTenantId();
   const [row] = await db

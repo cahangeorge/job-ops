@@ -13,6 +13,7 @@ vi.mock("../api", () => ({
   getPostApplicationInbox: vi.fn(),
   getPostApplicationRuns: vi.fn(),
   getJobs: vi.fn(),
+  createJobNote: vi.fn(),
   approvePostApplicationInboxItem: vi.fn(),
   denyPostApplicationInboxItem: vi.fn(),
   getPostApplicationRunMessages: vi.fn(),
@@ -142,8 +143,11 @@ beforeEach(() => {
         salaryMinAmount: null,
         salaryMaxAmount: null,
         salaryCurrency: null,
+        followUpUrgency: "overdue" as const,
+        followUpReason: "Application is older than 7 days with no saved follow-up draft.",
+        nextFollowUpAt: null,
         discoveredAt: new Date().toISOString(),
-        appliedAt: null,
+        appliedAt: "2026-06-16T00:00:00.000Z",
         updatedAt: new Date().toISOString(),
       },
     ],
@@ -192,6 +196,14 @@ beforeEach(() => {
     },
     items: [makeInboxItem()],
     total: 1,
+  });
+  vi.mocked(api.createJobNote).mockResolvedValue({
+    id: "note-1",
+    jobId: "job-2",
+    title: "Follow-up draft",
+    content: "Draft body",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   });
 });
 
@@ -246,5 +258,30 @@ describe("TrackingInboxPage", () => {
         view: "list",
       });
     });
+  });
+
+  it("shows follow-up urgency and saves a deterministic follow-up note", async () => {
+    render(
+      <MemoryRouter>
+        <TrackingInboxPage />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Overdue follow-up")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /create follow-up draft/i }));
+
+    await waitFor(() => {
+      expect(api.createJobNote).toHaveBeenCalledWith(
+        "job-2",
+        expect.objectContaining({
+          title: expect.stringContaining("Follow-up draft"),
+          content: expect.stringContaining("Example"),
+        }),
+      );
+    });
+
   });
 });
