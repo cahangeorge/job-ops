@@ -6,6 +6,7 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { editorHtmlToMarkdown } from "@/client/lib/jobNoteContent";
+import { buildApplyChecklistNote } from "./job-page/apply-assistant";
 import * as api from "../api";
 import { renderWithQueryClient } from "../test/renderWithQueryClient";
 import { JobPage } from "./JobPage";
@@ -117,7 +118,19 @@ vi.mock("../components/LogEventModal", () => ({
 }));
 
 vi.mock("./job-page/JobPageRightSidebar", () => ({
-  JobPageRightSidebar: () => <div data-testid="job-right-sidebar" />,
+  JobPageRightSidebar: ({
+    onPrepareApplyChecklist,
+  }: {
+    onPrepareApplyChecklist?: () => void;
+  }) => (
+    <div data-testid="job-right-sidebar">
+      {onPrepareApplyChecklist && (
+        <button type="button" onClick={onPrepareApplyChecklist}>
+          Prepare application checklist
+        </button>
+      )}
+    </div>
+  ),
 }));
 
 vi.mock("../components/ConfirmDelete", () => ({
@@ -280,6 +293,64 @@ describe("JobPage notes", () => {
     expect(await screen.findByTestId("job-notes-section")).toBeInTheDocument();
     expect(screen.getByTestId("location-probe")).toHaveTextContent(
       "/job/job-1/notes",
+    );
+  });
+
+  it("creates an apply checklist note from the job overview and opens notes", async () => {
+    renderJobPage("/job/job-1");
+
+    expect(await screen.findByTestId("job-right-sidebar")).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /prepare application checklist/i }),
+    );
+
+    const expectedNote = buildApplyChecklistNote({
+      job: createJob() as Job,
+      coverLetter: null,
+    });
+
+    await waitFor(() =>
+      expect(api.createJobNote).toHaveBeenCalledWith("job-1", expectedNote),
+    );
+    expect(toast.success).toHaveBeenCalledWith("Apply checklist prepared");
+
+    await waitFor(() =>
+      expect(screen.getByTestId("location-probe")).toHaveTextContent(
+        "/job/job-1/notes?noteId=note-1",
+      ),
+    );
+
+    expect(await screen.findByTestId("job-notes-section")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: /apply checklist — acme labs/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("includes the latest saved cover letter in the apply checklist", async () => {
+    notesStore = [
+      makeNote({
+        id: "cover-note",
+        title: "Cover letter - Senior Engineer",
+        content: "Dear Acme Labs, here is the saved draft.",
+        updatedAt: "2026-01-01T12:00:00.000Z",
+      }),
+    ];
+
+    renderJobPage("/job/job-1");
+
+    expect(await screen.findByTestId("job-right-sidebar")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: /prepare application checklist/i }),
+    );
+
+    const expectedNote = buildApplyChecklistNote({
+      job: createJob() as Job,
+      coverLetter: "Dear Acme Labs, here is the saved draft.",
+    });
+
+    await waitFor(() =>
+      expect(api.createJobNote).toHaveBeenCalledWith("job-1", expectedNote),
     );
   });
 

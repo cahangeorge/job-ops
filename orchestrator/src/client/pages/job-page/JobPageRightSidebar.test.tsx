@@ -79,6 +79,7 @@ function renderRightSidebar(overrides: Parameters<typeof createJob>[0] = {}) {
       onCopyJobInfo={noop}
       onRescore={noop}
       onCheckSponsor={noop}
+      onPrepareApplyChecklist={noop}
       resumeSummaryFallback="Base profile summary"
     />,
   );
@@ -121,6 +122,9 @@ describe("JobPageRightSidebar actions", () => {
     expect(
       screen.getByRole("button", { name: /scan company jobs/i }),
     ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: /prepare application checklist/i }),
+    ).toBeInTheDocument();
   });
 
   it("uses upload wording when the job has no resume PDF", () => {

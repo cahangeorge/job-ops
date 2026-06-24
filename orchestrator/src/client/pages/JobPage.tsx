@@ -78,6 +78,7 @@ import { JobTimeline } from "./job/Timeline";
 import { JobDocumentsPanel } from "./job-page/JobDocumentsPanel";
 import { JobEmailsPanel } from "./job-page/JobEmailsPanel";
 import { InterviewPrepPanel } from "./job-page/InterviewPrepPanel";
+import { buildApplyChecklistNote } from "./job-page/apply-assistant";
 import { JobNotesCard } from "./job-page/JobNotesCard";
 import {
   type JobMemoryView,
@@ -359,14 +360,16 @@ export const JobPage: React.FC = () => {
   };
 
   const runAction = React.useCallback(
-    async (actionKey: string, task: () => Promise<void>) => {
-      if (!job) return;
+    async <T,>(actionKey: string, task: () => Promise<T>): Promise<T | null> => {
+      if (!job) return null;
       try {
         setActiveAction(actionKey);
-        await task();
+        const result = await task();
         await loadData();
+        return result;
       } catch (error) {
         showErrorToast(error, "Failed to run action");
+        return null;
       } finally {
         setActiveAction(null);
       }
@@ -435,6 +438,36 @@ export const JobPage: React.FC = () => {
     } catch {
       toast.error("Could not copy job info");
     }
+  };
+
+  const handlePrepareApplyChecklist = async () => {
+    const note = await runAction("prepare-apply-checklist", async () => {
+      if (!job) return null;
+
+      const latestCoverLetterNote = notes.find((note) =>
+        /^cover letter\b/i.test(note.title),
+      );
+      const createdNote = await api.createJobNote(
+        job.id,
+        buildApplyChecklistNote({
+          job,
+          coverLetter: latestCoverLetterNote?.content ?? null,
+        }),
+      );
+      toast.success("Apply checklist prepared");
+      return createdNote;
+    });
+
+    if (!note || !job) return;
+
+    const searchParams = new URLSearchParams(location.search);
+    searchParams.set("noteId", note.id);
+    navigate(
+      `${baseJobPath}/notes${searchParams.toString() ? `?${searchParams.toString()}` : ""}`,
+      {
+        state: jobPageNavigationState,
+      },
+    );
   };
 
   const handleSaveJobDescription = React.useCallback(
@@ -899,6 +932,7 @@ export const JobPage: React.FC = () => {
               pdfDownloadLabel={pdfLabels.download}
               onStartTailoring={() => navigate(`/jobs/discovered/${job.id}`)}
               onMarkApplied={() => void handleMarkApplied()}
+              onPrepareApplyChecklist={() => void handlePrepareApplyChecklist()}
               onMoveToInProgress={() => void handleMoveToInProgress()}
               onOpenLogEvent={() => setIsLogModalOpen(true)}
               onEditTailoring={() => navigate(`/jobs/ready/${job.id}`)}

@@ -2,6 +2,7 @@ import type { ApplicationTask, Job } from "@shared/types.js";
 import {
   CalendarClock,
   CheckCircle2,
+  ClipboardList,
   Copy,
   Download,
   Edit2,
@@ -45,6 +46,7 @@ type JobPageRightSidebarProps = {
   pdfDownloadLabel: string;
   onStartTailoring: () => void;
   onMarkApplied: () => void;
+  onPrepareApplyChecklist: () => void;
   onMoveToInProgress: () => void;
   onOpenLogEvent: () => void;
   onEditTailoring: () => void;
@@ -78,6 +80,7 @@ export const JobPageRightSidebar: React.FC<JobPageRightSidebarProps> = ({
   pdfDownloadLabel,
   onStartTailoring,
   onMarkApplied,
+  onPrepareApplyChecklist,
   onMoveToInProgress,
   onOpenLogEvent,
   onEditTailoring,
@@ -136,6 +139,19 @@ export const JobPageRightSidebar: React.FC<JobPageRightSidebarProps> = ({
           >
             <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
             Mark Applied
+          </Button>
+        )}
+
+        {isReady && (
+          <Button
+            size="sm"
+            className="w-full justify-start"
+            variant="outline"
+            onClick={onPrepareApplyChecklist}
+            disabled={isBusy}
+          >
+            <ClipboardList className="mr-1.5 h-3.5 w-3.5" />
+            Prepare application checklist
           </Button>
         )}
 
