@@ -564,6 +564,41 @@ describe("JobPage interview prep", () => {
   });
 });
 
+describe("JobPage CareerOps evaluation", () => {
+  it("renders the CareerOps evaluation panel and marks the sidebar item active", async () => {
+    vi.mocked(api.getJob).mockResolvedValue(
+      createJob({
+        id: "job-1",
+        title: "Senior Platform Engineer",
+        employer: "Acme Labs",
+        evaluationOverallGrade: "A-",
+        archetype: "Strategic builder",
+        evaluationLevelStrategy:
+          "Target senior IC scope with systems ownership.",
+        evaluationCompResearch: "Market range suggests £80k-£95k.",
+        evaluationPersonalization:
+          "Highlight incident response and scaling work.",
+        evaluationLegitimacyReason:
+          "Legit because the team and scope are concrete.",
+        evaluationCvMatchScore: 84,
+        evaluationCvMatchReason:
+          "Strong match on TypeScript and platform work.",
+      }) as Job,
+    );
+
+    renderJobPage("/job/job-1/career-ops-evaluation");
+
+    expect(
+      await screen.findByTestId("career-ops-evaluation-panel"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("A-")).toBeInTheDocument();
+    expect(screen.getByText("Strategic builder")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /career ops evaluation/i }),
+    ).toHaveClass("border-input");
+  });
+});
+
 describe("JobPage timeline actions", () => {
   it("shows a log event button on the overview page when stage logging is available", async () => {
     vi.mocked(api.getJob).mockResolvedValue(

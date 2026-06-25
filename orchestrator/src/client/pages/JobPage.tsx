@@ -76,6 +76,7 @@ import {
 import { getDeleteEventDescription } from "./job/deleteEventDescription";
 import { JobTimeline } from "./job/Timeline";
 import { buildApplyChecklistNote } from "./job-page/apply-assistant";
+import { CareerOpsEvaluationPanel } from "./job-page/CareerOpsEvaluationPanel";
 import { InterviewPrepPanel } from "./job-page/InterviewPrepPanel";
 import { JobDocumentsPanel } from "./job-page/JobDocumentsPanel";
 import { JobEmailsPanel } from "./job-page/JobEmailsPanel";
@@ -93,6 +94,7 @@ const normalizeMemoryView = (view: string | undefined): JobMemoryView => {
     view === "documents" ||
     view === "timeline" ||
     view === "interview-prep" ||
+    view === "career-ops-evaluation" ||
     view === "emails" ||
     view === "ghostwriter"
   ) {
@@ -896,6 +898,10 @@ export const JobPage: React.FC = () => {
 
             {activeMemoryView === "interview-prep" && (
               <InterviewPrepPanel job={job} />
+            )}
+
+            {activeMemoryView === "career-ops-evaluation" && (
+              <CareerOpsEvaluationPanel job={job} />
             )}
 
             {activeMemoryView === "ghostwriter" && (
