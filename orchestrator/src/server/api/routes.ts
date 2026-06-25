@@ -3,20 +3,26 @@
  */
 
 import { Router } from "express";
+import { atsRouter } from "./routes/ats";
 import { authRouter } from "./routes/auth";
 import { backupRouter } from "./routes/backup";
 import { batchRouter } from "./routes/batch";
+import { careerOpsRouter } from "./routes/career-ops";
+import { coverLetterRouter } from "./routes/cover-letter";
 import { databaseRouter } from "./routes/database";
 import { demoRouter } from "./routes/demo";
 import { designResumeRouter } from "./routes/design-resume";
 import { extractorHealthRouter } from "./routes/extractor-health";
 import { ghostwriterRouter } from "./routes/ghostwriter";
 import { interviewPrepRouter } from "./routes/interview-prep";
+import { interviewStoriesRouter } from "./routes/interview-stories-router";
 import { jobsRouter } from "./routes/jobs";
 import { livenessRouter } from "./routes/liveness";
 import { manualJobsRouter } from "./routes/manual-jobs";
+import { negotiationRouter } from "./routes/negotiation";
 import { onboardingRouter } from "./routes/onboarding";
 import { pipelineRouter } from "./routes/pipeline";
+import { portalScannerRouter } from "./routes/portal-scanner";
 import { postApplicationProvidersRouter } from "./routes/post-application-providers";
 import { postApplicationReviewRouter } from "./routes/post-application-review";
 import { profileRouter } from "./routes/profile";
@@ -27,13 +33,6 @@ import { watchlistRouter } from "./routes/watchlist";
 import { webhookRouter } from "./routes/webhook";
 import { workdayRouter } from "./routes/workday";
 import { workspacesRouter } from "./routes/workspaces";
-
-import { coverLetterRouter } from "./routes/cover-letter";
-import { negotiationRouter } from "./routes/negotiation";
-import { atsRouter } from "./routes/ats";
-import { portalScannerRouter } from "./routes/portal-scanner";
-import { careerOpsRouter } from "./routes/career-ops";
-import { interviewStoriesRouter } from "./routes/interview-stories-router";
 
 export const apiRouter = Router();
 

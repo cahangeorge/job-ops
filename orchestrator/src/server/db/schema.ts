@@ -234,7 +234,9 @@ export const interviewStories = sqliteTable("interview_stories", {
   reflection: text("reflection"),
   skills: text("skills"),
   tags: text("tags"),
-  isMasterStory: integer("is_master_story", { mode: "boolean" }).notNull().default(false),
+  isMasterStory: integer("is_master_story", { mode: "boolean" })
+    .notNull()
+    .default(false),
   createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
   updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),
 });

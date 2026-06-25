@@ -116,7 +116,9 @@ describe("JobPageRightSidebar actions", () => {
       screen.getByRole("button", { name: /download old pdf/i }),
     ).toBeInTheDocument();
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: /ats fit/i })).toBeInTheDocument(),
+      expect(
+        screen.getByRole("button", { name: /ats fit/i }),
+      ).toBeInTheDocument(),
     );
     expect(
       screen.getByRole("button", { name: /cover letter/i }),

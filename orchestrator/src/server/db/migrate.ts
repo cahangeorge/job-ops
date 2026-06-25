@@ -1106,7 +1106,6 @@ const migrations = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_interview_stories_tenant ON interview_stories(tenant_id)`,
   `CREATE INDEX IF NOT EXISTS idx_interview_stories_tags ON interview_stories(tags)`,
-
 ];
 
 console.log("🔧 Running database migrations...");
@@ -1141,9 +1140,7 @@ for (const migration of migrations) {
         migration
           .toLowerCase()
           .includes("alter table analytics_install_state add column") ||
-        migration
-          .toLowerCase()
-          .includes("alter table jobs add column")) &&
+        migration.toLowerCase().includes("alter table jobs add column")) &&
       message.toLowerCase().includes("duplicate column name");
 
     if (isDuplicateColumn) {

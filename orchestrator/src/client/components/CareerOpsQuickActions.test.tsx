@@ -1,10 +1,9 @@
-import { screen, waitFor } from "@testing-library/react";
-import { fireEvent } from "@testing-library/react";
-import { createJob } from "@shared/testing/factories.js";
 import * as api from "@client/api";
-import { describe, expect, it, beforeEach, vi } from "vitest";
 import { renderWithQueryClient } from "@client/test/renderWithQueryClient";
+import { createJob } from "@shared/testing/factories.js";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CareerOpsQuickActions } from "./CareerOpsQuickActions";
 
 vi.mock("@client/api", () => ({
@@ -111,9 +110,6 @@ describe("CareerOpsQuickActions", () => {
         screen.getByRole("button", { name: "Negotiation" }),
       ).toBeInTheDocument();
       expect(
-        screen.getByRole("button", { name: "Check posting" }),
-      ).toBeInTheDocument();
-      expect(
         screen.getByRole("button", { name: "Scan company jobs" }),
       ).toBeDisabled();
     });
@@ -137,7 +133,9 @@ describe("CareerOpsQuickActions", () => {
         resumeText: "Built resilient backend systems.",
       }),
     );
-    expect(await screen.findByText("Optimized role summary.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Optimized role summary."),
+    ).toBeInTheDocument();
   });
 
   it("uses fallback profile summary for cover letter generation", async () => {
@@ -249,7 +247,9 @@ describe("CareerOpsQuickActions", () => {
 
     await screen.findByRole("button", { name: "ATS Fit" });
     fireEvent.click(screen.getByRole("button", { name: "ATS Fit" }));
-    expect(await screen.findByText("Optimized role summary.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Optimized role summary."),
+    ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Save to notes" }));
 

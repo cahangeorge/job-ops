@@ -299,7 +299,9 @@ describe("InProgressBoardPage", () => {
     expect(await screen.findByText("Urgent reply")).toBeInTheDocument();
 
     fireEvent.click(
-      screen.getByRole("button", { name: /create follow-up draft for backend engineer/i }),
+      screen.getByRole("button", {
+        name: /create follow-up draft for backend engineer/i,
+      }),
     );
 
     await waitFor(() => {
@@ -311,6 +313,5 @@ describe("InProgressBoardPage", () => {
         }),
       );
     });
-
   });
 });

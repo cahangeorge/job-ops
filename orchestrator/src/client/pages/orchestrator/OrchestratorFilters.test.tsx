@@ -15,8 +15,8 @@ import type {
   FilterTab,
   GhostJobFilter,
   JobSort,
-  LivenessFilter,
   LegitimacyFilter,
+  LivenessFilter,
   SponsorFilter,
 } from "./constants";
 import { OrchestratorFilters } from "./OrchestratorFilters";

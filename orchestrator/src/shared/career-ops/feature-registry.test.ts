@@ -30,10 +30,7 @@ describe("CareerOps feature registry", () => {
       true,
     );
     expect(missing.map((feature) => feature.id)).toEqual(
-      expect.arrayContaining([
-        "follow-up-cadence",
-        "pattern-analysis",
-      ]),
+      expect.arrayContaining(["follow-up-cadence", "pattern-analysis"]),
     );
   });
 
@@ -50,7 +47,8 @@ describe("CareerOps feature registry", () => {
           id: "interview-prep",
           status: "implemented",
           surface: "job-detail-panel",
-          jobOpsPath: "orchestrator/src/client/pages/job-page/InterviewPrepPanel.tsx",
+          jobOpsPath:
+            "orchestrator/src/client/pages/job-page/InterviewPrepPanel.tsx",
         }),
         expect.objectContaining({
           id: "batch-processing",

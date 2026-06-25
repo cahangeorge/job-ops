@@ -75,10 +75,10 @@ import {
 } from "../components/LogEventModal";
 import { getDeleteEventDescription } from "./job/deleteEventDescription";
 import { JobTimeline } from "./job/Timeline";
+import { buildApplyChecklistNote } from "./job-page/apply-assistant";
+import { InterviewPrepPanel } from "./job-page/InterviewPrepPanel";
 import { JobDocumentsPanel } from "./job-page/JobDocumentsPanel";
 import { JobEmailsPanel } from "./job-page/JobEmailsPanel";
-import { InterviewPrepPanel } from "./job-page/InterviewPrepPanel";
-import { buildApplyChecklistNote } from "./job-page/apply-assistant";
 import { JobNotesCard } from "./job-page/JobNotesCard";
 import {
   type JobMemoryView,
@@ -360,7 +360,10 @@ export const JobPage: React.FC = () => {
   };
 
   const runAction = React.useCallback(
-    async <T,>(actionKey: string, task: () => Promise<T>): Promise<T | null> => {
+    async <T,>(
+      actionKey: string,
+      task: () => Promise<T>,
+    ): Promise<T | null> => {
       if (!job) return null;
       try {
         setActiveAction(actionKey);

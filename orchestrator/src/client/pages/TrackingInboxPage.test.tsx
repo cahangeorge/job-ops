@@ -144,7 +144,8 @@ beforeEach(() => {
         salaryMaxAmount: null,
         salaryCurrency: null,
         followUpUrgency: "overdue" as const,
-        followUpReason: "Application is older than 7 days with no saved follow-up draft.",
+        followUpReason:
+          "Application is older than 7 days with no saved follow-up draft.",
         nextFollowUpAt: null,
         discoveredAt: new Date().toISOString(),
         appliedAt: "2026-06-16T00:00:00.000Z",
@@ -271,7 +272,9 @@ describe("TrackingInboxPage", () => {
       expect(screen.getByText("Overdue follow-up")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /create follow-up draft/i }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /create follow-up draft/i }),
+    );
 
     await waitFor(() => {
       expect(api.createJobNote).toHaveBeenCalledWith(
@@ -282,6 +285,5 @@ describe("TrackingInboxPage", () => {
         }),
       );
     });
-
   });
 });

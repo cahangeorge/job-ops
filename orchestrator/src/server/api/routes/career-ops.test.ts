@@ -1,6 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toAppError } from "@server/infra/errors";
 import { fail } from "@server/infra/http";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   analyzeAtsKeywordsMock,
@@ -84,7 +84,9 @@ async function invokeRoute(args: {
   );
 
   if (!layer?.route?.stack[0]?.handle) {
-    throw new Error(`Route not found for ${args.method.toUpperCase()} ${args.path}`);
+    throw new Error(
+      `Route not found for ${args.method.toUpperCase()} ${args.path}`,
+    );
   }
 
   const req = {
@@ -197,7 +199,9 @@ describe("Career Ops API routes", () => {
     });
 
     expect(healthRes.statusCode).toBe(200);
-    expect((healthRes.body as { data: { available: boolean } }).data.available).toBe(true);
+    expect(
+      (healthRes.body as { data: { available: boolean } }).data.available,
+    ).toBe(true);
 
     const res = await invokeRoute({
       router: atsRouter,
@@ -215,9 +219,10 @@ describe("Career Ops API routes", () => {
       resumeText: "Built k8s systems",
     });
     expect((res.body as { ok: boolean }).ok).toBe(true);
-    expect((res.body as { data: { optimizedSummary: string } }).data.optimizedSummary).toBe(
-      "Optimized summary.",
-    );
+    expect(
+      (res.body as { data: { optimizedSummary: string } }).data
+        .optimizedSummary,
+    ).toBe("Optimized summary.");
   });
 
   it("validates ATS input", async () => {
@@ -327,8 +332,9 @@ describe("Career Ops API routes", () => {
       departments: ["infrastructure"],
       excludeInternships: true,
     });
-    expect((goodRes.body as { data: { jobs: Array<{ title: string }> } }).data.jobs[0]?.title).toBe(
-      "Platform Engineer",
-    );
+    expect(
+      (goodRes.body as { data: { jobs: Array<{ title: string }> } }).data
+        .jobs[0]?.title,
+    ).toBe("Platform Engineer");
   });
 });

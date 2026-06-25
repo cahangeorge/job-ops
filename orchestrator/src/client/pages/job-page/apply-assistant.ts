@@ -33,7 +33,8 @@ export function buildApplyChecklistNote(
 ): ApplyChecklistNote {
   const { job, coverLetter } = input;
   const postingUrl = job.applicationLink?.trim() || job.jobUrl.trim();
-  const coverLetterText = coverLetter?.trim() || "No cover letter draft saved yet.";
+  const coverLetterText =
+    coverLetter?.trim() || "No cover letter draft saved yet.";
 
   const content = [
     `# Apply checklist — ${job.employer}`,

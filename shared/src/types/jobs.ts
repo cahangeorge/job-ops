@@ -627,7 +627,6 @@ export interface UpdateJobNoteInput {
   content: string;
 }
 
-
 export interface InterviewStory {
   id: string;
   tenantId: string;
@@ -644,5 +643,8 @@ export interface InterviewStory {
   updatedAt: string;
 }
 
-export type CreateInterviewStoryInput = Omit<InterviewStory, 'id' | 'tenantId' | 'createdAt' | 'updatedAt'>;
+export type CreateInterviewStoryInput = Omit<
+  InterviewStory,
+  "id" | "tenantId" | "createdAt" | "updatedAt"
+>;
 export type UpdateInterviewStoryInput = Partial<CreateInterviewStoryInput>;

@@ -220,7 +220,9 @@ export const EmailViewerList: React.FC<EmailViewerListProps> = ({
             }
             onApprove={() => onDecision(item, "approve")}
             onDeny={() => onDecision(item, "deny")}
-            onCreateFollowUpDraft={() => onCreateFollowUpDraft(selectedAppliedJobId)}
+            onCreateFollowUpDraft={() =>
+              onCreateFollowUpDraft(selectedAppliedJobId)
+            }
             isActionLoading={isActionLoading}
             isAppliedJobsLoading={isAppliedJobsLoading}
           />

@@ -150,8 +150,7 @@ export const CAREER_OPS_FEATURES: CareerOpsFeature[] = [
     jobOpsPath: "orchestrator/src/server/api/routes/liveness.ts",
     missingReason:
       "JobOps now has native posting liveness checks, persistence, row badges, filters, and job-page actions.",
-    nextStep:
-      "Add batch liveness sweeps before tailoring and PDF generation.",
+    nextStep: "Add batch liveness sweeps before tailoring and PDF generation.",
   },
   {
     id: "follow-up-cadence",

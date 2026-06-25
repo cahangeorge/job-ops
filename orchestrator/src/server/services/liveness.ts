@@ -42,7 +42,8 @@ export async function checkPostingLiveness(
       headers: {
         "user-agent":
           "Mozilla/5.0 (compatible; JobOps-LivenessChecker/1.0; +https://jobops.local)",
-        accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        accept:
+          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
       },
     });
 
@@ -76,7 +77,9 @@ export async function checkPostingLiveness(
       };
     }
 
-    const liveSignal = LIVE_SIGNALS.find((signal) => normalized.includes(signal));
+    const liveSignal = LIVE_SIGNALS.find((signal) =>
+      normalized.includes(signal),
+    );
     if (liveSignal) {
       return {
         status: "live",

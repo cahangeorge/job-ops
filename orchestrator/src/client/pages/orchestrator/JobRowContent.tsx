@@ -1,7 +1,7 @@
 import { isAwaitingAiScore } from "@client/components";
 import type { JobListItem } from "@shared/types.js";
 import { Loader2, XCircle } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { isPdfRegenerating, isPdfStale } from "@/client/lib/pdf-freshness";
 import {
   Tooltip,
@@ -43,8 +43,7 @@ const legitimacyBadgeTokens: Record<
 > = {
   high: {
     label: "High legitimacy",
-    tooltip:
-      "A high-confidence role based on company and posting signals.",
+    tooltip: "A high-confidence role based on company and posting signals.",
     className:
       "border-emerald-200/70 bg-emerald-50 text-emerald-700 dark:border-emerald-400/25 dark:bg-emerald-400/10 dark:text-emerald-200",
   },
@@ -89,7 +88,8 @@ const livenessBadgeTokens = {
   },
   uncertain: {
     label: "Liveness uncertain",
-    tooltip: "The latest liveness check could not confirm whether this posting is still open.",
+    tooltip:
+      "The latest liveness check could not confirm whether this posting is still open.",
     className:
       "border-amber-200/70 bg-amber-50 text-amber-700 dark:border-amber-400/25 dark:bg-amber-400/10 dark:text-amber-200",
   },
@@ -108,6 +108,7 @@ function BadgeTooltip({
     <TooltipProvider delayDuration={0}>
       <Tooltip open={isOpen} onOpenChange={setIsOpen}>
         <TooltipTrigger asChild>
+          {/* biome-ignore lint/a11y/noStaticElementInteractions: Tooltip badges live inside an already-clickable job row; mouse events only control the explanatory tooltip. */}
           <span
             onMouseEnter={() => setIsOpen(true)}
             onMouseLeave={() => setIsOpen(false)}
@@ -202,9 +203,7 @@ export const JobRowContent = ({
             </BadgeTooltip>
             {livenessBadge && (
               <BadgeTooltip
-                content={
-                  job.postingLivenessReason ?? livenessBadge.tooltip
-                }
+                content={job.postingLivenessReason ?? livenessBadge.tooltip}
               >
                 <span
                   className={cn(

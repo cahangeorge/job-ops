@@ -1,4 +1,9 @@
-import type { ApplicationStage, JobFollowUpUrgency, JobStatus, JobNote } from "@shared/types";
+import type {
+  ApplicationStage,
+  JobFollowUpUrgency,
+  JobNote,
+  JobStatus,
+} from "@shared/types";
 import { FOLLOW_UP_NOTE_TITLE_PREFIX } from "@shared/types";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -57,9 +62,10 @@ function getStageLabel(stage?: ApplicationStage | null): string {
 }
 
 export function isFollowUpNoteTitle(title: string): boolean {
-  return title.trim().toLowerCase().startsWith(
-    FOLLOW_UP_NOTE_TITLE_PREFIX.toLowerCase(),
-  );
+  return title
+    .trim()
+    .toLowerCase()
+    .startsWith(FOLLOW_UP_NOTE_TITLE_PREFIX.toLowerCase());
 }
 
 export function summarizeFollowUpNotes(
@@ -74,7 +80,9 @@ export function summarizeFollowUpNotes(
     const updatedAt = Date.parse(note.updatedAt);
     if (Number.isFinite(updatedAt)) {
       lastFollowUpAt =
-        lastFollowUpAt === null ? updatedAt : Math.max(lastFollowUpAt, updatedAt);
+        lastFollowUpAt === null
+          ? updatedAt
+          : Math.max(lastFollowUpAt, updatedAt);
     }
   }
 
@@ -103,7 +111,8 @@ export function getFollowUpCadence(
     return {
       urgency: "cold",
       nextFollowUpAt: null,
-      followUpReason: "Two follow-up drafts are already saved. Deprioritize unless new signal arrives.",
+      followUpReason:
+        "Two follow-up drafts are already saved. Deprioritize unless new signal arrives.",
       daysSinceApplication,
     };
   }

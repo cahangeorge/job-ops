@@ -6,10 +6,10 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { editorHtmlToMarkdown } from "@/client/lib/jobNoteContent";
-import { buildApplyChecklistNote } from "./job-page/apply-assistant";
 import * as api from "../api";
 import { renderWithQueryClient } from "../test/renderWithQueryClient";
 import { JobPage } from "./JobPage";
+import { buildApplyChecklistNote } from "./job-page/apply-assistant";
 
 const TIPTAP_HTML =
   `<h2>Fit</h2><p>Because <strong>this team</strong> and <a href="https://example.com/docs">docs</a>.</p>` +
@@ -544,7 +544,9 @@ describe("JobPage interview prep", () => {
 
     renderJobPage("/job/job-1/interview-prep");
 
-    expect(await screen.findByTestId("interview-prep-panel")).toBeInTheDocument();
+    expect(
+      await screen.findByTestId("interview-prep-panel"),
+    ).toBeInTheDocument();
     expect(await screen.findByText("Scale incident")).toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("checkbox", { name: /Use story Scale incident/i }),
