@@ -1,13 +1,17 @@
 import * as api from "@client/api";
 import { createJob } from "@shared/testing/factories.js";
 import type { JobActionResponse, JobActionStreamEvent } from "@shared/types.js";
+import type { QueryClient } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { queryKeys } from "@/client/lib/queryKeys";
 import { useJobSelectionActions } from "./useJobSelectionActions";
 
 vi.mock("@client/api", () => ({
   streamJobAction: vi.fn(),
+  batchScoreJobs: vi.fn(),
+  checkJobPostingLiveness: vi.fn(),
 }));
 
 vi.mock("sonner", () => ({
@@ -30,6 +34,13 @@ const deferred = <T>(): Deferred<T> => {
     resolve = res;
   });
   return { promise, resolve };
+};
+
+const createQueryClientMock = () => {
+  const invalidateQueries = vi.fn().mockResolvedValue(undefined);
+  return {
+    invalidateQueries,
+  } as unknown as QueryClient;
 };
 
 const asStreamEvents = (
@@ -108,11 +119,13 @@ describe("useJobSelectionActions", () => {
       createJob({ id: `job-${index + 1}`, status: "discovered" }),
     );
     const loadJobs = vi.fn().mockResolvedValue(undefined);
+    const queryClient = createQueryClientMock();
     const { result } = renderHook(() =>
       useJobSelectionActions({
         activeJobs,
         activeTab: "discovered",
         loadJobs,
+        queryClient,
       }),
     );
 
@@ -128,11 +141,13 @@ describe("useJobSelectionActions", () => {
       createJob({ id: `job-${index + 1}`, status: "discovered" }),
     );
     const loadJobs = vi.fn().mockResolvedValue(undefined);
+    const queryClient = createQueryClientMock();
     const { result } = renderHook(() =>
       useJobSelectionActions({
         activeJobs,
         activeTab: "discovered",
         loadJobs,
+        queryClient,
       }),
     );
 
@@ -156,6 +171,7 @@ describe("useJobSelectionActions", () => {
       createJob({ id: "job-3", status: "discovered" }),
     ];
     const loadJobs = vi.fn().mockResolvedValue(undefined);
+    const queryClient = createQueryClientMock();
     const release = deferred<void>();
     mockStreamJobAction(
       {
@@ -184,6 +200,7 @@ describe("useJobSelectionActions", () => {
         activeJobs,
         activeTab: "discovered",
         loadJobs,
+        queryClient,
       }),
     );
 
@@ -217,27 +234,28 @@ describe("useJobSelectionActions", () => {
     expect(toast.dismiss).toHaveBeenCalled();
   });
 
-  it("runs rescore and reports success copy", async () => {
+  it("runs batch rescore and reports success copy", async () => {
     const activeJobs = [
       createJob({ id: "job-1", status: "ready" }),
       createJob({ id: "job-2", status: "ready" }),
     ];
     const loadJobs = vi.fn().mockResolvedValue(undefined);
-    mockStreamJobAction({
-      action: "rescore",
-      requested: 2,
-      succeeded: 2,
-      failed: 0,
+    const queryClient = createQueryClientMock();
+    vi.mocked(api.batchScoreJobs).mockResolvedValue({
       results: [
         {
           jobId: "job-1",
-          ok: true,
-          job: createJob({ id: "job-1", status: "ready" }),
+          title: "Role one",
+          employer: "Acme",
+          score: 92,
+          reason: "Strong fit",
         },
         {
           jobId: "job-2",
-          ok: true,
-          job: createJob({ id: "job-2", status: "ready" }),
+          title: "Role two",
+          employer: "Acme",
+          score: 88,
+          reason: "Good fit",
         },
       ],
     });
@@ -247,6 +265,7 @@ describe("useJobSelectionActions", () => {
         activeJobs,
         activeTab: "ready",
         loadJobs,
+        queryClient,
       }),
     );
 
@@ -259,12 +278,70 @@ describe("useJobSelectionActions", () => {
       await result.current.runJobAction("rescore");
     });
 
-    expect(api.streamJobAction).toHaveBeenCalledWith(
-      { action: "rescore", jobIds: ["job-1", "job-2"] },
-      expect.objectContaining({
-        onEvent: expect.any(Function),
+    expect(api.batchScoreJobs).toHaveBeenCalledWith({
+      jobIds: ["job-1", "job-2"],
+      profile: {},
+    });
+    expect(
+      vi
+        .mocked(queryClient.invalidateQueries)
+        .mock.calls.some(
+          ([input]) =>
+            input &&
+            "queryKey" in input &&
+            input.queryKey === queryKeys.jobs.all,
+        ),
+    ).toBe(true);
+    expect(loadJobs).toHaveBeenCalledTimes(1);
+    expect(toast.success).toHaveBeenCalledWith("2 jobs rescored");
+  });
+
+  it("runs batch liveness checks and reports partial failures", async () => {
+    const activeJobs = [
+      createJob({ id: "job-1", status: "ready" }),
+      createJob({ id: "job-2", status: "ready" }),
+    ];
+    const loadJobs = vi.fn().mockResolvedValue(undefined);
+    const queryClient = createQueryClientMock();
+    vi.mocked(api.checkJobPostingLiveness)
+      .mockResolvedValueOnce({
+        status: "live",
+        checkedAt: 1_800_000_000_000,
+        reason: "Apply signal found",
+      })
+      .mockRejectedValueOnce(new Error("unreachable"));
+
+    const { result } = renderHook(() =>
+      useJobSelectionActions({
+        activeJobs,
+        activeTab: "ready",
+        loadJobs,
+        queryClient,
       }),
     );
-    expect(toast.success).toHaveBeenCalledWith("2 matches recalculated");
+
+    act(() => {
+      result.current.toggleSelectJob("job-1");
+      result.current.toggleSelectJob("job-2");
+    });
+
+    await act(async () => {
+      await result.current.runBatchLivenessSelected();
+    });
+
+    expect(api.checkJobPostingLiveness).toHaveBeenCalledWith("job-1");
+    expect(api.checkJobPostingLiveness).toHaveBeenCalledWith("job-2");
+    expect(
+      vi
+        .mocked(queryClient.invalidateQueries)
+        .mock.calls.some(
+          ([input]) =>
+            input &&
+            "queryKey" in input &&
+            input.queryKey === queryKeys.jobs.all,
+        ),
+    ).toBe(true);
+    expect(loadJobs).toHaveBeenCalledTimes(1);
+    expect(toast.error).toHaveBeenCalledWith("1 succeeded, 1 failed.");
   });
 });

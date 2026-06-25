@@ -279,15 +279,19 @@ export const OrchestratorPage: React.FC = () => {
     canSkipSelected,
     canMoveSelected,
     canRescoreSelected,
+    canCheckLivenessSelected,
     jobActionInFlight,
     toggleSelectJob,
     toggleSelectAll,
     clearSelection,
     runJobAction,
+    runBatchLivenessSelected,
+    runBatchRescoreSelected,
   } = useJobSelectionActions({
     activeJobs,
     activeTab,
     loadJobs,
+    queryClient,
   });
 
   useEffect(() => {
@@ -585,10 +589,12 @@ export const OrchestratorPage: React.FC = () => {
         canMoveSelected={canMoveSelected}
         canSkipSelected={canSkipSelected}
         canRescoreSelected={canRescoreSelected}
+        canCheckLivenessSelected={canCheckLivenessSelected}
         jobActionInFlight={jobActionInFlight !== null}
         onMoveToReady={() => void runJobAction("move_to_ready")}
         onSkipSelected={() => void runJobAction("skip")}
-        onRescoreSelected={() => void runJobAction("rescore")}
+        onRescoreSelected={() => void runBatchRescoreSelected()}
+        onCheckLivenessSelected={() => void runBatchLivenessSelected()}
         onClear={clearSelection}
       />
 

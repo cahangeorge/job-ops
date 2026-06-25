@@ -116,6 +116,14 @@ export interface BatchCoverLetterResult {
   error?: string;
 }
 
+export interface BatchScoreJobsResponse {
+  results: BatchScoreResult[];
+}
+
+export interface BatchCoverLettersResponse {
+  results: BatchCoverLetterResult[];
+}
+
 export interface BatchJobInputs {
   jobIds: string[];
   profile?: Record<string, unknown>;
@@ -237,6 +245,24 @@ export async function generateInterviewPrep(
   input: GenerateInterviewPrepInput,
 ): Promise<GenerateInterviewPrepResult> {
   return fetchApi<GenerateInterviewPrepResult>("/interview-prep/generate", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function batchScoreJobs(
+  input: BatchJobInputs,
+): Promise<BatchScoreJobsResponse> {
+  return fetchApi<BatchScoreJobsResponse>("/batch/score", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function batchGenerateCoverLetters(
+  input: BatchCoverLettersRequest,
+): Promise<BatchCoverLettersResponse> {
+  return fetchApi<BatchCoverLettersResponse>("/batch/cover-letters", {
     method: "POST",
     body: JSON.stringify(input),
   });

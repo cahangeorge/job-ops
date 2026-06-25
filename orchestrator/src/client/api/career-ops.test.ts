@@ -31,7 +31,9 @@ describe("CareerOps API client", () => {
     };
     const fetchSpy = vi
       .spyOn(global, "fetch")
-      .mockResolvedValueOnce(createJsonResponse(200, { ok: true, data: response }));
+      .mockResolvedValueOnce(
+        createJsonResponse(200, { ok: true, data: response }),
+      );
 
     await expect(
       api.generateInterviewPrep({
@@ -50,6 +52,83 @@ describe("CareerOps API client", () => {
           employer: "Acme Labs",
           stories: [{ id: "story-1", title: "Scale incident" }],
         }),
+      }),
+    );
+  });
+
+  it("posts batch score payloads", async () => {
+    const response = {
+      results: [
+        {
+          jobId: "job-1",
+          title: "Senior Platform Engineer",
+          employer: "Acme Labs",
+          score: 93,
+          reason: "Strong infrastructure fit",
+        },
+      ],
+    };
+    const fetchSpy = vi
+      .spyOn(global, "fetch")
+      .mockResolvedValueOnce(
+        createJsonResponse(200, { ok: true, data: response }),
+      );
+
+    await expect(
+      api.batchScoreJobs({
+        jobIds: ["job-1"],
+        profile: { headline: "Staff engineer" },
+      }),
+    ).resolves.toEqual(response);
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/batch/score",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          jobIds: ["job-1"],
+          profile: { headline: "Staff engineer" },
+        }),
+      }),
+    );
+  });
+
+  it("posts batch cover letter payloads", async () => {
+    const response = {
+      results: [
+        {
+          jobId: "job-1",
+          coverLetter: "Dear Hiring Manager",
+          keywordsMirrored: ["reliability"],
+        },
+      ],
+    };
+    const fetchSpy = vi
+      .spyOn(global, "fetch")
+      .mockResolvedValueOnce(
+        createJsonResponse(200, { ok: true, data: response }),
+      );
+
+    const inputs = [
+      {
+        jobId: "job-1",
+        jobTitle: "Senior Platform Engineer",
+        employer: "Acme Labs",
+        jobDescription: "Build reliable systems.",
+        resumeSummary: "10 years in distributed systems.",
+        tone: "formal" as const,
+      },
+    ];
+
+    await expect(api.batchGenerateCoverLetters({ inputs })).resolves.toEqual(
+      response,
+    );
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/batch/cover-letters",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ inputs }),
       }),
     );
   });

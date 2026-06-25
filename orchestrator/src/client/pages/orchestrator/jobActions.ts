@@ -1,6 +1,14 @@
 import type { JobActionResponse, JobListItem } from "@shared/types";
 
 const SKIPPABLE_STATUSES = new Set(["discovered", "ready"]);
+const NON_PROCESSING_STATUSES = new Set([
+  "discovered",
+  "ready",
+  "applied",
+  "in_progress",
+  "skipped",
+  "expired",
+]);
 
 export function canSkip(jobs: JobListItem[]): boolean {
   return (
@@ -14,6 +22,13 @@ export function canMoveToReady(jobs: JobListItem[]): boolean {
 
 export function canRescore(jobs: JobListItem[]): boolean {
   return jobs.length > 0 && jobs.every((job) => job.status !== "processing");
+}
+
+export function canCheckLiveness(jobs: JobListItem[]): boolean {
+  return (
+    jobs.length > 0 &&
+    jobs.every((job) => NON_PROCESSING_STATUSES.has(job.status))
+  );
 }
 
 export function getFailedJobIds(response: JobActionResponse): Set<string> {
