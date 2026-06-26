@@ -1,4 +1,5 @@
 import * as api from "@client/api";
+import { queryKeys } from "@client/lib/queryKeys";
 import { renderWithQueryClient } from "@client/test/renderWithQueryClient";
 import { createJob } from "@shared/testing/factories.js";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
@@ -13,6 +14,7 @@ vi.mock("@client/api", () => ({
   generateCoverLetter: vi.fn(),
   generateNegotiationScripts: vi.fn(),
   scanCompanyPortal: vi.fn(),
+  importPortalScanJobs: vi.fn(),
   createJobNote: vi.fn(),
 }));
 
@@ -80,6 +82,11 @@ describe("CareerOpsQuickActions", () => {
           isRemote: true,
         },
       ],
+    });
+    vi.mocked(api.importPortalScanJobs).mockResolvedValue({
+      importedCount: 1,
+      skippedDuplicatesCount: 0,
+      jobIds: ["job-2"],
     });
     vi.mocked(api.createJobNote).mockResolvedValue({
       id: "note-1",
@@ -233,6 +240,54 @@ describe("CareerOpsQuickActions", () => {
     expect(screen.getByRole("link", { name: /open notes/i })).toHaveAttribute(
       "href",
       "/job/job-1/notes?noteId=note-1",
+    );
+  });
+
+  it("imports selected portal scan jobs and invalidates the jobs list", async () => {
+    const { queryClient } = renderQuickActions(
+      <CareerOpsQuickActions
+        job={createJob({
+          applicationLink: "https://boards.greenhouse.io/acme/jobs/1",
+        })}
+        resumeSummaryFallback="Profile baseline summary"
+      />,
+    );
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+    await screen.findByRole("button", { name: "Scan company jobs" });
+    fireEvent.click(screen.getByRole("button", { name: "Scan company jobs" }));
+
+    const checkbox = await screen.findByRole("checkbox", {
+      name: /platform engineer/i,
+    });
+    const importButton = screen.getByRole("button", {
+      name: "Import selected",
+    });
+    expect(importButton).toBeDisabled();
+
+    fireEvent.click(checkbox);
+    expect(importButton).toBeEnabled();
+
+    fireEvent.click(importButton);
+
+    await waitFor(() =>
+      expect(api.importPortalScanJobs).toHaveBeenCalledWith({
+        jobs: [
+          {
+            title: "Platform Engineer",
+            employer: "Acme Labs",
+            location: "Remote",
+            url: "https://boards.greenhouse.io/acme/jobs/2",
+            description: "Build platforms",
+            portal: "greenhouse",
+          },
+        ],
+      }),
+    );
+    await waitFor(() =>
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: queryKeys.jobs.all,
+      }),
     );
   });
 

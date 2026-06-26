@@ -1,6 +1,6 @@
 import * as api from "@client/api";
-import { showErrorToast } from "@client/lib/error-toast";
 import { TooltipWhenDisabled } from "@client/components/TooltipWhenDisabled";
+import { showErrorToast } from "@client/lib/error-toast";
 import { queryKeys } from "@client/lib/queryKeys";
 import type { Job } from "@shared/types.js";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -21,12 +21,13 @@ import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { copyTextToClipboard } from "@/lib/utils";
 import {
+  type CareerOpsPortal,
   derivePortalOrgSlug,
   getCareerOpsResumeSummary,
   inferPortalFromJob,
-  type CareerOpsPortal,
 } from "./career-ops-quick-actions";
 
 type ActionKind = "ats" | "cover" | "negotiation" | "portal";
@@ -86,6 +87,12 @@ export const CareerOpsQuickActions: React.FC<CareerOpsQuickActionsProps> = ({
   const [loadingAction, setLoadingAction] = useState<ActionKind | null>(null);
   const [actionState, setActionState] = useState<ActionState | null>(null);
   const [lastSavedNoteId, setLastSavedNoteId] = useState<string | null>(null);
+  const [selectedPortalJobIds, setSelectedPortalJobIds] = useState<string[]>(
+    [],
+  );
+  const [portalImportError, setPortalImportError] = useState<string | null>(
+    null,
+  );
   const availabilityQuery = useQuery({
     queryKey: queryKeys.careerOps.availability(),
     queryFn: api.getCareerOpsAvailability,
@@ -196,9 +203,15 @@ export const CareerOpsQuickActions: React.FC<CareerOpsQuickActionsProps> = ({
 
   const handlePortalScan = async () => {
     if (!portal || !orgSlug) {
-      setLocalError("portal", "Portal type could not be inferred from this job");
+      setLocalError(
+        "portal",
+        "Portal type could not be inferred from this job",
+      );
       return;
     }
+
+    setSelectedPortalJobIds([]);
+    setPortalImportError(null);
 
     await runAction(
       "portal",
@@ -211,6 +224,46 @@ export const CareerOpsQuickActions: React.FC<CareerOpsQuickActionsProps> = ({
       (result) => setActionState({ kind: "portal", result }),
       "Portal scan failed",
     );
+  };
+
+  const handlePortalImport = async () => {
+    if (actionState?.kind !== "portal" || !actionState.result) return;
+
+    const selectedJobs = actionState.result.jobs.filter((resultJob) =>
+      selectedPortalJobIds.includes(resultJob.id),
+    );
+    if (selectedJobs.length === 0) return;
+
+    try {
+      setLoadingAction("portal");
+      setPortalImportError(null);
+      const result = await api.importPortalScanJobs({
+        jobs: selectedJobs.map((resultJob) => ({
+          title: resultJob.title,
+          employer: resultJob.employer,
+          location: resultJob.location,
+          url: resultJob.url,
+          description: resultJob.description,
+          portal: resultJob.portal,
+        })),
+      });
+      setSelectedPortalJobIds([]);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.jobs.all });
+      toast.success(
+        result.importedCount === 1
+          ? "Imported 1 job"
+          : `Imported ${result.importedCount} jobs`,
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : "Portal import failed";
+      setPortalImportError(message);
+      showErrorToast(error, "Portal import failed");
+    } finally {
+      setLoadingAction(null);
+    }
   };
 
   const handleCopy = async (value: string, successMessage: string) => {
@@ -330,6 +383,8 @@ export const CareerOpsQuickActions: React.FC<CareerOpsQuickActionsProps> = ({
             onClick={() => {
               setActionState(null);
               setLastSavedNoteId(null);
+              setSelectedPortalJobIds([]);
+              setPortalImportError(null);
             }}
           >
             <X className="h-3.5 w-3.5" />
@@ -401,7 +456,9 @@ export const CareerOpsQuickActions: React.FC<CareerOpsQuickActionsProps> = ({
       {actionState ? (
         <div className="mt-3 space-y-3 rounded-md border border-border/40 bg-background/40 p-3 text-sm">
           <div className="flex items-center gap-2">
-            <Badge variant="secondary">{getActionTitle(actionState.kind)}</Badge>
+            <Badge variant="secondary">
+              {getActionTitle(actionState.kind)}
+            </Badge>
           </div>
 
           {"error" in actionState ? (
@@ -451,7 +508,9 @@ export const CareerOpsQuickActions: React.FC<CareerOpsQuickActionsProps> = ({
                         </Badge>
                       ))
                     ) : (
-                      <span className="text-muted-foreground">none detected</span>
+                      <span className="text-muted-foreground">
+                        none detected
+                      </span>
                     )}
                   </div>
                 </div>
@@ -476,7 +535,11 @@ export const CareerOpsQuickActions: React.FC<CareerOpsQuickActionsProps> = ({
                   <Copy className="mr-1.5 h-3.5 w-3.5" />
                   Copy letter
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => void saveResultToNotes()}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void saveResultToNotes()}
+                >
                   Save to notes
                 </Button>
               </div>
@@ -502,55 +565,114 @@ export const CareerOpsQuickActions: React.FC<CareerOpsQuickActionsProps> = ({
               <div className="text-xs text-muted-foreground">
                 Timeline: {actionState.result.timeline}
               </div>
-              <Button size="sm" variant="outline" onClick={() => void saveResultToNotes()}>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => void saveResultToNotes()}
+              >
                 Save to notes
               </Button>
             </div>
           ) : (
             <div className="space-y-2">
               <div className="text-xs text-muted-foreground">
-                Total: {actionState.result.total}, filtered: {actionState.result.filtered}
+                Total: {actionState.result.total}, filtered:{" "}
+                {actionState.result.filtered}
               </div>
+              {portalImportError ? (
+                <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                  {portalImportError}
+                </div>
+              ) : null}
               {actionState.result.jobs.length > 0 ? (
                 <div className="space-y-2">
-                  {actionState.result.jobs.map((resultJob) => (
-                    <div
-                      key={resultJob.id}
-                      className="rounded-md border border-border/35 bg-background/50 p-3"
-                    >
-                      <div className="font-medium">{resultJob.title}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {resultJob.employer}
-                        {resultJob.location ? ` • ${resultJob.location}` : ""}
-                      </div>
-                      <a
-                        href={resultJob.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="mt-2 inline-flex items-center gap-1 text-xs text-blue-400 hover:underline"
+                  {actionState.result.jobs.map((resultJob) => {
+                    const checked = selectedPortalJobIds.includes(resultJob.id);
+                    return (
+                      <div
+                        key={resultJob.id}
+                        className="flex gap-3 rounded-md border border-border/35 bg-background/50 p-3"
                       >
-                        Open listing
-                        <ArrowUpRight className="h-3.5 w-3.5" />
-                      </a>
-                    </div>
-                  ))}
+                        <Checkbox
+                          aria-label={`Select ${resultJob.title}`}
+                          checked={checked}
+                          onCheckedChange={(nextChecked) => {
+                            const isChecked = nextChecked === true;
+                            setSelectedPortalJobIds((current) =>
+                              isChecked
+                                ? Array.from(
+                                    new Set([...current, resultJob.id]),
+                                  )
+                                : current.filter((id) => id !== resultJob.id),
+                            );
+                          }}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="font-medium">{resultJob.title}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {resultJob.employer}
+                            {resultJob.location
+                              ? ` • ${resultJob.location}`
+                              : ""}
+                          </div>
+                          <a
+                            href={resultJob.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="mt-2 inline-flex items-center gap-1 text-xs text-blue-400 hover:underline"
+                          >
+                            Open listing
+                            <ArrowUpRight className="h-3.5 w-3.5" />
+                          </a>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="text-muted-foreground">No jobs found.</div>
               )}
-              <Button size="sm" variant="outline" onClick={() => void saveResultToNotes()}>
-                Save to notes
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={
+                    loadingAction !== null || selectedPortalJobIds.length === 0
+                  }
+                  onClick={() => void handlePortalImport()}
+                >
+                  {loadingAction === "portal" ? (
+                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  ) : null}
+                  Import selected
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void saveResultToNotes()}
+                >
+                  Save to notes
+                </Button>
+              </div>
             </div>
           )}
 
           {actionState.kind === "ats" ? (
-            <Button size="sm" variant="outline" onClick={() => void saveResultToNotes()}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => void saveResultToNotes()}
+            >
               Save to notes
             </Button>
           ) : null}
           {lastSavedNoteId ? (
-            <Button asChild size="sm" variant="ghost" className="justify-start px-0">
+            <Button
+              asChild
+              size="sm"
+              variant="ghost"
+              className="justify-start px-0"
+            >
               <Link to={`/job/${job.id}/notes?noteId=${lastSavedNoteId}`}>
                 Open notes
                 <ArrowUpRight className="ml-1.5 h-3.5 w-3.5" />

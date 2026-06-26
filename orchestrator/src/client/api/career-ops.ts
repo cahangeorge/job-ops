@@ -85,6 +85,28 @@ export interface PortalScanResult {
   errors: string[];
 }
 
+export interface PortalScanImportJobInput {
+  id?: string;
+  title: string;
+  employer: string;
+  location?: string | null;
+  department?: string | null;
+  url: string;
+  portal: "greenhouse" | "ashby" | "lever";
+  description?: string | null;
+  postedAt?: string | null;
+  employmentType?: string | null;
+  experienceLevel?: string | null;
+  isRemote?: boolean;
+  sourceJobId?: string | null;
+}
+
+export interface PortalScanImportResult {
+  importedCount: number;
+  skippedDuplicatesCount: number;
+  jobIds: string[];
+}
+
 export interface BatchScoreResult {
   jobId: string;
   title: string;
@@ -236,6 +258,15 @@ export async function scanCompanyPortal(
   input: PortalScannerInput,
 ): Promise<PortalScanResult> {
   return fetchApi<PortalScanResult>("/portal-scanner/scan", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function importPortalScanJobs(input: {
+  jobs: PortalScanImportJobInput[];
+}): Promise<PortalScanImportResult> {
+  return fetchApi<PortalScanImportResult>("/portal-scanner/import", {
     method: "POST",
     body: JSON.stringify(input),
   });

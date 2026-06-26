@@ -132,4 +132,51 @@ describe("CareerOps API client", () => {
       }),
     );
   });
+
+  it("posts portal scan import payloads", async () => {
+    const response = {
+      importedCount: 2,
+      skippedDuplicatesCount: 1,
+      jobIds: ["job-1", "job-2"],
+    };
+    const fetchSpy = vi
+      .spyOn(global, "fetch")
+      .mockResolvedValueOnce(
+        createJsonResponse(200, { ok: true, data: response }),
+      );
+
+    await expect(
+      api.importPortalScanJobs({
+        jobs: [
+          {
+            title: "Platform Engineer",
+            employer: "Acme Labs",
+            location: "Remote",
+            url: "https://boards.greenhouse.io/acme/jobs/1",
+            description: "Build platforms",
+            portal: "greenhouse",
+          },
+        ],
+      }),
+    ).resolves.toEqual(response);
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/portal-scanner/import",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          jobs: [
+            {
+              title: "Platform Engineer",
+              employer: "Acme Labs",
+              location: "Remote",
+              url: "https://boards.greenhouse.io/acme/jobs/1",
+              description: "Build platforms",
+              portal: "greenhouse",
+            },
+          ],
+        }),
+      }),
+    );
+  });
 });
