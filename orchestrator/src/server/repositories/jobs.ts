@@ -313,6 +313,10 @@ export async function listJobNotes(jobId: string): Promise<JobNote[]> {
   return rows.map(mapRowToJobNote);
 }
 
+export async function getJobNotes(jobId: string): Promise<JobNote[]> {
+  return listJobNotes(jobId);
+}
+
 export async function listJobNotesByIds(
   jobId: string,
   noteIds: readonly string[],

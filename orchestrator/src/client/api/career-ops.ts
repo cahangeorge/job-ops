@@ -125,6 +125,40 @@ export interface PatternAnalysisReport {
   }>;
 }
 
+export type OfferEvaluationRecommendation =
+  | "accept"
+  | "negotiate"
+  | "reject"
+  | "hold";
+
+export interface OfferEvaluationInput {
+  offeredSalary?: string;
+  benefits?: string;
+  deadline?: string;
+  competingOffers?: string;
+  dealBreakers?: string[];
+}
+
+export interface OfferEvaluationResult {
+  score: number;
+  recommendation: OfferEvaluationRecommendation;
+  risks: string[];
+  tradeoffs: string[];
+  negotiationAngle: string;
+}
+
+export interface OfferEvaluationResponse {
+  evaluation: OfferEvaluationResult;
+  note: {
+    id: string;
+    jobId: string;
+    title: string;
+    content: string;
+    createdAt: string;
+    updatedAt: string;
+  };
+}
+
 export interface BatchScoreResult {
   jobId: string;
   title: string;
@@ -319,6 +353,16 @@ export async function batchGenerateCoverLetters(
 
 export async function getPatternAnalysis(): Promise<PatternAnalysisReport> {
   return fetchApi<PatternAnalysisReport>("/pattern-analysis");
+}
+
+export async function evaluateJobOffer(
+  jobId: string,
+  input: OfferEvaluationInput = {},
+): Promise<OfferEvaluationResponse> {
+  return fetchApi<OfferEvaluationResponse>(`/offer-evaluation/jobs/${jobId}`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
 }
 
 export async function getCareerOpsCoverage(): Promise<CareerOpsAvailabilityResponse> {

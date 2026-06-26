@@ -90,6 +90,7 @@ vi.mock("../api", () => ({
   rescoreJob: vi.fn(),
   generateJobPdf: vi.fn(),
   checkSponsor: vi.fn(),
+  evaluateJobOffer: vi.fn(),
   getProfile: vi.fn().mockResolvedValue({
     basics: { summary: "Base profile summary" },
   }),
@@ -120,13 +121,20 @@ vi.mock("../components/LogEventModal", () => ({
 vi.mock("./job-page/JobPageRightSidebar", () => ({
   JobPageRightSidebar: ({
     onPrepareApplyChecklist,
+    onEvaluateOffer,
   }: {
     onPrepareApplyChecklist?: () => void;
+    onEvaluateOffer?: () => void;
   }) => (
     <div data-testid="job-right-sidebar">
       {onPrepareApplyChecklist && (
         <button type="button" onClick={onPrepareApplyChecklist}>
           Prepare application checklist
+        </button>
+      )}
+      {onEvaluateOffer && (
+        <button type="button" onClick={onEvaluateOffer}>
+          Evaluate offer
         </button>
       )}
     </div>
@@ -229,6 +237,20 @@ beforeEach(() => {
     });
     notesStore = [created, ...notesStore];
     return created;
+  });
+  vi.mocked(api.evaluateJobOffer).mockResolvedValue({
+    evaluation: {
+      score: 74,
+      recommendation: "negotiate",
+      risks: ["Compensation is below target."],
+      tradeoffs: ["A counteroffer can improve cash."],
+      negotiationAngle: "Ask for target compensation.",
+    },
+    note: makeNote({
+      id: "offer-note-1",
+      title: "Offer evaluation — Acme Labs",
+      content: "## Risks\n- Compensation is below target.",
+    }),
   });
   vi.mocked(api.updateJobNote).mockImplementation(
     async (_jobId, noteId, input) => {

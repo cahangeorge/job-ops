@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   ClipboardList,
   Copy,
+  DollarSign,
   Download,
   Edit2,
   ExternalLink,
@@ -61,6 +62,7 @@ type JobPageRightSidebarProps = {
   onRescore: () => void;
   onCheckSponsor: () => void;
   onCheckPostingLiveness?: () => void;
+  onEvaluateOffer?: () => void;
   resumeSummaryFallback?: string | null;
 };
 
@@ -96,6 +98,7 @@ export const JobPageRightSidebar: React.FC<JobPageRightSidebarProps> = ({
   onRescore,
   onCheckSponsor,
   onCheckPostingLiveness,
+  onEvaluateOffer,
   resumeSummaryFallback,
 }) => (
   <aside className="space-y-4 xl:sticky xl:top-5">
@@ -180,6 +183,19 @@ export const JobPageRightSidebar: React.FC<JobPageRightSidebarProps> = ({
           >
             <PlusCircle className="mr-1.5 h-3.5 w-3.5" />
             Log event
+          </Button>
+        )}
+
+        {(isApplied || isInProgress) && onEvaluateOffer && (
+          <Button
+            size="sm"
+            className="w-full justify-start"
+            variant="outline"
+            onClick={onEvaluateOffer}
+            disabled={isBusy}
+          >
+            <DollarSign className="mr-1.5 h-3.5 w-3.5" />
+            Evaluate offer
           </Button>
         )}
 

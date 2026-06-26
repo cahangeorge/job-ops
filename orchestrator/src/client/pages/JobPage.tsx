@@ -475,6 +475,26 @@ export const JobPage: React.FC = () => {
     );
   };
 
+  const handleEvaluateOffer = async () => {
+    const result = await runAction("evaluate-offer", async () => {
+      if (!job) return null;
+      const response = await api.evaluateJobOffer(job.id, {});
+      toast.success("Offer evaluation created");
+      return response;
+    });
+
+    if (!result || !job) return;
+
+    const searchParams = new URLSearchParams(location.search);
+    searchParams.set("noteId", result.note.id);
+    navigate(
+      `${baseJobPath}/notes${searchParams.toString() ? `?${searchParams.toString()}` : ""}`,
+      {
+        state: jobPageNavigationState,
+      },
+    );
+  };
+
   const handleSaveJobDescription = React.useCallback(
     async (jobDescription: string) => {
       if (!job) return;
@@ -964,6 +984,7 @@ export const JobPage: React.FC = () => {
               onCopyJobInfo={() => void handleCopyJobInfo()}
               onRescore={() => void handleRescore()}
               onCheckSponsor={() => void handleCheckSponsor()}
+              onEvaluateOffer={() => void handleEvaluateOffer()}
               resumeSummaryFallback={profile?.basics?.summary ?? null}
             />
           )}
