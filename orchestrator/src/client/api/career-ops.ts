@@ -107,6 +107,24 @@ export interface PortalScanImportResult {
   jobIds: string[];
 }
 
+export interface PatternAnalysisReport {
+  status: "ok" | "insufficient_data";
+  metadata: { total: number; progressed: number };
+  funnel: Array<{ stage: string; count: number }>;
+  sourceBreakdown: Array<{
+    source: string;
+    total: number;
+    positive: number;
+    conversionRate: number;
+  }>;
+  scoreThreshold: { recommendedMinimum: number | null; reason: string };
+  recommendations: Array<{
+    impact: "high" | "medium" | "low";
+    action: string;
+    reason: string;
+  }>;
+}
+
 export interface BatchScoreResult {
   jobId: string;
   title: string;
@@ -297,6 +315,10 @@ export async function batchGenerateCoverLetters(
     method: "POST",
     body: JSON.stringify(input),
   });
+}
+
+export async function getPatternAnalysis(): Promise<PatternAnalysisReport> {
+  return fetchApi<PatternAnalysisReport>("/pattern-analysis");
 }
 
 export async function getCareerOpsCoverage(): Promise<CareerOpsAvailabilityResponse> {
