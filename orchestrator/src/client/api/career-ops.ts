@@ -254,9 +254,11 @@ export type CareerOpsFeatureStatus =
 
 export type CareerOpsFeatureSurface =
   | "job-page-action"
+  | "job-list-action"
   | "job-detail-panel"
   | "coverage-page"
   | "standalone-page"
+  | "tracking-workflow"
   | "api-only"
   | "not-wired";
 

@@ -174,6 +174,7 @@ describe("Career Ops API routes", () => {
           "cover-letter",
           "negotiation",
           "portal-scanner",
+          "offer-evaluation",
           "liveness-checker",
         ],
         features: expect.arrayContaining([

@@ -1,7 +1,7 @@
 ---
 id: post-application-tracking
 title: Post-Application Tracking
-description: Gmail-based tracking inbox, smart routing, and review workflow.
+description: Gmail-based tracking inbox, follow-up cadence, smart routing, and review workflow.
 sidebar_position: 3
 ---
 
@@ -62,6 +62,14 @@ Detailed setup guide:
 - Approve to link/update timeline
 - Ignore to mark non-relevant
 
+## Follow-up cadence
+
+Once a job is marked applied, JobOps can calculate follow-up urgency from the application stage, timestamps, and prior follow-up history.
+
+Use the Follow-up draft action from Tracking Inbox or In Progress when you want a reusable nudge note.
+
+Drafts are saved as job notes so they remain attached to the application record.
+
 ## Job emails tab
 
 Open **Job → Emails** to review captured messages already linked to that job.
@@ -103,3 +111,8 @@ Confidence interpretation:
 - No refresh token: disconnect and reconnect Gmail.
 - Emails not appearing: check runs, OAuth config, and recruitment subjects.
 - Wrong matches: expected in lower-confidence buckets; use manual review.
+
+## Related pages
+
+- [CareerOps](/docs/next/features/careerops)
+- [Find Jobs and Apply Workflow](/docs/next/workflows/find-jobs-and-apply-workflow)
