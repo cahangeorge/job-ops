@@ -106,7 +106,7 @@ describe("analyzePatternAnalysis", () => {
       { stage: "All applications", count: 8 },
       { stage: "Progressed applications", count: 6 },
       { stage: "Positive outcomes", count: 3 },
-      { stage: "Accepted offers", count: 1 },
+      { stage: "Accepted offers", count: 2 },
     ]);
     expect(report.sourceBreakdown).toEqual([
       {

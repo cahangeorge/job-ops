@@ -40,7 +40,7 @@ export function analyzePatternAnalysis(
   const acceptedJobs = progressedJobs.filter((job) =>
     ACCEPTED_OUTCOMES.has(job.outcome ?? ""),
   );
-  const acceptedOfferCount = acceptedJobs.length > 0 ? 1 : 0;
+  const acceptedOfferCount = acceptedJobs.length;
   const funnel = [
     { stage: "All applications", count: jobs.length },
     { stage: "Progressed applications", count: progressedJobs.length },

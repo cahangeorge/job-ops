@@ -46,16 +46,16 @@ function createMockResponse(): MockResponse {
   };
 }
 
-async function invokeRoute(body: unknown) {
+async function invokeRoute(body: unknown, path = "/import") {
   const layer = (portalScannerRouter.stack as Array<any>).find(
     (entry: any) =>
       "route" in entry &&
-      entry.route?.path === "/import" &&
+      entry.route?.path === path &&
       entry.route.methods?.post === true,
   );
 
   if (!layer?.route?.stack[0]?.handle) {
-    throw new Error("Route not found for POST /import");
+    throw new Error(`Route not found for POST ${path}`);
   }
 
   const req = { body: body ?? {} };
@@ -237,6 +237,26 @@ describe("portal scanner import route", () => {
         jobDescription: "Build platforms",
       }),
     );
+  });
+
+  it("rejects malformed scan filter payloads", async () => {
+    const res = await invokeRoute(
+      {
+        orgSlug: "acme",
+        portal: "greenhouse",
+        keywords: "platform",
+        departments: { name: "Engineering" },
+      },
+      "/scan",
+    );
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body).toMatchObject({
+      ok: false,
+      error: {
+        code: "INVALID_REQUEST",
+      },
+    });
   });
 
   it("rejects malformed import payloads", async () => {

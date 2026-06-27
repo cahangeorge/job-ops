@@ -13,6 +13,21 @@ import { z } from "zod";
 
 export const portalScannerRouter = Router();
 
+const supportedPortals = ["greenhouse", "ashby", "lever"] as const;
+
+const portalScanStringArraySchema = z
+  .array(z.string().trim().min(1).max(200))
+  .max(50)
+  .optional();
+
+const portalScanSchema = z.object({
+  orgSlug: z.string().trim().min(1).max(200),
+  portal: z.enum(supportedPortals),
+  keywords: portalScanStringArraySchema,
+  departments: portalScanStringArraySchema,
+  excludeInternships: z.boolean().optional(),
+});
+
 const portalScanJobSchema = z.object({
   id: z.string().trim().max(500).optional(),
   sourceJobId: z.string().trim().max(500).optional(),
@@ -21,7 +36,7 @@ const portalScanJobSchema = z.object({
   location: z.string().trim().max(200).nullable().optional(),
   department: z.string().trim().max(200).nullable().optional(),
   url: z.string().trim().url().max(2000),
-  portal: z.enum(["greenhouse", "ashby", "lever"]),
+  portal: z.enum(supportedPortals),
   description: z.string().trim().max(40000).nullable().optional(),
   postedAt: z.string().trim().max(100).nullable().optional(),
   employmentType: z.string().trim().max(200).nullable().optional(),
@@ -35,21 +50,19 @@ const portalScanImportSchema = z.object({
 
 portalScannerRouter.post("/scan", async (req: Request, res: Response) => {
   try {
-    const { orgSlug, portal, keywords, departments, excludeInternships } =
-      req.body;
-    if (!orgSlug || !portal) {
-      throw badRequest("orgSlug and portal are required");
-    }
-    if (!["greenhouse", "ashby", "lever"].includes(portal)) {
+    const body = req.body ?? {};
+    const portal =
+      typeof body === "object" && body !== null && "portal" in body
+        ? (body as { portal?: unknown }).portal
+        : undefined;
+    if (
+      portal != null &&
+      !supportedPortals.some((supportedPortal) => supportedPortal === portal)
+    ) {
       throw badRequest("portal must be one of: greenhouse, ashby, lever");
     }
-    const result = await scanCompanyPortal({
-      orgSlug,
-      portal,
-      keywords,
-      departments,
-      excludeInternships,
-    });
+    const input = portalScanSchema.parse(body);
+    const result = await scanCompanyPortal(input);
     ok(res, result);
   } catch (error) {
     if (error instanceof z.ZodError) {
