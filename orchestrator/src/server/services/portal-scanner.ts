@@ -4,6 +4,7 @@
  */
 
 import { logger } from "@infra/logger";
+import * as jobsRepo from "@server/repositories/jobs";
 
 export interface PortalJob {
   id: string;
@@ -35,8 +36,42 @@ export interface PortalScanResult {
   errors: string[];
 }
 
-export async function scanCompanyPortal(input: PortalScanInput): Promise<PortalScanResult> {
-  const { orgSlug, portal, keywords, departments, excludeInternships = true } = input;
+export interface PortalScanImportJobInput {
+  id?: string;
+  title: string;
+  employer: string;
+  location?: string | null;
+  department?: string | null;
+  url: string;
+  portal: "greenhouse" | "ashby" | "lever";
+  description?: string | null;
+  employmentType?: string | null;
+  experienceLevel?: string | null;
+  isRemote?: boolean;
+  postedAt?: string | null;
+  sourceJobId?: string | null;
+}
+
+export interface PortalScanImportInput {
+  jobs: PortalScanImportJobInput[];
+}
+
+export interface PortalScanImportResult {
+  importedCount: number;
+  skippedDuplicatesCount: number;
+  jobIds: string[];
+}
+
+export async function scanCompanyPortal(
+  input: PortalScanInput,
+): Promise<PortalScanResult> {
+  const {
+    orgSlug,
+    portal,
+    keywords,
+    departments,
+    excludeInternships = true,
+  } = input;
   let jobs: PortalJob[] = [];
   const errors: string[] = [];
 
@@ -73,14 +108,67 @@ export async function scanCompanyPortal(input: PortalScanInput): Promise<PortalS
   if (keywords?.length) {
     const kw = keywords.map((k) => k.toLowerCase());
     jobs = jobs.filter((j) =>
-      kw.some((k) =>
-        j.title.toLowerCase().includes(k) ||
-        (j.description?.toLowerCase().includes(k) ?? false),
+      kw.some(
+        (k) =>
+          j.title.toLowerCase().includes(k) ||
+          (j.description?.toLowerCase().includes(k) ?? false),
       ),
     );
   }
 
   return { jobs, total, filtered: jobs.length, errors };
+}
+
+export async function importPortalScanJobs(
+  input: PortalScanImportInput,
+): Promise<PortalScanImportResult> {
+  const jobsByUrl = new Map<
+    string,
+    { job: PortalScanImportJobInput; count: number }
+  >();
+
+  for (const job of input.jobs) {
+    const existing = jobsByUrl.get(job.url);
+    if (existing) {
+      existing.count += 1;
+    } else {
+      jobsByUrl.set(job.url, { job, count: 1 });
+    }
+  }
+
+  let importedCount = 0;
+  let skippedDuplicatesCount = 0;
+  const jobIds: string[] = [];
+
+  for (const { job, count } of jobsByUrl.values()) {
+    const existingJob = await jobsRepo.getJobByUrl(job.url);
+    if (existingJob) {
+      skippedDuplicatesCount += count;
+      continue;
+    }
+
+    const createdJob = await jobsRepo.createJob({
+      source: `career-ops:${job.portal}`,
+      sourceJobId: job.sourceJobId ?? job.url,
+      title: job.title.trim(),
+      employer: job.employer.trim(),
+      jobUrl: job.url.trim(),
+      applicationLink: job.url.trim(),
+      location: cleanOptional(job.location),
+      jobDescription: cleanOptional(job.description),
+      jobType: cleanOptional(job.employmentType),
+      jobLevel: cleanOptional(job.experienceLevel),
+      jobFunction: cleanOptional(job.department),
+      datePosted: cleanOptional(job.postedAt),
+      isRemote: job.isRemote,
+    });
+
+    importedCount += 1;
+    skippedDuplicatesCount += count - 1;
+    jobIds.push(createdJob.id);
+  }
+
+  return { importedCount, skippedDuplicatesCount, jobIds };
 }
 
 async function fetchGreenhouseJobs(orgSlug: string): Promise<PortalJob[]> {
@@ -189,6 +277,12 @@ function isInternship(title: string): boolean {
 function isRemoteLocation(location: string): boolean {
   const l = location.toLowerCase();
   return /\bremote\b|\bh(remote|ybrid)\b|\banywhere\b/.test(l);
+}
+
+function cleanOptional(value?: string | null): string | undefined {
+  if (value == null) return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
 }
 
 function extractMetadata(

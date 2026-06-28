@@ -92,6 +92,41 @@ describe.sequential("Jobs API routes", () => {
     expect(typeof defaultBody.data.revision).toBe("string");
   });
 
+  it("includes follow-up cadence on list responses for overdue applied jobs", async () => {
+    const { createJob, updateJob, createJobNote } = await import(
+      "@server/repositories/jobs"
+    );
+    const job = await createJob({
+      source: "manual",
+      title: "Follow Up Role",
+      employer: "Acme",
+      jobUrl: "https://example.com/job/follow-up",
+      jobDescription: "Follow up description",
+    });
+
+    await updateJob(job.id, {
+      status: "applied",
+      appliedAt: "2026-06-01T00:00:00.000Z",
+    });
+
+    await createJobNote({
+      jobId: job.id,
+      title: "General note",
+      content: "Not a follow-up note",
+    });
+
+    const listRes = await fetch(`${baseUrl}/api/jobs?view=list`);
+    const listBody = await listRes.json();
+    const listJob = listBody.data.jobs.find(
+      (item: { id: string }) => item.id === job.id,
+    );
+
+    expect(listRes.status).toBe(200);
+    expect(listBody.ok).toBe(true);
+    expect(listJob.followUpUrgency).toBe("overdue");
+    expect(listJob.followUpReason).toBeTruthy();
+  });
+
   it("keeps the jobs list response contract unchanged in benchmark mode", async () => {
     await stopServer({ server, closeDb, tempDir });
     ({ server, baseUrl, closeDb, tempDir } = await startServer({

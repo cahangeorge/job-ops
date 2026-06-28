@@ -85,6 +85,80 @@ export interface PortalScanResult {
   errors: string[];
 }
 
+export interface PortalScanImportJobInput {
+  id?: string;
+  title: string;
+  employer: string;
+  location?: string | null;
+  department?: string | null;
+  url: string;
+  portal: "greenhouse" | "ashby" | "lever";
+  description?: string | null;
+  postedAt?: string | null;
+  employmentType?: string | null;
+  experienceLevel?: string | null;
+  isRemote?: boolean;
+  sourceJobId?: string | null;
+}
+
+export interface PortalScanImportResult {
+  importedCount: number;
+  skippedDuplicatesCount: number;
+  jobIds: string[];
+}
+
+export interface PatternAnalysisReport {
+  status: "ok" | "insufficient_data";
+  metadata: { total: number; progressed: number };
+  funnel: Array<{ stage: string; count: number }>;
+  sourceBreakdown: Array<{
+    source: string;
+    total: number;
+    positive: number;
+    conversionRate: number;
+  }>;
+  scoreThreshold: { recommendedMinimum: number | null; reason: string };
+  recommendations: Array<{
+    impact: "high" | "medium" | "low";
+    action: string;
+    reason: string;
+  }>;
+}
+
+export type OfferEvaluationRecommendation =
+  | "accept"
+  | "negotiate"
+  | "reject"
+  | "hold";
+
+export interface OfferEvaluationInput {
+  offeredSalary?: string;
+  benefits?: string;
+  deadline?: string;
+  competingOffers?: string;
+  dealBreakers?: string[];
+}
+
+export interface OfferEvaluationResult {
+  score: number;
+  recommendation: OfferEvaluationRecommendation;
+  risks: string[];
+  tradeoffs: string[];
+  negotiationAngle: string;
+}
+
+export interface OfferEvaluationResponse {
+  evaluation: OfferEvaluationResult;
+  note: {
+    id: string;
+    jobId: string;
+    title: string;
+    content: string;
+    createdAt: string;
+    updatedAt: string;
+  };
+}
+
 export interface BatchScoreResult {
   jobId: string;
   title: string;
@@ -114,6 +188,14 @@ export interface BatchCoverLetterResult {
   coverLetter: string;
   keywordsMirrored: string[];
   error?: string;
+}
+
+export interface BatchScoreJobsResponse {
+  results: BatchScoreResult[];
+}
+
+export interface BatchCoverLettersResponse {
+  results: BatchCoverLetterResult[];
 }
 
 export interface BatchJobInputs {
@@ -172,9 +254,11 @@ export type CareerOpsFeatureStatus =
 
 export type CareerOpsFeatureSurface =
   | "job-page-action"
+  | "job-list-action"
   | "job-detail-panel"
   | "coverage-page"
   | "standalone-page"
+  | "tracking-workflow"
   | "api-only"
   | "not-wired";
 
@@ -233,10 +317,51 @@ export async function scanCompanyPortal(
   });
 }
 
+export async function importPortalScanJobs(input: {
+  jobs: PortalScanImportJobInput[];
+}): Promise<PortalScanImportResult> {
+  return fetchApi<PortalScanImportResult>("/portal-scanner/import", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
 export async function generateInterviewPrep(
   input: GenerateInterviewPrepInput,
 ): Promise<GenerateInterviewPrepResult> {
   return fetchApi<GenerateInterviewPrepResult>("/interview-prep/generate", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function batchScoreJobs(
+  input: BatchJobInputs,
+): Promise<BatchScoreJobsResponse> {
+  return fetchApi<BatchScoreJobsResponse>("/batch/score", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function batchGenerateCoverLetters(
+  input: BatchCoverLettersRequest,
+): Promise<BatchCoverLettersResponse> {
+  return fetchApi<BatchCoverLettersResponse>("/batch/cover-letters", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function getPatternAnalysis(): Promise<PatternAnalysisReport> {
+  return fetchApi<PatternAnalysisReport>("/pattern-analysis");
+}
+
+export async function evaluateJobOffer(
+  jobId: string,
+  input: OfferEvaluationInput = {},
+): Promise<OfferEvaluationResponse> {
+  return fetchApi<OfferEvaluationResponse>(`/offer-evaluation/jobs/${jobId}`, {
     method: "POST",
     body: JSON.stringify(input),
   });

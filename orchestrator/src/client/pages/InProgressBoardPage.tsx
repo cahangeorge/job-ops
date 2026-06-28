@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { invalidateJobData } from "@/client/hooks/queries/invalidate";
 import { useQueryErrorToast } from "@/client/hooks/useQueryErrorToast";
 import { showErrorToast } from "@/client/lib/error-toast";
+import { buildFollowUpDraft } from "@/client/lib/follow-up-drafts";
 import { logJobStageEvent } from "@/client/lib/logJobStageEvent";
 import { queryKeys } from "@/client/lib/queryKeys";
 import { Badge } from "@/components/ui/badge";
@@ -272,6 +273,32 @@ export const InProgressBoardPage: React.FC = () => {
     [logEventTarget, queryClient],
   );
 
+  const handleCreateFollowUpDraft = React.useCallback(
+    async (job: JobListItem) => {
+      const appliedAt = job.appliedAt ? Date.parse(job.appliedAt) : Number.NaN;
+      const daysSinceApplication = Number.isFinite(appliedAt)
+        ? Math.max(0, Math.floor((Date.now() - appliedAt) / 86_400_000))
+        : null;
+
+      try {
+        const draft = buildFollowUpDraft({
+          employer: job.employer,
+          title: job.title,
+          daysSinceApplication,
+          urgency: job.followUpUrgency ?? "waiting",
+        });
+        await api.createJobNote(job.id, draft);
+        await queryClient.invalidateQueries({
+          queryKey: queryKeys.jobs.inProgressBoard(),
+        });
+        toast.success("Follow-up draft saved");
+      } catch (error) {
+        showErrorToast(error, "Failed to save follow-up draft");
+      }
+    },
+    [queryClient],
+  );
+
   return (
     <>
       <PageHeader
@@ -394,6 +421,9 @@ export const InProgressBoardPage: React.FC = () => {
                               setDropTargetStage(null);
                             }}
                             onLogEvent={() => setLogEventTarget({ job, stage })}
+                            onCreateFollowUpDraft={() =>
+                              void handleCreateFollowUpDraft(job)
+                            }
                           />
                         ))
                       )}

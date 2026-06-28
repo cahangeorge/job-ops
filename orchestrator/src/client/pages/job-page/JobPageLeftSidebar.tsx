@@ -1,6 +1,7 @@
 import { isAwaitingAiScore, ScoreRing } from "@client/components";
 import type { Job } from "@shared/types.js";
 import {
+  BadgeCheck,
   BookOpenCheck,
   ClipboardList,
   FileText,
@@ -23,6 +24,7 @@ export type JobMemoryView =
   | "documents"
   | "timeline"
   | "interview-prep"
+  | "career-ops-evaluation"
   | "emails"
   | "ghostwriter";
 
@@ -60,6 +62,11 @@ const memoryLinks = [
     id: "interview-prep" as const,
     label: "Interview Prep",
     icon: BookOpenCheck,
+  },
+  {
+    id: "career-ops-evaluation" as const,
+    label: "Career Ops Evaluation",
+    icon: BadgeCheck,
   },
   {
     id: "emails" as const,

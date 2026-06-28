@@ -370,6 +370,16 @@ export async function checkSponsor(id: string): Promise<Job> {
   });
 }
 
+export async function checkJobPostingLiveness(id: string): Promise<{
+  status: Job["postingLivenessStatus"];
+  checkedAt: number;
+  reason: string;
+}> {
+  return fetchApi(`/liveness/jobs/${id}/check`, {
+    method: "POST",
+  });
+}
+
 export async function markAsApplied(id: string): Promise<Job> {
   return fetchApi<Job>(`/jobs/${id}/apply`, {
     method: "POST",

@@ -1196,7 +1196,7 @@ describe("OrchestratorPage", () => {
     });
   });
 
-  it("shows and hides Recalculate match based on selected statuses", async () => {
+  it("shows and hides Batch rescore based on selected statuses", async () => {
     window.matchMedia = createMatchMedia(
       true,
     ) as unknown as typeof window.matchMedia;
@@ -1226,7 +1226,7 @@ describe("OrchestratorPage", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByRole("button", { name: "Recalculate match" }),
+        screen.getByRole("button", { name: "Batch rescore" }),
       ).toBeInTheDocument();
     });
   });

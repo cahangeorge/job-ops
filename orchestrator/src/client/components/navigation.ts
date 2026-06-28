@@ -1,6 +1,7 @@
 import {
   BookOpenCheck,
   BriefcaseBusiness,
+  ChartNoAxesCombined,
   Columns3,
   Eye,
   FilePenLine,
@@ -57,6 +58,12 @@ export const NAV_LINKS: NavLink[] = [
     label: "CareerOps Coverage",
     icon: BriefcaseBusiness,
     activePaths: ["/career-ops"],
+  },
+  {
+    to: "/pattern-analysis",
+    label: "Pattern Analysis",
+    icon: ChartNoAxesCombined,
+    activePaths: ["/pattern-analysis"],
   },
   {
     to: "/story-bank",

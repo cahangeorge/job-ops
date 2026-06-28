@@ -4,13 +4,16 @@ import type {
   JobActionResponse,
   JobListItem,
 } from "@shared/types.js";
+import type { QueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { showErrorToast } from "@/client/lib/error-toast";
+import { queryKeys } from "@/client/lib/queryKeys";
 import { trackProductEvent } from "@/lib/analytics";
 import type { FilterTab } from "./constants";
 import { JobActionProgressToast } from "./JobActionProgressToast";
 import {
+  canCheckLiveness,
   canMoveToReady,
   canRescore,
   canSkip,
@@ -19,6 +22,8 @@ import {
 import { clampNumber } from "./utils";
 
 const MAX_JOB_ACTION_JOB_IDS = 100;
+
+type SelectionInFlightAction = JobAction | "check_liveness";
 
 const jobActionLabel: Record<JobAction, string> = {
   move_to_ready: "Moving jobs to Ready...",
@@ -36,19 +41,20 @@ interface UseJobSelectionActionsArgs {
   activeJobs: JobListItem[];
   activeTab: FilterTab;
   loadJobs: () => Promise<void>;
+  queryClient: QueryClient;
 }
 
 export function useJobSelectionActions({
   activeJobs,
   activeTab,
   loadJobs,
+  queryClient,
 }: UseJobSelectionActionsArgs) {
   const [selectedJobIds, setSelectedJobIds] = useState<Set<string>>(
     () => new Set(),
   );
-  const [jobActionInFlight, setJobActionInFlight] = useState<null | JobAction>(
-    null,
-  );
+  const [jobActionInFlight, setJobActionInFlight] =
+    useState<null | SelectionInFlightAction>(null);
   const previousActiveTabRef = useRef<FilterTab>(activeTab);
 
   const selectedJobs = useMemo(
@@ -63,6 +69,10 @@ export function useJobSelectionActions({
   );
   const canRescoreSelected = useMemo(
     () => canRescore(selectedJobs),
+    [selectedJobs],
+  );
+  const canCheckLivenessSelected = useMemo(
+    () => canCheckLiveness(selectedJobs),
     [selectedJobs],
   );
 
@@ -116,8 +126,112 @@ export function useJobSelectionActions({
     setSelectedJobIds(new Set());
   }, []);
 
+  const reloadJobs = useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: queryKeys.jobs.all });
+    await loadJobs();
+  }, [loadJobs, queryClient]);
+
+  const runBatchRescoreSelected = useCallback(async () => {
+    const selectedAtStart = Array.from(selectedJobIds);
+    if (selectedAtStart.length === 0) return;
+    if (selectedAtStart.length > MAX_JOB_ACTION_JOB_IDS) {
+      toast.error(
+        `You can run job actions on up to ${MAX_JOB_ACTION_JOB_IDS} jobs at a time.`,
+      );
+      return;
+    }
+
+    try {
+      setJobActionInFlight("rescore");
+      trackProductEvent("jobs_bulk_action_started", {
+        action: "rescore",
+        selected_count: selectedAtStart.length,
+        tab: activeTab,
+      });
+      const response = await api.batchScoreJobs({
+        jobIds: selectedAtStart,
+        profile: {},
+      });
+      const succeeded = response.results.filter(
+        (result) => !result.error,
+      ).length;
+      const failed = response.results.length - succeeded;
+      trackProductEvent("jobs_bulk_action_completed", {
+        action: "rescore",
+        requested: selectedAtStart.length,
+        succeeded,
+        failed,
+        tab: activeTab,
+      });
+
+      if (failed === 0) {
+        toast.success(`${succeeded} jobs rescored`);
+      } else {
+        toast.error(`${succeeded} succeeded, ${failed} failed.`);
+      }
+
+      await reloadJobs();
+    } catch (error) {
+      showErrorToast(error, "Failed to run job action");
+    } finally {
+      setJobActionInFlight(null);
+    }
+  }, [activeTab, reloadJobs, selectedJobIds]);
+
+  const runBatchLivenessSelected = useCallback(async () => {
+    const selectedAtStart = Array.from(selectedJobIds);
+    if (selectedAtStart.length === 0) return;
+    if (selectedAtStart.length > MAX_JOB_ACTION_JOB_IDS) {
+      toast.error(
+        `You can run job actions on up to ${MAX_JOB_ACTION_JOB_IDS} jobs at a time.`,
+      );
+      return;
+    }
+
+    try {
+      setJobActionInFlight("check_liveness");
+      trackProductEvent("jobs_bulk_action_started", {
+        action: "check_liveness",
+        selected_count: selectedAtStart.length,
+        tab: activeTab,
+      });
+
+      const settledResults = await Promise.allSettled(
+        selectedAtStart.map((jobId) => api.checkJobPostingLiveness(jobId)),
+      );
+      const succeeded = settledResults.filter(
+        (result) => result.status === "fulfilled",
+      ).length;
+      const failed = settledResults.length - succeeded;
+      trackProductEvent("jobs_bulk_action_completed", {
+        action: "check_liveness",
+        requested: selectedAtStart.length,
+        succeeded,
+        failed,
+        tab: activeTab,
+      });
+
+      if (failed === 0) {
+        toast.success(`${succeeded} jobs checked`);
+      } else {
+        toast.error(`${succeeded} succeeded, ${failed} failed.`);
+      }
+
+      await reloadJobs();
+    } catch (error) {
+      showErrorToast(error, "Failed to run job action");
+    } finally {
+      setJobActionInFlight(null);
+    }
+  }, [activeTab, reloadJobs, selectedJobIds]);
+
   const runJobAction = useCallback(
     async (action: JobAction) => {
+      if (action === "rescore") {
+        await runBatchRescoreSelected();
+        return;
+      }
+
       const selectedAtStart = Array.from(selectedJobIds);
       if (selectedAtStart.length === 0) return;
       if (selectedAtStart.length > MAX_JOB_ACTION_JOB_IDS) {
@@ -250,7 +364,7 @@ export function useJobSelectionActions({
           );
         }
 
-        await loadJobs();
+        await reloadJobs();
         setSelectedJobIds((current) => {
           const addedDuringRequest = Array.from(current).filter(
             (jobId) => !selectedAtStartSet.has(jobId),
@@ -274,7 +388,7 @@ export function useJobSelectionActions({
         setJobActionInFlight(null);
       }
     },
-    [activeTab, selectedJobIds, loadJobs],
+    [activeTab, reloadJobs, runBatchRescoreSelected, selectedJobIds],
   );
 
   return {
@@ -282,10 +396,13 @@ export function useJobSelectionActions({
     canSkipSelected,
     canMoveSelected,
     canRescoreSelected,
+    canCheckLivenessSelected,
     jobActionInFlight,
     toggleSelectJob,
     toggleSelectAll,
     clearSelection,
     runJobAction,
+    runBatchRescoreSelected,
+    runBatchLivenessSelected,
   };
 }

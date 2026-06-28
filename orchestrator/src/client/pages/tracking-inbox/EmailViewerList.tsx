@@ -1,6 +1,8 @@
 import type { JobListItem, PostApplicationInboxItem } from "@shared/types";
 import { CheckCircle2, CircleUserRound, XCircle } from "lucide-react";
 import type React from "react";
+import { getFollowUpUrgencyLabel } from "@/client/lib/follow-up-drafts";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SearchableDropdown } from "@/components/ui/searchable-dropdown";
 import { formatDateTime } from "@/lib/utils";
@@ -12,6 +14,7 @@ type EmailViewerRowProps = {
   onAppliedJobChange: (jobId: string) => void;
   onApprove: () => void;
   onDeny: () => void;
+  onCreateFollowUpDraft: () => void;
   isActionLoading: boolean;
   isAppliedJobsLoading: boolean;
 };
@@ -25,6 +28,7 @@ export type EmailViewerListProps = {
     item: PostApplicationInboxItem,
     decision: "approve" | "deny",
   ) => void;
+  onCreateFollowUpDraft: (jobId: string) => void;
   isActionLoading: boolean;
   isAppliedJobsLoading: boolean;
 };
@@ -72,6 +76,7 @@ const EmailViewerRow: React.FC<EmailViewerRowProps> = ({
   onAppliedJobChange,
   onApprove,
   onDeny,
+  onCreateFollowUpDraft,
   isActionLoading,
   isAppliedJobsLoading,
 }) => {
@@ -83,6 +88,9 @@ const EmailViewerRow: React.FC<EmailViewerRowProps> = ({
     label: formatAppliedJobLabel(job),
     searchText: `${job.employer} ${job.title} ${job.location ?? ""}`.trim(),
   }));
+  const selectedJob =
+    jobs.find((job) => job.id === selectedAppliedJobId) ?? null;
+  const followUpLabel = getFollowUpUrgencyLabel(selectedJob?.followUpUrgency);
 
   return (
     <div className="flex flex-col gap-3 border-b bg-card/40 px-3 py-3 last:border-b-0 lg:flex-row lg:items-center">
@@ -130,6 +138,25 @@ const EmailViewerRow: React.FC<EmailViewerRowProps> = ({
           ariaLabel="Select job"
         />
 
+        {followUpLabel ? (
+          <Badge variant="outline" className="shrink-0 whitespace-nowrap">
+            {followUpLabel}
+          </Badge>
+        ) : null}
+
+        {selectedJob && followUpLabel ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="shrink-0 whitespace-nowrap"
+            onClick={onCreateFollowUpDraft}
+            disabled={isActionLoading}
+          >
+            Create follow-up draft
+          </Button>
+        ) : null}
+
         <span
           className={`shrink-0 text-xs tabular-nums ${scoreTextClass(score)}`}
         >
@@ -170,6 +197,7 @@ export const EmailViewerList: React.FC<EmailViewerListProps> = ({
   appliedJobByMessageId,
   onAppliedJobChange,
   onDecision,
+  onCreateFollowUpDraft,
   isActionLoading,
   isAppliedJobsLoading,
 }) => {
@@ -192,6 +220,9 @@ export const EmailViewerList: React.FC<EmailViewerListProps> = ({
             }
             onApprove={() => onDecision(item, "approve")}
             onDeny={() => onDecision(item, "deny")}
+            onCreateFollowUpDraft={() =>
+              onCreateFollowUpDraft(selectedAppliedJobId)
+            }
             isActionLoading={isActionLoading}
             isAppliedJobsLoading={isAppliedJobsLoading}
           />

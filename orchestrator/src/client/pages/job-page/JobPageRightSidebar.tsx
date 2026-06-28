@@ -2,7 +2,9 @@ import type { ApplicationTask, Job } from "@shared/types.js";
 import {
   CalendarClock,
   CheckCircle2,
+  ClipboardList,
   Copy,
+  DollarSign,
   Download,
   Edit2,
   ExternalLink,
@@ -45,6 +47,7 @@ type JobPageRightSidebarProps = {
   pdfDownloadLabel: string;
   onStartTailoring: () => void;
   onMarkApplied: () => void;
+  onPrepareApplyChecklist: () => void;
   onMoveToInProgress: () => void;
   onOpenLogEvent: () => void;
   onEditTailoring: () => void;
@@ -58,6 +61,8 @@ type JobPageRightSidebarProps = {
   onCopyJobInfo: () => void;
   onRescore: () => void;
   onCheckSponsor: () => void;
+  onCheckPostingLiveness?: () => void;
+  onEvaluateOffer?: () => void;
   resumeSummaryFallback?: string | null;
 };
 
@@ -78,6 +83,7 @@ export const JobPageRightSidebar: React.FC<JobPageRightSidebarProps> = ({
   pdfDownloadLabel,
   onStartTailoring,
   onMarkApplied,
+  onPrepareApplyChecklist,
   onMoveToInProgress,
   onOpenLogEvent,
   onEditTailoring,
@@ -91,6 +97,8 @@ export const JobPageRightSidebar: React.FC<JobPageRightSidebarProps> = ({
   onCopyJobInfo,
   onRescore,
   onCheckSponsor,
+  onCheckPostingLiveness,
+  onEvaluateOffer,
   resumeSummaryFallback,
 }) => (
   <aside className="space-y-4 xl:sticky xl:top-5">
@@ -139,6 +147,19 @@ export const JobPageRightSidebar: React.FC<JobPageRightSidebarProps> = ({
           </Button>
         )}
 
+        {isReady && (
+          <Button
+            size="sm"
+            className="w-full justify-start"
+            variant="outline"
+            onClick={onPrepareApplyChecklist}
+            disabled={isBusy}
+          >
+            <ClipboardList className="mr-1.5 h-3.5 w-3.5" />
+            Prepare application checklist
+          </Button>
+        )}
+
         {isApplied && (
           <Button
             size="sm"
@@ -165,6 +186,19 @@ export const JobPageRightSidebar: React.FC<JobPageRightSidebarProps> = ({
           </Button>
         )}
 
+        {(isApplied || isInProgress) && onEvaluateOffer && (
+          <Button
+            size="sm"
+            className="w-full justify-start"
+            variant="outline"
+            onClick={onEvaluateOffer}
+            disabled={isBusy}
+          >
+            <DollarSign className="mr-1.5 h-3.5 w-3.5" />
+            Evaluate offer
+          </Button>
+        )}
+
         {isReady && (
           <Button
             size="sm"
@@ -183,6 +217,19 @@ export const JobPageRightSidebar: React.FC<JobPageRightSidebarProps> = ({
           resumeSummaryFallback={resumeSummaryFallback}
           className="mt-2"
         />
+
+        {jobLink && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-9 w-full justify-start"
+            onClick={onCheckPostingLiveness}
+            disabled={isBusy}
+          >
+            <RefreshCcw className="mr-1.5 h-3.5 w-3.5" />
+            Check posting
+          </Button>
+        )}
 
         {job.pdfPath && (
           <TooltipWhenDisabled

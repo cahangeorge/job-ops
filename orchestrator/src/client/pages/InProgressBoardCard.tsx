@@ -1,7 +1,8 @@
 import type { ApplicationStage, JobListItem } from "@shared/types.js";
-import { ExternalLink, MoreVertical, PlusCircle } from "lucide-react";
+import { ExternalLink, MoreVertical, PlusCircle, Send } from "lucide-react";
 import type React from "react";
 import { Link } from "react-router-dom";
+import { getFollowUpUrgencyLabel } from "@/client/lib/follow-up-drafts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,6 +23,7 @@ export type InProgressBoardCardProps = {
   onDragStart: (event: React.DragEvent<HTMLDivElement>) => void;
   onDragEnd: () => void;
   onLogEvent: () => void;
+  onCreateFollowUpDraft?: () => void;
 };
 
 export const InProgressBoardCard: React.FC<InProgressBoardCardProps> = ({
@@ -34,8 +36,10 @@ export const InProgressBoardCard: React.FC<InProgressBoardCardProps> = ({
   onDragStart,
   onDragEnd,
   onLogEvent,
+  onCreateFollowUpDraft,
 }) => {
   const canLogEvents = stage !== "closed";
+  const followUpLabel = getFollowUpUrgencyLabel(job.followUpUrgency);
 
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: full-card drag target for kanban lanes
@@ -130,6 +134,26 @@ export const InProgressBoardCard: React.FC<InProgressBoardCardProps> = ({
             : "No stage events yet"}
         </div>
       </Link>
+      {followUpLabel && onCreateFollowUpDraft ? (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <Badge variant="outline">{followUpLabel}</Badge>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-7 gap-1.5 px-2 text-[11px]"
+            aria-label={`Create follow-up draft for ${job.title}`}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              onCreateFollowUpDraft();
+            }}
+          >
+            <Send className="h-3 w-3" />
+            Draft
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 };

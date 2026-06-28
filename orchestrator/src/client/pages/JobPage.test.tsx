@@ -9,6 +9,7 @@ import { editorHtmlToMarkdown } from "@/client/lib/jobNoteContent";
 import * as api from "../api";
 import { renderWithQueryClient } from "../test/renderWithQueryClient";
 import { JobPage } from "./JobPage";
+import { buildApplyChecklistNote } from "./job-page/apply-assistant";
 
 const TIPTAP_HTML =
   `<h2>Fit</h2><p>Because <strong>this team</strong> and <a href="https://example.com/docs">docs</a>.</p>` +
@@ -89,6 +90,7 @@ vi.mock("../api", () => ({
   rescoreJob: vi.fn(),
   generateJobPdf: vi.fn(),
   checkSponsor: vi.fn(),
+  evaluateJobOffer: vi.fn(),
   getProfile: vi.fn().mockResolvedValue({
     basics: { summary: "Base profile summary" },
   }),
@@ -117,7 +119,26 @@ vi.mock("../components/LogEventModal", () => ({
 }));
 
 vi.mock("./job-page/JobPageRightSidebar", () => ({
-  JobPageRightSidebar: () => <div data-testid="job-right-sidebar" />,
+  JobPageRightSidebar: ({
+    onPrepareApplyChecklist,
+    onEvaluateOffer,
+  }: {
+    onPrepareApplyChecklist?: () => void;
+    onEvaluateOffer?: () => void;
+  }) => (
+    <div data-testid="job-right-sidebar">
+      {onPrepareApplyChecklist && (
+        <button type="button" onClick={onPrepareApplyChecklist}>
+          Prepare application checklist
+        </button>
+      )}
+      {onEvaluateOffer && (
+        <button type="button" onClick={onEvaluateOffer}>
+          Evaluate offer
+        </button>
+      )}
+    </div>
+  ),
 }));
 
 vi.mock("../components/ConfirmDelete", () => ({
@@ -217,6 +238,20 @@ beforeEach(() => {
     notesStore = [created, ...notesStore];
     return created;
   });
+  vi.mocked(api.evaluateJobOffer).mockResolvedValue({
+    evaluation: {
+      score: 74,
+      recommendation: "negotiate",
+      risks: ["Compensation is below target."],
+      tradeoffs: ["A counteroffer can improve cash."],
+      negotiationAngle: "Ask for target compensation.",
+    },
+    note: makeNote({
+      id: "offer-note-1",
+      title: "Offer evaluation — Acme Labs",
+      content: "## Risks\n- Compensation is below target.",
+    }),
+  });
   vi.mocked(api.updateJobNote).mockImplementation(
     async (_jobId, noteId, input) => {
       const current = notesStore.find((note) => note.id === noteId);
@@ -280,6 +315,64 @@ describe("JobPage notes", () => {
     expect(await screen.findByTestId("job-notes-section")).toBeInTheDocument();
     expect(screen.getByTestId("location-probe")).toHaveTextContent(
       "/job/job-1/notes",
+    );
+  });
+
+  it("creates an apply checklist note from the job overview and opens notes", async () => {
+    renderJobPage("/job/job-1");
+
+    expect(await screen.findByTestId("job-right-sidebar")).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /prepare application checklist/i }),
+    );
+
+    const expectedNote = buildApplyChecklistNote({
+      job: createJob() as Job,
+      coverLetter: null,
+    });
+
+    await waitFor(() =>
+      expect(api.createJobNote).toHaveBeenCalledWith("job-1", expectedNote),
+    );
+    expect(toast.success).toHaveBeenCalledWith("Apply checklist prepared");
+
+    await waitFor(() =>
+      expect(screen.getByTestId("location-probe")).toHaveTextContent(
+        "/job/job-1/notes?noteId=note-1",
+      ),
+    );
+
+    expect(await screen.findByTestId("job-notes-section")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: /apply checklist — acme labs/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("includes the latest saved cover letter in the apply checklist", async () => {
+    notesStore = [
+      makeNote({
+        id: "cover-note",
+        title: "Cover letter - Senior Engineer",
+        content: "Dear Acme Labs, here is the saved draft.",
+        updatedAt: "2026-01-01T12:00:00.000Z",
+      }),
+    ];
+
+    renderJobPage("/job/job-1");
+
+    expect(await screen.findByTestId("job-right-sidebar")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: /prepare application checklist/i }),
+    );
+
+    const expectedNote = buildApplyChecklistNote({
+      job: createJob() as Job,
+      coverLetter: "Dear Acme Labs, here is the saved draft.",
+    });
+
+    await waitFor(() =>
+      expect(api.createJobNote).toHaveBeenCalledWith("job-1", expectedNote),
     );
   });
 
@@ -473,7 +566,9 @@ describe("JobPage interview prep", () => {
 
     renderJobPage("/job/job-1/interview-prep");
 
-    expect(await screen.findByTestId("interview-prep-panel")).toBeInTheDocument();
+    expect(
+      await screen.findByTestId("interview-prep-panel"),
+    ).toBeInTheDocument();
     expect(await screen.findByText("Scale incident")).toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("checkbox", { name: /Use story Scale incident/i }),
@@ -488,6 +583,41 @@ describe("JobPage interview prep", () => {
     expect(vi.mocked(api.createJobNote).mock.calls[0]?.[1]?.content).toContain(
       "Scale incident",
     );
+  });
+});
+
+describe("JobPage CareerOps evaluation", () => {
+  it("renders the CareerOps evaluation panel and marks the sidebar item active", async () => {
+    vi.mocked(api.getJob).mockResolvedValue(
+      createJob({
+        id: "job-1",
+        title: "Senior Platform Engineer",
+        employer: "Acme Labs",
+        evaluationOverallGrade: "A-",
+        archetype: "Strategic builder",
+        evaluationLevelStrategy:
+          "Target senior IC scope with systems ownership.",
+        evaluationCompResearch: "Market range suggests £80k-£95k.",
+        evaluationPersonalization:
+          "Highlight incident response and scaling work.",
+        evaluationLegitimacyReason:
+          "Legit because the team and scope are concrete.",
+        evaluationCvMatchScore: 84,
+        evaluationCvMatchReason:
+          "Strong match on TypeScript and platform work.",
+      }) as Job,
+    );
+
+    renderJobPage("/job/job-1/career-ops-evaluation");
+
+    expect(
+      await screen.findByTestId("career-ops-evaluation-panel"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("A-")).toBeInTheDocument();
+    expect(screen.getByText("Strategic builder")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /career ops evaluation/i }),
+    ).toHaveClass("border-input");
   });
 });
 

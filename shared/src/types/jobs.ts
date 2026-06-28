@@ -60,6 +60,15 @@ export const APPLICATION_TASK_TYPES = [
 
 export type ApplicationTaskType = (typeof APPLICATION_TASK_TYPES)[number];
 
+export type JobFollowUpUrgency =
+  | "none"
+  | "waiting"
+  | "overdue"
+  | "urgent"
+  | "cold";
+
+export const FOLLOW_UP_NOTE_TITLE_PREFIX = "Follow-up draft";
+
 export const INTERVIEW_TYPES = [
   "recruiter_screen",
   "technical",
@@ -150,6 +159,11 @@ export type JobPdfFreshness =
   | "current"
   | "stale"
   | "regenerating";
+export type JobPostingLivenessStatus =
+  | "unknown"
+  | "live"
+  | "expired"
+  | "uncertain";
 
 export interface AppliedDuplicateMatch {
   jobId: string;
@@ -216,7 +230,13 @@ export interface Job {
   tracerLinksEnabled: boolean; // Rewrite outbound resume links to tracer links on next PDF generation
   sponsorMatchScore: number | null; // 0-100 fuzzy match score with visa sponsors
   sponsorMatchNames: string | null; // JSON array of matched sponsor names (when 100% matches or top match)
+  postingLivenessStatus: JobPostingLivenessStatus;
+  postingLivenessCheckedAt: number | null;
+  postingLivenessReason: string | null;
   appliedDuplicateMatch?: AppliedDuplicateMatch | null; // Included on detail responses and may be omitted on list responses
+  followUpUrgency?: JobFollowUpUrgency;
+  nextFollowUpAt?: number | null;
+  followUpReason?: string | null;
 
   // Structured 6-block evaluation (from Career Ops)
   evaluationRoleSummary: string | null;
@@ -297,9 +317,15 @@ export type JobListItem = Pick<
   | "readyAt"
   | "appliedAt"
   | "updatedAt"
+  | "followUpUrgency"
+  | "nextFollowUpAt"
+  | "followUpReason"
 > & {
   evaluationLegitimacyScore?: Job["evaluationLegitimacyScore"];
   isGhostJob?: Job["isGhostJob"];
+  postingLivenessStatus?: JobPostingLivenessStatus;
+  postingLivenessCheckedAt?: number | null;
+  postingLivenessReason?: string | null;
 };
 
 export interface CreateJobInput {
@@ -601,7 +627,6 @@ export interface UpdateJobNoteInput {
   content: string;
 }
 
-
 export interface InterviewStory {
   id: string;
   tenantId: string;
@@ -618,5 +643,8 @@ export interface InterviewStory {
   updatedAt: string;
 }
 
-export type CreateInterviewStoryInput = Omit<InterviewStory, 'id' | 'tenantId' | 'createdAt' | 'updatedAt'>;
+export type CreateInterviewStoryInput = Omit<
+  InterviewStory,
+  "id" | "tenantId" | "createdAt" | "updatedAt"
+>;
 export type UpdateInterviewStoryInput = Partial<CreateInterviewStoryInput>;

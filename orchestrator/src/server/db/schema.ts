@@ -172,6 +172,13 @@ export const jobs = sqliteTable(
       .default(false),
     sponsorMatchScore: real("sponsor_match_score"),
     sponsorMatchNames: text("sponsor_match_names"),
+    postingLivenessStatus: text("posting_liveness_status")
+      .notNull()
+      .default("unknown"),
+    postingLivenessCheckedAt: integer("posting_liveness_checked_at", {
+      mode: "number",
+    }),
+    postingLivenessReason: text("posting_liveness_reason"),
 
     // Structured 6-block evaluation
     evaluationRoleSummary: text("evaluation_role_summary"),
@@ -227,7 +234,9 @@ export const interviewStories = sqliteTable("interview_stories", {
   reflection: text("reflection"),
   skills: text("skills"),
   tags: text("tags"),
-  isMasterStory: integer("is_master_story", { mode: "boolean" }).notNull().default(false),
+  isMasterStory: integer("is_master_story", { mode: "boolean" })
+    .notNull()
+    .default(false),
   createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
   updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),
 });

@@ -7,9 +7,11 @@ export type CareerOpsFeatureStatus =
 
 export type CareerOpsFeatureSurface =
   | "job-page-action"
+  | "job-list-action"
   | "job-detail-panel"
   | "coverage-page"
   | "standalone-page"
+  | "tracking-workflow"
   | "api-only"
   | "not-wired";
 
@@ -63,7 +65,7 @@ export const CAREER_OPS_FEATURES: CareerOpsFeature[] = [
     id: "portal-scanner",
     label: "Portal Scanner",
     description:
-      "Scan supported company ATS portals for related open roles without LLM tokens.",
+      "Scan supported company ATS portals for related open roles without LLM tokens and import selected results as JobOps jobs.",
     status: "implemented",
     surface: "job-page-action",
     sourceArea: "portal-scanner",
@@ -88,15 +90,12 @@ export const CAREER_OPS_FEATURES: CareerOpsFeature[] = [
     id: "offer-evaluation",
     label: "Offer Evaluation",
     description:
-      "Evaluate offers with structured score blocks, tradeoffs, risk, and recommendation output.",
-    status: "partial",
-    surface: "coverage-page",
+      "Evaluate offers with structured score blocks, tradeoffs, risk, recommendation output, and a saved report note.",
+    status: "implemented",
+    surface: "job-page-action",
     sourceArea: "offer-evaluation",
     sourcePath: "vendor/career-ops/modes/oferta.md",
-    missingReason:
-      "JobOps has scoring and negotiation, but no dedicated offer-evaluation report surface.",
-    nextStep:
-      "Add a native JobOps offer evaluation service and persist generated reports as notes or application artifacts.",
+    jobOpsPath: "orchestrator/src/server/api/routes/offer-evaluation.ts",
   },
   {
     id: "cv-generation",
@@ -142,58 +141,46 @@ export const CAREER_OPS_FEATURES: CareerOpsFeature[] = [
     id: "liveness-checker",
     label: "Job Posting Liveness Checker",
     description:
-      "Check whether a saved job posting is still live, expired, removed, or stale.",
-    status: "missing",
-    surface: "not-wired",
+      "Check whether a saved job posting is still live, expired, removed, or stale using HTTP fast paths and browser-backed Camoufox fallback.",
+    status: "implemented",
+    surface: "job-page-action",
     sourceArea: "liveness",
     sourcePath: "vendor/career-ops/check-liveness.mjs",
-    missingReason:
-      "No JobOps UI or scheduled job currently exposes CareerOps liveness checks.",
-    nextStep:
-      "Port liveness as a batch action and row badge on job lists.",
+    jobOpsPath: "orchestrator/src/server/api/routes/liveness.ts",
   },
   {
     id: "follow-up-cadence",
     label: "Follow-up Cadence",
     description:
-      "Calculate and track follow-up timing for applications and recruiter conversations.",
-    status: "missing",
-    surface: "not-wired",
+      "Calculate follow-up urgency for applications and recruiter conversations, then create reusable follow-up draft notes.",
+    status: "implemented",
+    surface: "tracking-workflow",
     sourceArea: "follow-ups",
     sourcePath: "vendor/career-ops/followup-cadence.mjs",
-    missingReason:
-      "Tracking Inbox exists, but CareerOps follow-up cadence logic is not mapped to it.",
-    nextStep:
-      "Integrate cadence suggestions into Tracking Inbox or application detail pages.",
+    jobOpsPath: "orchestrator/src/server/services/follow-up-cadence.ts",
   },
   {
     id: "pattern-analysis",
     label: "Job Search Pattern Analysis",
     description:
-      "Analyze outcomes and patterns across applications to improve targeting strategy.",
-    status: "missing",
-    surface: "not-wired",
+      "Analyze outcomes and patterns across applications to improve targeting strategy with source conversion and score-floor recommendations.",
+    status: "implemented",
+    surface: "standalone-page",
     sourceArea: "analytics",
     sourcePath: "vendor/career-ops/analyze-patterns.mjs",
-    missingReason:
-      "JobOps has stats, but not CareerOps-style pattern analysis reports.",
-    nextStep:
-      "Add a read-only analytics report that summarizes outcomes by source, role, and score.",
+    jobOpsPath: "orchestrator/src/client/pages/PatternAnalysisPage.tsx",
   },
   {
     id: "batch-processing",
     label: "Batch Processing",
     description:
-      "Run batch evaluation/generation workflows over multiple job opportunities.",
-    status: "partial",
-    surface: "api-only",
+      "Run batch evaluation and liveness workflows over multiple selected job opportunities from the job list.",
+    status: "implemented",
+    surface: "job-list-action",
     sourceArea: "batch",
     sourcePath: "vendor/career-ops/modes/batch.md",
-    jobOpsPath: "orchestrator/src/server/api/routes/batch.ts",
-    missingReason:
-      "JobOps now has batch scoring and cover-letter API routes, but no dedicated batch UI yet.",
-    nextStep:
-      "Expose batch score and batch cover-letter workflows in the Jobs UI and map remaining CareerOps batch modes.",
+    jobOpsPath:
+      "orchestrator/src/client/pages/orchestrator/FloatingJobActionsBar.tsx",
   },
   {
     id: "profile-onboarding",

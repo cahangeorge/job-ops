@@ -330,4 +330,41 @@ describe("useFilteredJobs", () => {
       "missing",
     ]);
   });
+
+  it("filters by posting liveness status", () => {
+    const jobs: Job[] = [
+      {
+        ...baseJob,
+        id: "live",
+        postingLivenessStatus: "live",
+      },
+      {
+        ...baseJob,
+        id: "expired",
+        postingLivenessStatus: "expired",
+      },
+      {
+        ...baseJob,
+        id: "unknown",
+        postingLivenessStatus: "unknown",
+      },
+    ];
+
+    const { result } = renderHook(() =>
+      useFilteredJobs(
+        jobs,
+        "all",
+        defaultDateFilter,
+        "all",
+        "all",
+        "all",
+        "all",
+        "expired",
+        { mode: "at_least", min: null, max: null },
+        { key: "score", direction: "desc" },
+      ),
+    );
+
+    expect(result.current.map((job) => job.id)).toEqual(["expired"]);
+  });
 });

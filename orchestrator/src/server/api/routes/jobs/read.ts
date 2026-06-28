@@ -3,6 +3,10 @@ import { fail, ok } from "@infra/http";
 import { logger } from "@infra/logger";
 import * as jobsRepo from "@server/repositories/jobs";
 import { attachAppliedDuplicateMatches } from "@server/services/applied-duplicate-matching";
+import {
+  getFollowUpCadence,
+  summarizeFollowUpNotes,
+} from "@server/services/follow-up-cadence";
 import { getPdfPath, pdfExists } from "@server/services/pdf";
 import {
   applyJobsPdfFreshness,
@@ -13,6 +17,7 @@ import {
   listJobPostApplicationEmails,
   MAX_JOB_EMAIL_LIMIT,
 } from "@server/services/post-application/job-emails";
+import type { Job, JobListItem, JobNote } from "@shared/types";
 import { type Request, type Response, Router } from "express";
 import { z } from "zod";
 import {
@@ -27,6 +32,41 @@ import {
 } from "./shared";
 
 export const jobsReadRouter = Router();
+
+function attachFollowUpCadence<T extends Job | JobListItem>(
+  jobs: readonly T[],
+  notes: readonly JobNote[],
+): T[] {
+  if (jobs.length === 0) return [...jobs];
+
+  const notesByJobId = new Map<string, JobNote[]>();
+  for (const note of notes) {
+    const current = notesByJobId.get(note.jobId);
+    if (current) {
+      current.push(note);
+    } else {
+      notesByJobId.set(note.jobId, [note]);
+    }
+  }
+
+  return jobs.map((job) => {
+    const summary = summarizeFollowUpNotes(notesByJobId.get(job.id) ?? []);
+    const cadence = getFollowUpCadence({
+      status: job.status,
+      appliedAt: job.appliedAt ? Date.parse(job.appliedAt) : null,
+      lastActivityAt: Date.parse(job.updatedAt),
+      lastFollowUpAt: summary.lastFollowUpAt,
+      followUpCount: summary.followUpCount,
+    });
+
+    return {
+      ...job,
+      followUpUrgency: cadence.urgency,
+      nextFollowUpAt: cadence.nextFollowUpAt,
+      followUpReason: cadence.followUpReason,
+    };
+  });
+}
 
 const jobEmailsQuerySchema = z.object({
   limit: z.coerce
@@ -76,6 +116,10 @@ jobsReadRouter.get("/", async (req: Request, res: Response) => {
             await jobsRepo.getAllJobs(statuses),
             pdfFingerprintContext,
           );
+    const jobsWithFollowUpCadence = attachFollowUpCadence(
+      jobs,
+      await jobsRepo.listJobNotesForJobIds(jobs.map((job) => job.id)),
+    );
     primaryQueryMs = performance.now() - primaryQueryStart;
     const candidateCount = 0;
     const duplicateMatchingEnabled = false;
@@ -87,8 +131,8 @@ jobsReadRouter.get("/", async (req: Request, res: Response) => {
     revisionAggregateMs = performance.now() - revisionAggregateStart;
 
     const response = {
-      jobs,
-      total: jobs.length,
+      jobs: jobsWithFollowUpCadence,
+      total: jobsWithFollowUpCadence.length,
       byStatus: stats,
       revision: revision.revision,
     };
@@ -106,7 +150,7 @@ jobsReadRouter.get("/", async (req: Request, res: Response) => {
         route: "GET /api/jobs",
         view,
         statusFilter: statusFilter ?? null,
-        returnedCount: jobs.length,
+        returnedCount: jobsWithFollowUpCadence.length,
         duplicateMatchingEnabled,
         candidateCount,
         totalMs,
@@ -125,7 +169,7 @@ jobsReadRouter.get("/", async (req: Request, res: Response) => {
       view,
       statusFilter: statusFilter ?? null,
       revision: revision.revision,
-      returnedCount: jobs.length,
+      returnedCount: jobsWithFollowUpCadence.length,
     });
 
     ok(res, response);

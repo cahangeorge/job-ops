@@ -36,6 +36,7 @@ const sidebars: SidebarsConfig = {
         "features/in-progress-board",
         "features/ghostwriter",
         "features/post-application-tracking",
+        "features/careerops",
         "features/visa-sponsors",
         "features/tracer-links",
         "features/watchlist",

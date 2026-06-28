@@ -8,6 +8,11 @@ import { JobPageRightSidebar } from "./JobPageRightSidebar";
 vi.mock("@client/api", () => ({
   getCareerOpsAvailability: vi.fn().mockResolvedValue(true),
   analyzeAtsKeywords: vi.fn(),
+  checkJobPostingLiveness: vi.fn().mockResolvedValue({
+    status: "live",
+    checkedAt: 1_800_000_000_000,
+    reason: "Apply signal found",
+  }),
   generateCoverLetter: vi.fn(),
   generateNegotiationScripts: vi.fn(),
   scanCompanyPortal: vi.fn(),
@@ -79,6 +84,7 @@ function renderRightSidebar(overrides: Parameters<typeof createJob>[0] = {}) {
       onCopyJobInfo={noop}
       onRescore={noop}
       onCheckSponsor={noop}
+      onPrepareApplyChecklist={noop}
       resumeSummaryFallback="Base profile summary"
     />,
   );
@@ -110,7 +116,9 @@ describe("JobPageRightSidebar actions", () => {
       screen.getByRole("button", { name: /download old pdf/i }),
     ).toBeInTheDocument();
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: /ats fit/i })).toBeInTheDocument(),
+      expect(
+        screen.getByRole("button", { name: /ats fit/i }),
+      ).toBeInTheDocument(),
     );
     expect(
       screen.getByRole("button", { name: /cover letter/i }),
@@ -119,8 +127,14 @@ describe("JobPageRightSidebar actions", () => {
       screen.getByRole("button", { name: /negotiation/i }),
     ).toBeInTheDocument();
     expect(
+      screen.getByRole("button", { name: /check posting/i }),
+    ).toBeInTheDocument();
+    expect(
       screen.getByRole("button", { name: /scan company jobs/i }),
     ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: /prepare application checklist/i }),
+    ).toBeInTheDocument();
   });
 
   it("uses upload wording when the job has no resume PDF", () => {

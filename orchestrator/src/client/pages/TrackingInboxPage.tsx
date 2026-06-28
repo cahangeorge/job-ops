@@ -21,6 +21,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useQueryErrorToast } from "@/client/hooks/useQueryErrorToast";
 import { showErrorToast } from "@/client/lib/error-toast";
+import { buildFollowUpDraft } from "@/client/lib/follow-up-drafts";
 import { queryKeys } from "@/client/lib/queryKeys";
 import {
   AlertDialog,
@@ -223,6 +224,33 @@ export const TrackingInboxPage: React.FC = () => {
       return didChange ? next : previous;
     });
   }, [appliedJobs, inbox, selectedRunItems]);
+
+  const handleCreateFollowUpDraft = useCallback(
+    async (jobId: string) => {
+      const job = appliedJobs.find((appliedJob) => appliedJob.id === jobId);
+      if (!job) return;
+
+      const appliedAt = job.appliedAt ? Date.parse(job.appliedAt) : Number.NaN;
+      const daysSinceApplication = Number.isFinite(appliedAt)
+        ? Math.max(0, Math.floor((Date.now() - appliedAt) / 86_400_000))
+        : null;
+
+      try {
+        const draft = buildFollowUpDraft({
+          employer: job.employer,
+          title: job.title,
+          daysSinceApplication,
+          urgency: job.followUpUrgency ?? "waiting",
+        });
+        await api.createJobNote(job.id, draft);
+        await appliedJobsQuery.refetch();
+        toast.success("Follow-up draft saved");
+      } catch (error) {
+        showErrorToast(error, "Failed to save follow-up draft");
+      }
+    },
+    [appliedJobs, appliedJobsQuery],
+  );
 
   const waitForGmailOauthResult = useCallback(
     (
@@ -823,6 +851,9 @@ export const TrackingInboxPage: React.FC = () => {
                 }
                 isActionLoading={isActionLoading}
                 isAppliedJobsLoading={isAppliedJobsLoading}
+                onCreateFollowUpDraft={(jobId) =>
+                  void handleCreateFollowUpDraft(jobId)
+                }
               />
             )}
           </CardContent>
@@ -910,6 +941,9 @@ export const TrackingInboxPage: React.FC = () => {
                 }
                 isActionLoading={isActionLoading}
                 isAppliedJobsLoading={isAppliedJobsLoading}
+                onCreateFollowUpDraft={(jobId) =>
+                  void handleCreateFollowUpDraft(jobId)
+                }
               />
             )}
           </div>

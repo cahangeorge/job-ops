@@ -7,10 +7,12 @@ interface FloatingJobActionsBarProps {
   canMoveSelected: boolean;
   canSkipSelected: boolean;
   canRescoreSelected: boolean;
+  canCheckLivenessSelected: boolean;
   jobActionInFlight: boolean;
   onMoveToReady: () => void;
   onSkipSelected: () => void;
   onRescoreSelected: () => void;
+  onCheckLivenessSelected: () => void;
   onClear: () => void;
 }
 
@@ -19,10 +21,12 @@ export const FloatingJobActionsBar: React.FC<FloatingJobActionsBarProps> = ({
   canMoveSelected,
   canSkipSelected,
   canRescoreSelected,
+  canCheckLivenessSelected,
   jobActionInFlight,
   onMoveToReady,
   onSkipSelected,
   onRescoreSelected,
+  onCheckLivenessSelected,
   onClear,
 }) => {
   return (
@@ -73,7 +77,19 @@ export const FloatingJobActionsBar: React.FC<FloatingJobActionsBarProps> = ({
                   disabled={jobActionInFlight}
                   onClick={onRescoreSelected}
                 >
-                  Recalculate match
+                  Batch rescore
+                </Button>
+              )}
+              {canCheckLivenessSelected && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="w-full sm:w-auto"
+                  disabled={jobActionInFlight}
+                  onClick={onCheckLivenessSelected}
+                >
+                  Batch liveness check
                 </Button>
               )}
               <Button

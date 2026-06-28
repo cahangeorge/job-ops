@@ -19,8 +19,8 @@ import { OnboardingGate } from "./components/OnboardingGate";
 import { useAnalyticsIdentity } from "./hooks/useAnalyticsIdentity";
 import { useDemoInfo } from "./hooks/useDemoInfo";
 import { setAuthNavigator } from "./lib/auth-navigation";
-import { DesignResumePage } from "./pages/DesignResumePage";
 import { CareerOpsCoveragePage } from "./pages/CareerOpsCoveragePage";
+import { DesignResumePage } from "./pages/DesignResumePage";
 import { GmailOauthCallbackPage } from "./pages/GmailOauthCallbackPage";
 import { HomePage } from "./pages/HomePage";
 import { InProgressBoardPage } from "./pages/InProgressBoardPage";
@@ -28,9 +28,10 @@ import { JobPage } from "./pages/JobPage";
 import { OfflinePage } from "./pages/OfflinePage";
 import { OnboardingPage } from "./pages/OnboardingPage";
 import { OrchestratorPage } from "./pages/OrchestratorPage";
+import { PatternAnalysisPage } from "./pages/PatternAnalysisPage";
 import { SettingsPage } from "./pages/SettingsPage";
-import { StoryBankPage } from "./pages/StoryBankPage";
 import { SignInPage } from "./pages/SignInPage";
+import { StoryBankPage } from "./pages/StoryBankPage";
 import { TracerLinksPage } from "./pages/TracerLinksPage";
 import { TrackingInboxPage } from "./pages/TrackingInboxPage";
 import { VisaSponsorsPage } from "./pages/VisaSponsorsPage";
@@ -196,6 +197,10 @@ export const App: React.FC = () => {
                 <Route path="/sign-in" element={<SignInPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/career-ops" element={<CareerOpsCoveragePage />} />
+                <Route
+                  path="/pattern-analysis"
+                  element={<PatternAnalysisPage />}
+                />
                 <Route path="/story-bank" element={<StoryBankPage />} />
                 <Route path="/tracer-links" element={<TracerLinksPage />} />
                 <Route path="/visa-sponsors" element={<VisaSponsorsPage />} />

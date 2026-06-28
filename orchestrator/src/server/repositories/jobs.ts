@@ -13,6 +13,7 @@ import type {
   JobNote,
   JobPdfFreshness,
   JobPdfSource,
+  JobPostingLivenessStatus,
   JobStatus,
   JobsRevisionResponse,
   UpdateJobInput,
@@ -142,6 +143,9 @@ export async function getJobListItems(
     closedAt: jobs.closedAt,
     suitabilityScore: jobs.suitabilityScore,
     sponsorMatchScore: jobs.sponsorMatchScore,
+    postingLivenessStatus: jobs.postingLivenessStatus,
+    postingLivenessCheckedAt: jobs.postingLivenessCheckedAt,
+    postingLivenessReason: jobs.postingLivenessReason,
     pdfPath: jobs.pdfPath,
     pdfSource: jobs.pdfSource,
     pdfRegenerating: jobs.pdfRegenerating,
@@ -197,6 +201,11 @@ export async function getJobListItems(
       ...row,
       source: row.source as JobListItem["source"],
       status: row.status as JobStatus,
+      postingLivenessStatus:
+        (row.postingLivenessStatus as JobPostingLivenessStatus | null) ??
+        "unknown",
+      postingLivenessCheckedAt: row.postingLivenessCheckedAt ?? null,
+      postingLivenessReason: row.postingLivenessReason ?? null,
       pdfSource: row.pdfSource as JobPdfSource | null,
       pdfRegenerating: row.pdfRegenerating ?? false,
       pdfFreshness: row.pdfRegenerating
@@ -304,6 +313,10 @@ export async function listJobNotes(jobId: string): Promise<JobNote[]> {
   return rows.map(mapRowToJobNote);
 }
 
+export async function getJobNotes(jobId: string): Promise<JobNote[]> {
+  return listJobNotes(jobId);
+}
+
 export async function listJobNotesByIds(
   jobId: string,
   noteIds: readonly string[],
@@ -323,6 +336,33 @@ export async function listJobNotesByIds(
         eq(jobNotes.jobId, jobId),
         inArray(jobNotes.id, normalizedNoteIds),
       ),
+    );
+
+  return rows.map(mapRowToJobNote);
+}
+
+export async function listJobNotesForJobIds(
+  jobIds: readonly string[],
+): Promise<JobNote[]> {
+  const normalizedJobIds = Array.from(
+    new Set(jobIds.map((jobId) => jobId.trim()).filter(Boolean)),
+  );
+  if (normalizedJobIds.length === 0) return [];
+
+  const tenantId = getActiveTenantId();
+  const rows = await db
+    .select()
+    .from(jobNotes)
+    .where(
+      and(
+        eq(jobNotes.tenantId, tenantId),
+        inArray(jobNotes.jobId, normalizedJobIds),
+      ),
+    )
+    .orderBy(
+      desc(jobNotes.updatedAt),
+      desc(jobNotes.createdAt),
+      desc(jobNotes.id),
     );
 
   return rows.map(mapRowToJobNote);
@@ -687,6 +727,30 @@ export async function updateJob(
   return getJobById(id);
 }
 
+export async function updateJobLivenessResult(
+  id: string,
+  input: {
+    status: JobPostingLivenessStatus;
+    checkedAt: number;
+    reason: string;
+  },
+): Promise<Job | null> {
+  const tenantId = getActiveTenantId();
+  const now = new Date().toISOString();
+
+  await db
+    .update(jobs)
+    .set({
+      postingLivenessStatus: input.status,
+      postingLivenessCheckedAt: input.checkedAt,
+      postingLivenessReason: input.reason,
+      updatedAt: now,
+    })
+    .where(and(eq(jobs.tenantId, tenantId), eq(jobs.id, id)));
+
+  return getJobById(id);
+}
+
 export async function finalizeGeneratedPdfIfCurrent(input: {
   id: string;
   expectedStatus: JobStatus;
@@ -903,6 +967,11 @@ function mapRowToJob(row: typeof jobs.$inferSelect): Job {
     tracerLinksEnabled: row.tracerLinksEnabled ?? false,
     sponsorMatchScore: row.sponsorMatchScore ?? null,
     sponsorMatchNames: row.sponsorMatchNames ?? null,
+    postingLivenessStatus:
+      (row.postingLivenessStatus as JobPostingLivenessStatus | null) ??
+      "unknown",
+    postingLivenessCheckedAt: row.postingLivenessCheckedAt ?? null,
+    postingLivenessReason: row.postingLivenessReason ?? null,
     evaluationRoleSummary: row.evaluationRoleSummary ?? null,
     evaluationCvMatchScore: row.evaluationCvMatchScore ?? null,
     evaluationCvMatchReason: row.evaluationCvMatchReason ?? null,

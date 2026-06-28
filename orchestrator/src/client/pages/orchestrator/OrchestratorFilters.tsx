@@ -41,6 +41,7 @@ import type {
   JobDateFilter,
   JobSort,
   LegitimacyFilter,
+  LivenessFilter,
   SalaryFilter,
   SalaryFilterMode,
   SponsorFilter,
@@ -66,6 +67,8 @@ interface OrchestratorFiltersProps {
   onLegitimacyFilterChange: (value: LegitimacyFilter) => void;
   ghostJobFilter: GhostJobFilter;
   onGhostJobFilterChange: (value: GhostJobFilter) => void;
+  livenessFilter: LivenessFilter;
+  onLivenessFilterChange: (value: LivenessFilter) => void;
   salaryFilter: SalaryFilter;
   onSalaryFilterChange: (value: SalaryFilter) => void;
   dateFilter: JobDateFilter;
@@ -117,6 +120,17 @@ const ghostJobOptions: Array<{
   { value: "all", label: "Include all jobs" },
   { value: "hide", label: "Hide ghost jobs" },
   { value: "only", label: "Only ghost jobs" },
+];
+
+const livenessOptions: Array<{
+  value: LivenessFilter;
+  label: string;
+}> = [
+  { value: "all", label: "All postings" },
+  { value: "live", label: "Live postings" },
+  { value: "expired", label: "Expired postings" },
+  { value: "uncertain", label: "Uncertain postings" },
+  { value: "unknown", label: "Unchecked postings" },
 ];
 
 const sortFieldOrder: JobSort["key"][] = [
@@ -225,6 +239,8 @@ export const OrchestratorFilters: React.FC<OrchestratorFiltersProps> = ({
   onLegitimacyFilterChange,
   ghostJobFilter,
   onGhostJobFilterChange,
+  livenessFilter,
+  onLivenessFilterChange,
   salaryFilter,
   onSalaryFilterChange,
   dateFilter,
@@ -251,6 +267,7 @@ export const OrchestratorFilters: React.FC<OrchestratorFiltersProps> = ({
       Number(sponsorFilter !== "all") +
       Number(legitimacyFilter !== "all") +
       Number(ghostJobFilter !== "all") +
+      Number(livenessFilter !== "all") +
       Number(dateFilter.dimensions.length > 0) +
       Number(
         (typeof salaryFilter.min === "number" && salaryFilter.min > 0) ||
@@ -261,6 +278,7 @@ export const OrchestratorFilters: React.FC<OrchestratorFiltersProps> = ({
       sponsorFilter,
       legitimacyFilter,
       ghostJobFilter,
+      livenessFilter,
       dateFilter.dimensions.length,
       salaryFilter.min,
       salaryFilter.max,
@@ -586,6 +604,29 @@ export const OrchestratorFilters: React.FC<OrchestratorFiltersProps> = ({
                               : "outline"
                           }
                           onClick={() => onGhostJobFilterChange(option.value)}
+                        >
+                          {option.label}
+                        </Button>
+                      ))}
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle>Posting liveness</CardTitle>
+                    </CardHeader>
+                    <CardContent className="flex flex-wrap gap-2">
+                      {livenessOptions.map((option) => (
+                        <Button
+                          key={option.value}
+                          type="button"
+                          size="sm"
+                          variant={
+                            livenessFilter === option.value
+                              ? "default"
+                              : "outline"
+                          }
+                          onClick={() => onLivenessFilterChange(option.value)}
                         >
                           {option.label}
                         </Button>

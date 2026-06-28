@@ -87,6 +87,9 @@ export function toJobListItem(
     discoveredAt: job.discoveredAt,
     readyAt: job.readyAt,
     appliedAt: job.appliedAt,
+    followUpUrgency: job.followUpUrgency,
+    nextFollowUpAt: job.nextFollowUpAt,
+    followUpReason: job.followUpReason,
     updatedAt: job.updatedAt,
   };
 }
