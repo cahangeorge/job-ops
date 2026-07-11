@@ -126,5 +126,21 @@ CI runs on Node 22. If local behavior differs, verify with Node 22 before conclu
 
 ### Scope-specific checks
 
-- For focused changes, run targeted tests first (for touched files/modules), then still run the full CI-parity list above before finalizing.
-- A change is considered valid only when all required checks pass without ignored failures.
+- In a worker worktree, run focused tests for touched modules, producer/consumer typechecks, changed-file Biome, and a client build only when UI changes.
+- Do not run the full CI-parity list in multiple worker worktrees concurrently.
+- After each cherry-pick into the canonical integration branch, run the affected tests and typechecks there.
+- Run the full CI-parity list once per completed delivery wave on the canonical integration branch, before release or final completion.
+- A change is valid only when required checks pass without ignored failures.
+
+## Multi-agent delivery guardrails
+
+These rules apply whenever more than one coding worker, reviewer, or worktree is involved.
+
+1. **Use dependency-gated tasks.** Create one task per independent lane. Give dependent tasks explicit parent links: implementation → review → integration. Do not bundle independent changes into one long-running worker.
+2. **Pin the base.** Each worker task names the canonical base SHA and its allowed file/module scope. A worker may make one bounded commit only.
+3. **Keep writers isolated.** One writer per worktree. Never start a replacement writer until the original writer and its child processes have exited and its git status/diff were inspected.
+4. **Freeze before verification.** Do not test, review, or cherry-pick a worktree while its writer is still running. An interrupted wait is not proof that a background worker stopped.
+5. **Reconcile before integration.** Rebase or cherry-pick onto the current canonical integration branch, then run the affected tests/typechecks from that branch. Results from stale worktrees are historical, not release evidence.
+6. **Cap review loops.** Use one writer → one read-only reviewer → one fixer → one re-review. Findings must state a concrete failure mode, violated invariant, and minimal fix. Escalate or simplify after that budget rather than starting unlimited loops.
+7. **Serialise expensive gates.** Full CI runs only on the canonical integration branch, once per completed wave. Do not run multiple full test/build suites simultaneously.
+8. **Report canonical status.** Progress reports name the canonical SHA, active gate, exact result, and remaining risk. Label outputs from superseded branches/worktrees as historical.
