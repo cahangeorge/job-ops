@@ -158,6 +158,107 @@ describe.sequential("Profile API routes", () => {
     });
   });
 
+  describe("career profile overlay", () => {
+    it("keeps the canonical profile unchanged while reading and merging a bounded overlay", async () => {
+      const canonicalProfile = { basics: { name: "Canonical User" } };
+      vi.mocked(getProfile).mockResolvedValue(canonicalProfile);
+
+      const canonicalResponse = await fetch(`${baseUrl}/api/profile`);
+      expect((await canonicalResponse.json()).data).toEqual(canonicalProfile);
+
+      const initial = await fetch(`${baseUrl}/api/profile/overlay`);
+      expect((await initial.json()).data).toBeNull();
+
+      const create = await fetch(`${baseUrl}/api/profile/overlay`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          expectedUpdatedAt: null,
+          preferences: { roles: ["Platform Engineer"] },
+          targets: { companies: ["Acme"] },
+        }),
+      });
+      const created = await create.json();
+      expect(create.status).toBe(200);
+      expect(created.data).toMatchObject({
+        preferences: { roles: ["Platform Engineer"] },
+        targets: { companies: ["Acme"] },
+      });
+
+      const merge = await fetch(`${baseUrl}/api/profile/overlay`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          expectedUpdatedAt: created.data.updatedAt,
+          constraints: { requiresVisaSponsorship: true },
+        }),
+      });
+      const merged = await merge.json();
+      expect(merged.data).toMatchObject({
+        preferences: { roles: ["Platform Engineer"] },
+        targets: { companies: ["Acme"] },
+        constraints: { requiresVisaSponsorship: true },
+      });
+
+      const persisted = await fetch(`${baseUrl}/api/profile/overlay`);
+      expect((await persisted.json()).data).toEqual(merged.data);
+    });
+
+    it("rejects unwhitelisted payloads, stale writes, and safely resets an overlay", async () => {
+      const invalid = await fetch(`${baseUrl}/api/profile/overlay`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          expectedUpdatedAt: null,
+          preferences: { salary: "unbounded" },
+        }),
+      });
+      expect(invalid.status).toBe(400);
+      expect((await invalid.json()).error.code).toBe("INVALID_REQUEST");
+
+      const create = await fetch(`${baseUrl}/api/profile/overlay`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          expectedUpdatedAt: null,
+          constraints: { minimumSalary: 100000 },
+        }),
+      });
+      const created = await create.json();
+      const update = await fetch(`${baseUrl}/api/profile/overlay`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          expectedUpdatedAt: created.data.updatedAt,
+          provenance: { source: "manual" },
+        }),
+      });
+      const updated = await update.json();
+
+      const stale = await fetch(`${baseUrl}/api/profile/overlay`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          expectedUpdatedAt: created.data.updatedAt,
+          targets: { companies: ["Stale Corp"] },
+        }),
+      });
+      expect(stale.status).toBe(409);
+      expect((await stale.json()).error.code).toBe("CONFLICT");
+
+      const reset = await fetch(`${baseUrl}/api/profile/overlay`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ expectedUpdatedAt: updated.data.updatedAt }),
+      });
+      expect(reset.status).toBe(200);
+      expect((await reset.json()).data).toEqual({ reset: true });
+
+      const afterReset = await fetch(`${baseUrl}/api/profile/overlay`);
+      expect((await afterReset.json()).data).toBeNull();
+    });
+  });
+
   describe("GET /api/profile/status", () => {
     it("returns exists: false when rxresumeBaseResumeId is not configured", async () => {
       vi.mocked(getSetting).mockResolvedValue(null);

@@ -19,6 +19,7 @@ import {
   validateAndMaybePersistRxResumeMode,
 } from "@client/lib/rxresume-config";
 import { BackupSettingsSection } from "@client/pages/settings/components/BackupSettingsSection";
+import { CareerProfileOverlaySection } from "@client/pages/settings/components/CareerProfileOverlaySection";
 import { ChatSettingsSection } from "@client/pages/settings/components/ChatSettingsSection";
 import { DangerZoneSection } from "@client/pages/settings/components/DangerZoneSection";
 import { DisplaySettingsSection } from "@client/pages/settings/components/DisplaySettingsSection";
@@ -132,6 +133,7 @@ type SettingsSectionId =
   | "chat"
   | "prompt-templates"
   | "scoring"
+  | "career-profile"
   | "reactive-resume"
   | "webhooks"
   | "tracer-links"
@@ -207,6 +209,13 @@ const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         description:
           "Salary penalties, thresholds, keywords, and scorer hints.",
         searchTerms: ["threshold", "salary", "keywords", "instructions"],
+      },
+      {
+        id: "career-profile",
+        label: "Career Profile",
+        description:
+          "Workspace-specific job preferences, targets, and constraints.",
+        searchTerms: ["career", "preferences", "targets", "visa", "salary"],
       },
     ],
   },
@@ -320,6 +329,7 @@ const SECTION_FIELD_MAP: Record<
     "blockedCompanyKeywords",
     "scoringInstructions",
   ],
+  "career-profile": [],
   "reactive-resume": [
     "pdfRenderer",
     "rxresumeBaseResumeId",
@@ -1569,6 +1579,9 @@ export const SettingsPage: React.FC = () => {
           layoutMode="panel"
         />
       );
+      break;
+    case "career-profile":
+      activeSectionContent = <CareerProfileOverlaySection layoutMode="panel" />;
       break;
     case "reactive-resume":
       activeSectionContent = (

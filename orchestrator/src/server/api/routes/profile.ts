@@ -2,6 +2,11 @@ import { toAppError } from "@infra/errors";
 import { fail, ok } from "@infra/http";
 import { isDemoMode } from "@server/config/demo";
 import { DEMO_PROJECT_CATALOG } from "@server/config/demo-defaults";
+import {
+  deleteCareerProfileOverlay,
+  getCareerProfileOverlay,
+  updateCareerProfileOverlay,
+} from "@server/repositories/career-profile-overlays";
 import { getDesignResumeStatus } from "@server/services/design-resume";
 import { clearProfileCache, getProfile } from "@server/services/profile";
 import { extractProjectsFromProfile } from "@server/services/resumeProjects";
@@ -12,8 +17,77 @@ import {
 } from "@server/services/rxresume";
 import { getConfiguredRxResumeBaseResumeId } from "@server/services/rxresume/baseResumeId";
 import { type Request, type Response, Router } from "express";
+import { z } from "zod";
 
 export const profileRouter = Router();
+
+const boundedTextSchema = z.string().trim().min(1).max(120);
+const boundedTextListSchema = z.array(boundedTextSchema).max(20);
+
+const preferencesSchema = z
+  .object({
+    roles: boundedTextListSchema.optional(),
+    locations: boundedTextListSchema.optional(),
+    workModes: z
+      .array(z.enum(["remote", "hybrid", "onsite"]))
+      .max(3)
+      .optional(),
+    employmentTypes: z
+      .array(z.enum(["permanent", "contract", "temporary", "internship"]))
+      .max(4)
+      .optional(),
+  })
+  .strict();
+
+const targetsSchema = z
+  .object({
+    companies: boundedTextListSchema.optional(),
+    industries: boundedTextListSchema.optional(),
+    keywords: boundedTextListSchema.optional(),
+  })
+  .strict();
+
+const constraintsSchema = z
+  .object({
+    minimumSalary: z.number().int().min(0).max(1_000_000).optional(),
+    requiresVisaSponsorship: z.boolean().optional(),
+    excludedCompanies: boundedTextListSchema.optional(),
+  })
+  .strict();
+
+const provenanceSchema = z
+  .object({
+    source: z.enum(["manual", "imported"]).optional(),
+    note: z.string().trim().max(500).optional(),
+  })
+  .strict();
+
+export const careerProfileOverlayPatchSchema = z
+  .object({
+    expectedUpdatedAt: z.string().datetime().nullable(),
+    preferences: preferencesSchema.optional(),
+    targets: targetsSchema.optional(),
+    constraints: constraintsSchema.optional(),
+    provenance: provenanceSchema.optional(),
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    if (
+      value.preferences === undefined &&
+      value.targets === undefined &&
+      value.constraints === undefined &&
+      value.provenance === undefined
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Provide at least one career profile overlay section.",
+      });
+    }
+  });
+
+const careerProfileOverlayDeleteSchema = z
+  .object({ expectedUpdatedAt: z.string().datetime() })
+  .strict();
 
 /**
  * GET /api/profile/projects - Get all projects available in the base resume
@@ -39,6 +113,35 @@ profileRouter.get("/", async (_req: Request, res: Response) => {
   try {
     const profile = await getProfile();
     ok(res, profile);
+  } catch (error) {
+    fail(res, toAppError(error));
+  }
+});
+
+profileRouter.get("/overlay", async (_req: Request, res: Response) => {
+  try {
+    ok(res, await getCareerProfileOverlay());
+  } catch (error) {
+    fail(res, toAppError(error));
+  }
+});
+
+profileRouter.patch("/overlay", async (req: Request, res: Response) => {
+  try {
+    const input = careerProfileOverlayPatchSchema.parse(req.body);
+    ok(res, await updateCareerProfileOverlay(input));
+  } catch (error) {
+    fail(res, toAppError(error));
+  }
+});
+
+profileRouter.delete("/overlay", async (req: Request, res: Response) => {
+  try {
+    const { expectedUpdatedAt } = careerProfileOverlayDeleteSchema.parse(
+      req.body,
+    );
+    await deleteCareerProfileOverlay(expectedUpdatedAt);
+    ok(res, { reset: true });
   } catch (error) {
     fail(res, toAppError(error));
   }

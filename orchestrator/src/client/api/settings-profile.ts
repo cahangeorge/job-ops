@@ -20,6 +20,38 @@ import { fetchApi, fetchBlobApi, normalizeApiPath } from "./core";
 
 let settingsPromise: Promise<AppSettings> | null = null;
 
+export type CareerProfileOverlay = {
+  preferences: {
+    roles?: string[];
+    locations?: string[];
+    workModes?: Array<"remote" | "hybrid" | "onsite">;
+    employmentTypes?: Array<
+      "permanent" | "contract" | "temporary" | "internship"
+    >;
+  };
+  targets: {
+    companies?: string[];
+    industries?: string[];
+    keywords?: string[];
+  };
+  constraints: {
+    minimumSalary?: number;
+    requiresVisaSponsorship?: boolean;
+    excludedCompanies?: string[];
+  };
+  provenance: { source?: "manual" | "imported"; note?: string };
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type UpdateCareerProfileOverlayInput = {
+  expectedUpdatedAt: string | null;
+  preferences?: CareerProfileOverlay["preferences"];
+  targets?: CareerProfileOverlay["targets"];
+  constraints?: CareerProfileOverlay["constraints"];
+  provenance?: CareerProfileOverlay["provenance"];
+};
+
 export async function getSettings(): Promise<AppSettings> {
   if (settingsPromise) return settingsPromise;
 
@@ -46,6 +78,28 @@ export async function getResumeProjectsCatalog(): Promise<
 
 export async function getProfile(): Promise<ResumeProfile> {
   return fetchApi<ResumeProfile>("/profile");
+}
+
+export async function getCareerProfileOverlay(): Promise<CareerProfileOverlay | null> {
+  return fetchApi<CareerProfileOverlay | null>("/profile/overlay");
+}
+
+export async function updateCareerProfileOverlay(
+  input: UpdateCareerProfileOverlayInput,
+): Promise<CareerProfileOverlay> {
+  return fetchApi<CareerProfileOverlay>("/profile/overlay", {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function resetCareerProfileOverlay(
+  expectedUpdatedAt: string,
+): Promise<void> {
+  await fetchApi<{ reset: true }>("/profile/overlay", {
+    method: "DELETE",
+    body: JSON.stringify({ expectedUpdatedAt }),
+  });
 }
 
 export async function getDesignResume(): Promise<DesignResumeDocument> {
