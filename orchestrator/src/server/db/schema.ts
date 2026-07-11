@@ -3,6 +3,8 @@
  */
 
 import {
+  APPLICATION_APPROVAL_DECISIONS,
+  APPLICATION_DOSSIER_LIFECYCLE_STATES,
   APPLICATION_OUTCOMES,
   APPLICATION_STAGES,
   APPLICATION_TASK_TYPES,
@@ -17,9 +19,14 @@ import {
   POST_APPLICATION_PROVIDERS,
   POST_APPLICATION_RELEVANCE_DECISIONS,
   POST_APPLICATION_SYNC_RUN_STATUSES,
+  STORY_USAGE_KINDS,
+  SUBMITTED_APPLICATION_QA_RESULTS,
 } from "@shared/types";
+import { APPLICATION_SNAPSHOT_MAX_CHARS } from "@shared/types/application-domain";
 import { sql } from "drizzle-orm";
 import {
+  check,
+  foreignKey,
   index,
   integer,
   real,
@@ -237,6 +244,387 @@ export const interviewStories = sqliteTable("interview_stories", {
   isMasterStory: integer("is_master_story", { mode: "boolean" })
     .notNull()
     .default(false),
+  createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+  updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),
+});
+
+export const applicationDossiers = sqliteTable(
+  "application_dossiers",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    jobId: text("job_id").notNull(),
+    lifecycleState: text("lifecycle_state", {
+      enum: APPLICATION_DOSSIER_LIFECYCLE_STATES,
+    }).notNull(),
+    createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+    updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),
+  },
+  (table) => ({
+    jobForeignKey: foreignKey({
+      columns: [table.tenantId, table.jobId],
+      foreignColumns: [jobs.tenantId, jobs.id],
+    }).onDelete("cascade"),
+    tenantIdUnique: uniqueIndex("idx_application_dossiers_tenant_id_unique").on(
+      table.tenantId,
+      table.id,
+    ),
+    tenantIdJobUnique: uniqueIndex(
+      "idx_application_dossiers_tenant_id_job_id_unique",
+    ).on(table.tenantId, table.id, table.jobId),
+    tenantJobUnique: uniqueIndex(
+      "idx_application_dossiers_tenant_job_unique",
+    ).on(table.tenantId, table.jobId),
+    tenantLifecycleIndex: index("idx_application_dossiers_tenant_lifecycle").on(
+      table.tenantId,
+      table.lifecycleState,
+    ),
+  }),
+);
+
+export const applicationDraftRevisions = sqliteTable(
+  "application_draft_revisions",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    dossierId: text("dossier_id").notNull(),
+    jobId: text("job_id").notNull(),
+    revisionNumber: integer("revision_number").notNull(),
+    jobSnapshot: text("job_snapshot").notNull(),
+    resumeSnapshot: text("resume_snapshot").notNull(),
+    storySnapshot: text("story_snapshot").notNull(),
+    contentSnapshot: text("content_snapshot").notNull(),
+    provenance: text("provenance").notNull(),
+    contentHash: text("content_hash").notNull(),
+    createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+  },
+  (table) => ({
+    jobForeignKey: foreignKey({
+      columns: [table.tenantId, table.jobId],
+      foreignColumns: [jobs.tenantId, jobs.id],
+    }).onDelete("restrict"),
+    dossierForeignKey: foreignKey({
+      columns: [table.tenantId, table.dossierId],
+      foreignColumns: [applicationDossiers.tenantId, applicationDossiers.id],
+    }).onDelete("restrict"),
+    dossierJobForeignKey: foreignKey({
+      columns: [table.tenantId, table.dossierId, table.jobId],
+      foreignColumns: [
+        applicationDossiers.tenantId,
+        applicationDossiers.id,
+        applicationDossiers.jobId,
+      ],
+    }).onDelete("restrict"),
+    jobSnapshotLength: check(
+      "application_draft_revisions_job_snapshot_max_length",
+      sql`length(${table.jobSnapshot}) <= ${APPLICATION_SNAPSHOT_MAX_CHARS.job}`,
+    ),
+    resumeSnapshotLength: check(
+      "application_draft_revisions_resume_snapshot_max_length",
+      sql`length(${table.resumeSnapshot}) <= ${APPLICATION_SNAPSHOT_MAX_CHARS.resume}`,
+    ),
+    storySnapshotLength: check(
+      "application_draft_revisions_story_snapshot_max_length",
+      sql`length(${table.storySnapshot}) <= ${APPLICATION_SNAPSHOT_MAX_CHARS.story}`,
+    ),
+    contentSnapshotLength: check(
+      "application_draft_revisions_content_snapshot_max_length",
+      sql`length(${table.contentSnapshot}) <= ${APPLICATION_SNAPSHOT_MAX_CHARS.content}`,
+    ),
+    provenanceLength: check(
+      "application_draft_revisions_provenance_max_length",
+      sql`length(${table.provenance}) <= ${APPLICATION_SNAPSHOT_MAX_CHARS.provenance}`,
+    ),
+    tenantIdUnique: uniqueIndex(
+      "idx_application_draft_revisions_tenant_id_unique",
+    ).on(table.tenantId, table.id),
+    tenantIdDossierJobUnique: uniqueIndex(
+      "idx_application_draft_revisions_tenant_id_dossier_job_unique",
+    ).on(table.tenantId, table.id, table.dossierId, table.jobId),
+    dossierRevisionUnique: uniqueIndex(
+      "idx_application_draft_revisions_tenant_dossier_revision_unique",
+    ).on(table.tenantId, table.dossierId, table.revisionNumber),
+    tenantJobIndex: index("idx_application_draft_revisions_tenant_job").on(
+      table.tenantId,
+      table.jobId,
+      table.createdAt,
+    ),
+  }),
+);
+
+export const applicationApprovals = sqliteTable(
+  "application_approvals",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    dossierId: text("dossier_id").notNull(),
+    jobId: text("job_id").notNull(),
+    decision: text("decision", {
+      enum: APPLICATION_APPROVAL_DECISIONS,
+    }).notNull(),
+    approvedByUserId: text("approved_by_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    policyVersion: text("policy_version").notNull(),
+    requestId: text("request_id").notNull(),
+    reason: text("reason"),
+    createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+  },
+  (table) => ({
+    jobForeignKey: foreignKey({
+      columns: [table.tenantId, table.jobId],
+      foreignColumns: [jobs.tenantId, jobs.id],
+    }).onDelete("restrict"),
+    dossierForeignKey: foreignKey({
+      columns: [table.tenantId, table.dossierId],
+      foreignColumns: [applicationDossiers.tenantId, applicationDossiers.id],
+    }).onDelete("restrict"),
+    dossierJobForeignKey: foreignKey({
+      columns: [table.tenantId, table.dossierId, table.jobId],
+      foreignColumns: [
+        applicationDossiers.tenantId,
+        applicationDossiers.id,
+        applicationDossiers.jobId,
+      ],
+    }).onDelete("restrict"),
+    tenantApproverForeignKey: foreignKey({
+      columns: [table.tenantId, table.approvedByUserId],
+      foreignColumns: [tenantMemberships.tenantId, tenantMemberships.userId],
+    }).onDelete("restrict"),
+    tenantIdUnique: uniqueIndex(
+      "idx_application_approvals_tenant_id_unique",
+    ).on(table.tenantId, table.id),
+    tenantRequestUnique: uniqueIndex(
+      "idx_application_approvals_tenant_request_unique",
+    ).on(table.tenantId, table.requestId),
+    tenantDossierIndex: index("idx_application_approvals_tenant_dossier").on(
+      table.tenantId,
+      table.dossierId,
+      table.createdAt,
+    ),
+  }),
+);
+
+export const submittedApplicationArtifacts = sqliteTable(
+  "submitted_application_artifacts",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    dossierId: text("dossier_id").notNull(),
+    jobId: text("job_id").notNull(),
+    draftRevisionId: text("draft_revision_id").notNull(),
+    storagePath: text("storage_path").notNull(),
+    sha256: text("sha256").notNull(),
+    byteSize: integer("byte_size").notNull(),
+    mediaType: text("media_type").notNull(),
+    qaResult: text("qa_result", {
+      enum: SUBMITTED_APPLICATION_QA_RESULTS,
+    }).notNull(),
+    createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+  },
+  (table) => ({
+    jobForeignKey: foreignKey({
+      columns: [table.tenantId, table.jobId],
+      foreignColumns: [jobs.tenantId, jobs.id],
+    }).onDelete("restrict"),
+    dossierJobForeignKey: foreignKey({
+      columns: [table.tenantId, table.dossierId, table.jobId],
+      foreignColumns: [
+        applicationDossiers.tenantId,
+        applicationDossiers.id,
+        applicationDossiers.jobId,
+      ],
+    }).onDelete("restrict"),
+    revisionForeignKey: foreignKey({
+      columns: [table.tenantId, table.draftRevisionId],
+      foreignColumns: [
+        applicationDraftRevisions.tenantId,
+        applicationDraftRevisions.id,
+      ],
+    }).onDelete("restrict"),
+    revisionDossierJobForeignKey: foreignKey({
+      columns: [
+        table.tenantId,
+        table.draftRevisionId,
+        table.dossierId,
+        table.jobId,
+      ],
+      foreignColumns: [
+        applicationDraftRevisions.tenantId,
+        applicationDraftRevisions.id,
+        applicationDraftRevisions.dossierId,
+        applicationDraftRevisions.jobId,
+      ],
+    }).onDelete("restrict"),
+    tenantIdUnique: uniqueIndex(
+      "idx_submitted_application_artifacts_tenant_id_unique",
+    ).on(table.tenantId, table.id),
+    storagePathUnique: uniqueIndex(
+      "idx_submitted_application_artifacts_tenant_path_unique",
+    ).on(table.tenantId, table.storagePath),
+    dossierShaUnique: uniqueIndex(
+      "idx_submitted_application_artifacts_tenant_dossier_sha_unique",
+    ).on(table.tenantId, table.dossierId, table.sha256),
+    dossierFinalizationUnique: uniqueIndex(
+      "idx_submitted_application_artifacts_tenant_dossier_finalization_unique",
+    ).on(table.tenantId, table.dossierId),
+    tenantJobIndex: index("idx_submitted_application_artifacts_tenant_job").on(
+      table.tenantId,
+      table.jobId,
+      table.createdAt,
+    ),
+  }),
+);
+
+export const jobPostingSnapshots = sqliteTable(
+  "job_posting_snapshots",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    jobId: text("job_id").notNull(),
+    normalizedText: text("normalized_text").notNull(),
+    contentHash: text("content_hash").notNull(),
+    sourceUrl: text("source_url").notNull(),
+    retrievedAt: text("retrieved_at").notNull(),
+    retrievalMetadata: text("retrieval_metadata").notNull(),
+    createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+  },
+  (table) => ({
+    jobForeignKey: foreignKey({
+      columns: [table.tenantId, table.jobId],
+      foreignColumns: [jobs.tenantId, jobs.id],
+    }).onDelete("restrict"),
+    normalizedTextLength: check(
+      "job_posting_snapshots_normalized_text_max_length",
+      sql`length(${table.normalizedText}) <= ${APPLICATION_SNAPSHOT_MAX_CHARS.postingText}`,
+    ),
+    retrievalMetadataLength: check(
+      "job_posting_snapshots_retrieval_metadata_max_length",
+      sql`length(${table.retrievalMetadata}) <= ${APPLICATION_SNAPSHOT_MAX_CHARS.postingMetadata}`,
+    ),
+    tenantIdUnique: uniqueIndex(
+      "idx_job_posting_snapshots_tenant_id_unique",
+    ).on(table.tenantId, table.id),
+    jobHashUnique: uniqueIndex(
+      "idx_job_posting_snapshots_tenant_job_hash_unique",
+    ).on(table.tenantId, table.jobId, table.contentHash),
+    tenantJobRetrievedIndex: index(
+      "idx_job_posting_snapshots_tenant_job_retrieved",
+    ).on(table.tenantId, table.jobId, table.retrievedAt),
+  }),
+);
+
+export const storyTags = sqliteTable(
+  "story_tags",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+  },
+  (table) => ({
+    tenantIdUnique: uniqueIndex("idx_story_tags_tenant_id_unique").on(
+      table.tenantId,
+      table.id,
+    ),
+    tenantNameUnique: uniqueIndex("idx_story_tags_tenant_name_unique").on(
+      table.tenantId,
+      table.name,
+    ),
+  }),
+);
+
+export const storyTagAssignments = sqliteTable(
+  "story_tag_assignments",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    storyId: text("story_id").notNull(),
+    tagId: text("tag_id").notNull(),
+    createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+  },
+  (table) => ({
+    storyForeignKey: foreignKey({
+      columns: [table.tenantId, table.storyId],
+      foreignColumns: [interviewStories.tenantId, interviewStories.id],
+    }).onDelete("cascade"),
+    tagForeignKey: foreignKey({
+      columns: [table.tenantId, table.tagId],
+      foreignColumns: [storyTags.tenantId, storyTags.id],
+    }).onDelete("cascade"),
+    tenantIdUnique: uniqueIndex(
+      "idx_story_tag_assignments_tenant_id_unique",
+    ).on(table.tenantId, table.id),
+    storyTagUnique: uniqueIndex(
+      "idx_story_tag_assignments_tenant_story_tag_unique",
+    ).on(table.tenantId, table.storyId, table.tagId),
+    tenantTagIndex: index("idx_story_tag_assignments_tenant_tag").on(
+      table.tenantId,
+      table.tagId,
+    ),
+  }),
+);
+
+export const storyUsageEvents = sqliteTable(
+  "story_usage_events",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    storyId: text("story_id").notNull(),
+    jobId: text("job_id").notNull(),
+    usageKind: text("usage_kind", { enum: STORY_USAGE_KINDS }).notNull(),
+    provenance: text("provenance").notNull(),
+    createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+  },
+  (table) => ({
+    storyForeignKey: foreignKey({
+      columns: [table.tenantId, table.storyId],
+      foreignColumns: [interviewStories.tenantId, interviewStories.id],
+    }).onDelete("restrict"),
+    jobForeignKey: foreignKey({
+      columns: [table.tenantId, table.jobId],
+      foreignColumns: [jobs.tenantId, jobs.id],
+    }).onDelete("restrict"),
+    provenanceLength: check(
+      "story_usage_events_provenance_max_length",
+      sql`length(${table.provenance}) <= ${APPLICATION_SNAPSHOT_MAX_CHARS.provenance}`,
+    ),
+    tenantIdUnique: uniqueIndex("idx_story_usage_events_tenant_id_unique").on(
+      table.tenantId,
+      table.id,
+    ),
+    tenantStoryIndex: index("idx_story_usage_events_tenant_story").on(
+      table.tenantId,
+      table.storyId,
+      table.createdAt,
+    ),
+  }),
+);
+
+export const careerProfileOverlays = sqliteTable("career_profile_overlays", {
+  tenantId: text("tenant_id")
+    .primaryKey()
+    .references(() => tenants.id, { onDelete: "cascade" }),
+  preferences: text("preferences").notNull(),
+  targets: text("targets").notNull(),
+  constraints: text("constraints").notNull(),
+  provenance: text("provenance").notNull(),
   createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
   updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),
 });
@@ -954,6 +1342,30 @@ export type TenantMembershipRow = typeof tenantMemberships.$inferSelect;
 export type NewTenantMembershipRow = typeof tenantMemberships.$inferInsert;
 export type JobRow = typeof jobs.$inferSelect;
 export type NewJobRow = typeof jobs.$inferInsert;
+export type ApplicationDossierRow = typeof applicationDossiers.$inferSelect;
+export type NewApplicationDossierRow = typeof applicationDossiers.$inferInsert;
+export type ApplicationDraftRevisionRow =
+  typeof applicationDraftRevisions.$inferSelect;
+export type NewApplicationDraftRevisionRow =
+  typeof applicationDraftRevisions.$inferInsert;
+export type ApplicationApprovalRow = typeof applicationApprovals.$inferSelect;
+export type NewApplicationApprovalRow =
+  typeof applicationApprovals.$inferInsert;
+export type SubmittedApplicationArtifactRow =
+  typeof submittedApplicationArtifacts.$inferSelect;
+export type NewSubmittedApplicationArtifactRow =
+  typeof submittedApplicationArtifacts.$inferInsert;
+export type JobPostingSnapshotRow = typeof jobPostingSnapshots.$inferSelect;
+export type NewJobPostingSnapshotRow = typeof jobPostingSnapshots.$inferInsert;
+export type StoryTagRow = typeof storyTags.$inferSelect;
+export type NewStoryTagRow = typeof storyTags.$inferInsert;
+export type StoryTagAssignmentRow = typeof storyTagAssignments.$inferSelect;
+export type NewStoryTagAssignmentRow = typeof storyTagAssignments.$inferInsert;
+export type StoryUsageEventRow = typeof storyUsageEvents.$inferSelect;
+export type NewStoryUsageEventRow = typeof storyUsageEvents.$inferInsert;
+export type CareerProfileOverlayRow = typeof careerProfileOverlays.$inferSelect;
+export type NewCareerProfileOverlayRow =
+  typeof careerProfileOverlays.$inferInsert;
 export type StageEventRow = typeof stageEvents.$inferSelect;
 export type NewStageEventRow = typeof stageEvents.$inferInsert;
 export type TaskRow = typeof tasks.$inferSelect;

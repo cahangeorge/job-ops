@@ -19,6 +19,7 @@ if (!existsSync(dataDir)) {
 }
 
 const sqlite = new Database(DB_PATH);
+sqlite.pragma("foreign_keys = ON");
 sqlite.pragma("journal_mode = WAL");
 let isClosed = false;
 

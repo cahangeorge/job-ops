@@ -19,6 +19,7 @@ if (!existsSync(dataDir)) {
 }
 
 const sqlite = new Database(DB_PATH);
+sqlite.pragma("foreign_keys = ON");
 const DEFAULT_TENANT_ID = "tenant_default";
 const DEFAULT_TENANT_NAME = "JobOps";
 const DEFAULT_TENANT_SLUG = "default";
