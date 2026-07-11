@@ -7,6 +7,7 @@ import { existsSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import Database from "better-sqlite3";
 import { getDataDir } from "../config/dataDir";
+import { runVersionedMigrations } from "./versionedMigrations";
 
 // Database path - can be overridden via env for Docker
 const DB_PATH = join(getDataDir(), "jobs.db");
@@ -1337,6 +1338,11 @@ sqlite.exec(
   "CREATE INDEX IF NOT EXISTS idx_auth_sessions_user_id ON auth_sessions(user_id)",
 );
 seedLegacyOwnerFromBasicAuth();
+
+if (!tableHasColumn("jobs", "tenant_id")) {
+  throw new Error("Legacy tenancy compatibility did not add jobs.tenant_id");
+}
+runVersionedMigrations(sqlite);
 
 sqlite.close();
 console.log("🎉 Database migrations complete!");
