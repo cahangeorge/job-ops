@@ -7,9 +7,12 @@ vi.mock("pdf-parse", () => ({
 
 import pdfParse from "pdf-parse";
 import {
+  buildPdfParserCommand,
   DocxTextExtractionError,
   extractDocxText,
   extractPdfText,
+  extractPdfTextBounded,
+  PDF_PARSER_RESOURCE_LIMITS,
 } from "./document-text-extraction";
 
 function makePdfParseResult(text: string) {
@@ -84,6 +87,61 @@ describe("document text extraction", () => {
     ).rejects.toMatchObject({
       name: "PdfTextExtractionError",
       code: "INVALID_PDF",
+    });
+  });
+
+  it("terminates the default isolated PDF parser when its deadline expires", async () => {
+    await expect(
+      extractPdfTextBounded(Buffer.from("%PDF-1.4"), {
+        signal: AbortSignal.timeout(1),
+      }),
+    ).rejects.toMatchObject({
+      name: "PdfTextExtractionError",
+      code: "PROCESSING_TIMEOUT",
+      message: "PDF text extraction timed out.",
+    });
+  });
+
+  it("does not emit unhandled closed-pipe errors when repeated deadlines kill parsers", async () => {
+    await Promise.all(
+      Array.from({ length: 25 }, () =>
+        expect(
+          extractPdfTextBounded(Buffer.from("%PDF-1.4"), {
+            signal: AbortSignal.timeout(1),
+          }),
+        ).rejects.toMatchObject({ code: "PROCESSING_TIMEOUT" }),
+      ),
+    );
+  });
+
+  it("runs the parser under enforceable Linux process resource limits", () => {
+    expect(buildPdfParserCommand("/usr/bin/prlimit", "/node")).toEqual({
+      command: "/usr/bin/prlimit",
+      args: [
+        `--data=${PDF_PARSER_RESOURCE_LIMITS.data}:${PDF_PARSER_RESOURCE_LIMITS.data}`,
+        `--cpu=${PDF_PARSER_RESOURCE_LIMITS.cpu}:${PDF_PARSER_RESOURCE_LIMITS.cpu}`,
+        `--nofile=${PDF_PARSER_RESOURCE_LIMITS.nofile}:${PDF_PARSER_RESOURCE_LIMITS.nofile}`,
+        `--fsize=${PDF_PARSER_RESOURCE_LIMITS.fsize}:${PDF_PARSER_RESOURCE_LIMITS.fsize}`,
+        `--stack=${PDF_PARSER_RESOURCE_LIMITS.stack}:${PDF_PARSER_RESOURCE_LIMITS.stack}`,
+        "--",
+        "/node",
+        "--max-old-space-size=64",
+        "--input-type=module",
+        "--eval",
+        expect.any(String),
+      ],
+    });
+  });
+
+  it("rejects an oversized PDF before it can consume parser resources", async () => {
+    await expect(
+      extractPdfTextBounded(Buffer.alloc(2 * 1024 * 1024 + 1), {
+        signal: new AbortController().signal,
+      }),
+    ).rejects.toMatchObject({
+      name: "PdfTextExtractionError",
+      code: "RESOURCE_LIMIT",
+      message: "PDF file exceeds the extraction limit.",
     });
   });
 
