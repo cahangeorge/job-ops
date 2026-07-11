@@ -1,7 +1,7 @@
 import * as api from "@client/api";
 import { PageHeader, PageMain } from "@client/components/layout";
 import { queryKeys } from "@client/lib/queryKeys";
-import type { CreateInterviewStoryInput, InterviewStory } from "@shared/types";
+import type { CreateInterviewStoryInput } from "@shared/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { BookOpenCheck, Trash2 } from "lucide-react";
 import type React from "react";
@@ -33,7 +33,9 @@ const EMPTY_STORY_DRAFT: CreateInterviewStoryInput = {
 
 type StoryDraftKey = keyof CreateInterviewStoryInput;
 
-function normalizeDraft(draft: CreateInterviewStoryInput): CreateInterviewStoryInput {
+function normalizeDraft(
+  draft: CreateInterviewStoryInput,
+): CreateInterviewStoryInput {
   return {
     title: draft.title.trim(),
     situation: draft.situation.trim(),
@@ -82,12 +84,18 @@ function StoryField(props: {
 
 function StoryCard({
   story,
+  availableTags,
   onDelete,
+  onToggleTag,
   deleting,
+  tagPending,
 }: {
-  story: InterviewStory;
-  onDelete: (story: InterviewStory) => void;
+  story: api.StoryBankStory;
+  availableTags: api.StoryBankTag[];
+  onDelete: (story: api.StoryBankStory) => void;
+  onToggleTag: (storyId: string, tagId: string, assigned: boolean) => void;
   deleting: boolean;
+  tagPending: boolean;
 }) {
   return (
     <Card>
@@ -97,8 +105,17 @@ function StoryCard({
             <CardTitle className="text-lg">{story.title}</CardTitle>
             <div className="flex flex-wrap gap-2">
               {story.isMasterStory ? <Badge>Master story</Badge> : null}
-              {story.skills ? <Badge variant="secondary">{story.skills}</Badge> : null}
-              {story.tags ? <Badge variant="outline">{story.tags}</Badge> : null}
+              {story.skills ? (
+                <Badge variant="secondary">{story.skills}</Badge>
+              ) : null}
+              {story.tags ? (
+                <Badge variant="outline">{story.tags}</Badge>
+              ) : null}
+              {(story.storyTags ?? []).map((tag) => (
+                <Badge key={tag.id} variant="outline">
+                  {tag.name}
+                </Badge>
+              ))}
             </div>
           </div>
           <Button
@@ -128,8 +145,44 @@ function StoryCard({
         </p>
         {story.reflection ? (
           <p>
-            <span className="font-semibold">Reflection:</span> {story.reflection}
+            <span className="font-semibold">Reflection:</span>{" "}
+            {story.reflection}
           </p>
+        ) : null}
+        <p className="text-muted-foreground">
+          Used {story.usageCount ?? 0} time{story.usageCount === 1 ? "" : "s"}
+          {story.lastUsedAt
+            ? ` · last used ${new Date(story.lastUsedAt).toLocaleDateString()}`
+            : ""}
+        </p>
+        {availableTags.length > 0 ? (
+          <fieldset
+            className="flex flex-wrap gap-3"
+            aria-label={`Tags for ${story.title}`}
+          >
+            {availableTags.map((tag) => {
+              const assigned = (story.storyTags ?? []).some(
+                (assignedTag) => assignedTag.id === tag.id,
+              );
+              return (
+                <label
+                  className="flex items-center gap-1.5 text-xs"
+                  htmlFor={`story-${story.id}-tag-${tag.id}`}
+                  key={tag.id}
+                >
+                  <Checkbox
+                    id={`story-${story.id}-tag-${tag.id}`}
+                    checked={assigned}
+                    disabled={tagPending}
+                    onCheckedChange={() =>
+                      onToggleTag(story.id, tag.id, assigned)
+                    }
+                  />
+                  {tag.name}
+                </label>
+              );
+            })}
+          </fieldset>
         ) : null}
       </CardContent>
     </Card>
@@ -138,14 +191,20 @@ function StoryCard({
 
 export function StoryBankPage() {
   const queryClient = useQueryClient();
-  const [draft, setDraft] = useState<CreateInterviewStoryInput>(
-    EMPTY_STORY_DRAFT,
-  );
+  const [draft, setDraft] =
+    useState<CreateInterviewStoryInput>(EMPTY_STORY_DRAFT);
   const [formError, setFormError] = useState<string | null>(null);
+  const [newTagName, setNewTagName] = useState("");
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
 
   const storiesQuery = useQuery({
-    queryKey: queryKeys.storyBank.list(),
-    queryFn: api.getInterviewStories,
+    queryKey: [...queryKeys.storyBank.list(), selectedTagIds],
+    queryFn: () => api.getInterviewStories({ tagIds: selectedTagIds }),
+    staleTime: 30_000,
+  });
+  const tagsQuery = useQuery({
+    queryKey: [...queryKeys.storyBank.all, "tags"],
+    queryFn: api.getStoryTags,
     staleTime: 30_000,
   });
 
@@ -159,21 +218,64 @@ export function StoryBankPage() {
     onSuccess: async () => {
       setDraft(EMPTY_STORY_DRAFT);
       setFormError(null);
-      await queryClient.invalidateQueries({ queryKey: queryKeys.storyBank.all });
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.storyBank.all,
+      });
     },
     onError: (error) => {
-      setFormError(error instanceof Error ? error.message : "Could not save story.");
+      setFormError(
+        error instanceof Error ? error.message : "Could not save story.",
+      );
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: api.deleteInterviewStory,
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.storyBank.all });
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.storyBank.all,
+      });
     },
     onError: (error) => {
-      setFormError(error instanceof Error ? error.message : "Could not delete story.");
+      setFormError(
+        error instanceof Error ? error.message : "Could not delete story.",
+      );
     },
+  });
+
+  const createTagMutation = useMutation({
+    mutationFn: api.createStoryTag,
+    onSuccess: async () => {
+      setNewTagName("");
+      setFormError(null);
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.storyBank.all,
+      });
+    },
+    onError: (error) =>
+      setFormError(
+        error instanceof Error ? error.message : "Could not save tag.",
+      ),
+  });
+  const toggleTagMutation = useMutation({
+    mutationFn: ({
+      storyId,
+      tagId,
+      assigned,
+    }: {
+      storyId: string;
+      tagId: string;
+      assigned: boolean;
+    }) =>
+      assigned
+        ? api.unassignStoryTag(storyId, tagId)
+        : api.assignStoryTag(storyId, tagId),
+    onSuccess: async () =>
+      queryClient.invalidateQueries({ queryKey: queryKeys.storyBank.all }),
+    onError: (error) =>
+      setFormError(
+        error instanceof Error ? error.message : "Could not update story tag.",
+      ),
   });
 
   const handleFieldChange = (key: StoryDraftKey, value: string) => {
@@ -183,16 +285,29 @@ export function StoryBankPage() {
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const input = normalizeDraft(draft);
-    if (!input.title || !input.situation || !input.task || !input.action || !input.result) {
+    if (
+      !input.title ||
+      !input.situation ||
+      !input.task ||
+      !input.action ||
+      !input.result
+    ) {
       setFormError("Title, situation, task, action, and result are required.");
       return;
     }
     createMutation.mutate(input);
   };
 
-  const handleDelete = (story: InterviewStory) => {
+  const handleDelete = (story: api.StoryBankStory) => {
     if (!window.confirm(`Delete story '${story.title}'?`)) return;
     deleteMutation.mutate(story.id);
+  };
+
+  const handleTagSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const name = newTagName.trim();
+    if (!name) return;
+    createTagMutation.mutate(name);
   };
 
   return (
@@ -206,6 +321,51 @@ export function StoryBankPage() {
       <PageMain>
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(360px,420px)]">
           <section className="space-y-4">
+            <Card>
+              <CardContent className="space-y-3 pt-6">
+                <fieldset
+                  className="flex flex-wrap gap-2"
+                  aria-label="Filter stories by tag"
+                >
+                  {(tagsQuery.data?.tags ?? []).map((tag) => {
+                    const selected = selectedTagIds.includes(tag.id);
+                    return (
+                      <Button
+                        key={tag.id}
+                        type="button"
+                        variant={selected ? "default" : "outline"}
+                        size="sm"
+                        onClick={() =>
+                          setSelectedTagIds((current) =>
+                            selected
+                              ? current.filter((id) => id !== tag.id)
+                              : [...current, tag.id],
+                          )
+                        }
+                      >
+                        {tag.name}
+                      </Button>
+                    );
+                  })}
+                </fieldset>
+                <form className="flex gap-2" onSubmit={handleTagSubmit}>
+                  <Input
+                    aria-label="New tag name"
+                    value={newTagName}
+                    maxLength={64}
+                    onChange={(event) => setNewTagName(event.target.value)}
+                    placeholder="Add tag"
+                  />
+                  <Button
+                    type="submit"
+                    variant="outline"
+                    disabled={createTagMutation.isPending}
+                  >
+                    {createTagMutation.isPending ? "Adding..." : "Add tag"}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
             {storiesQuery.isLoading ? (
               <Card>
                 <CardContent className="pt-6 text-sm text-muted-foreground">
@@ -217,14 +377,20 @@ export function StoryBankPage() {
                 <StoryCard
                   key={story.id}
                   story={story}
+                  availableTags={tagsQuery.data?.tags ?? []}
                   deleting={deleteMutation.isPending}
+                  tagPending={toggleTagMutation.isPending}
                   onDelete={handleDelete}
+                  onToggleTag={(storyId, tagId, assigned) =>
+                    toggleTagMutation.mutate({ storyId, tagId, assigned })
+                  }
                 />
               ))
             ) : (
               <Card>
                 <CardContent className="pt-6 text-sm text-muted-foreground">
-                  No stories yet. Capture a proof point with the form on this page.
+                  No stories yet. Capture a proof point with the form on this
+                  page.
                 </CardContent>
               </Card>
             )}
@@ -234,7 +400,8 @@ export function StoryBankPage() {
             <CardHeader>
               <CardTitle>Add STAR+R story</CardTitle>
               <CardDescription>
-                Capture the situation, task, action, result, and optional reflection.
+                Capture the situation, task, action, result, and optional
+                reflection.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -297,8 +464,12 @@ export function StoryBankPage() {
                   value={draft.tags ?? ""}
                   onChange={handleFieldChange}
                 />
-                <label className="flex items-center gap-2 text-sm">
+                <label
+                  className="flex items-center gap-2 text-sm"
+                  htmlFor="story-isMasterStory"
+                >
                   <Checkbox
+                    id="story-isMasterStory"
                     checked={draft.isMasterStory}
                     onCheckedChange={(checked) =>
                       setDraft((current) => ({

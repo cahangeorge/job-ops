@@ -164,12 +164,74 @@ export async function getJobEmails(
 }
 
 export interface InterviewStoriesResponse {
-  stories: InterviewStory[];
+  stories: StoryBankStory[];
 }
 
-export async function getInterviewStories(): Promise<InterviewStoriesResponse> {
+export type StoryBankTag = { id: string; name: string };
+export type StoryBankStory = InterviewStory & {
+  storyTags?: StoryBankTag[];
+  usageCount?: number;
+  lastUsedAt?: string | null;
+};
+
+export async function getInterviewStories(options?: {
+  tagIds?: string[];
+}): Promise<InterviewStoriesResponse> {
   return fetchApi<InterviewStoriesResponse>(
-    withQuery("/interview-stories", { t: Date.now() }),
+    withQuery("/interview-stories", {
+      t: Date.now(),
+      tagId: options?.tagIds?.join(","),
+    }),
+  );
+}
+
+export async function getStoryTags(): Promise<{ tags: StoryBankTag[] }> {
+  return fetchApi<{ tags: StoryBankTag[] }>("/interview-stories/tags");
+}
+
+export async function createStoryTag(name: string): Promise<StoryBankTag> {
+  return fetchApi<StoryBankTag>("/interview-stories/tags", {
+    method: "POST",
+    body: JSON.stringify({ name }),
+  });
+}
+
+export async function assignStoryTag(
+  storyId: string,
+  tagId: string,
+): Promise<void> {
+  await fetchApi<{ assigned: boolean }>(
+    `/interview-stories/${encodeURIComponent(storyId)}/tags/${encodeURIComponent(tagId)}`,
+    { method: "POST" },
+  );
+}
+
+export async function unassignStoryTag(
+  storyId: string,
+  tagId: string,
+): Promise<void> {
+  await fetchApi<{ removed: boolean }>(
+    `/interview-stories/${encodeURIComponent(storyId)}/tags/${encodeURIComponent(tagId)}`,
+    { method: "DELETE" },
+  );
+}
+
+export async function recordStoryUsage(input: {
+  storyId: string;
+  jobId: string;
+  usageKind: "draft" | "submitted_application" | "interview_prep";
+  provenance: Record<string, unknown>;
+}): Promise<void> {
+  await fetchApi(
+    `/interview-stories/${encodeURIComponent(input.storyId)}/usage-events`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        jobId: input.jobId,
+        usageKind: input.usageKind,
+        provenance: input.provenance,
+      }),
+    },
   );
 }
 

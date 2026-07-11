@@ -6,15 +6,22 @@ import { StoryBankPage } from "./StoryBankPage";
 
 vi.mock("@client/api", () => ({
   createInterviewStory: vi.fn(),
+  createStoryTag: vi.fn(),
   deleteInterviewStory: vi.fn(),
+  getStoryTags: vi.fn(),
   getInterviewStories: vi.fn(),
+  assignStoryTag: vi.fn(),
+  unassignStoryTag: vi.fn(),
   updateInterviewStory: vi.fn(),
 }));
 
 import {
+  assignStoryTag,
   createInterviewStory,
+  createStoryTag,
   deleteInterviewStory,
   getInterviewStories,
+  getStoryTags,
 } from "@client/api";
 
 const story = {
@@ -28,6 +35,9 @@ const story = {
   reflection: "Prepared runbooks earlier next time.",
   skills: "systems,incident-response",
   tags: "reliability,leadership",
+  storyTags: [{ id: "tag-1", name: "leadership" }],
+  usageCount: 2,
+  lastUsedAt: "2026-01-02T00:00:00.000Z",
   isMasterStory: true,
   createdAt: "2026-01-01T00:00:00.000Z",
   updatedAt: "2026-01-01T00:00:00.000Z",
@@ -37,6 +47,9 @@ describe("StoryBankPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(getInterviewStories).mockResolvedValue({ stories: [story] });
+    vi.mocked(getStoryTags).mockResolvedValue({
+      tags: [{ id: "tag-1", name: "leadership" }],
+    });
     vi.mocked(createInterviewStory).mockResolvedValue({
       ...story,
       id: "story-2",
@@ -44,6 +57,11 @@ describe("StoryBankPage", () => {
       isMasterStory: false,
     });
     vi.mocked(deleteInterviewStory).mockResolvedValue(undefined);
+    vi.mocked(createStoryTag).mockResolvedValue({
+      id: "tag-2",
+      name: "delivery",
+    });
+    vi.mocked(assignStoryTag).mockResolvedValue(undefined);
   });
 
   it("renders saved STAR+R stories", async () => {
@@ -57,8 +75,30 @@ describe("StoryBankPage", () => {
     await waitFor(() =>
       expect(screen.getByText("Scale incident")).toBeInTheDocument(),
     );
-    expect(screen.getByText(/Traffic spiked during launch/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Traffic spiked during launch/),
+    ).toBeInTheDocument();
     expect(screen.getByText(/systems,incident-response/)).toBeInTheDocument();
+    expect(screen.getByText(/Used 2 times/)).toBeInTheDocument();
+    expect(screen.getAllByText("leadership").length).toBeGreaterThan(0);
+  });
+
+  it("filters and assigns tags from the Story Bank surface", async () => {
+    renderWithQueryClient(
+      <MemoryRouter>
+        <StoryBankPage />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByText("Scale incident")).toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "leadership" }));
+    await waitFor(() =>
+      expect(getInterviewStories).toHaveBeenLastCalledWith({
+        tagIds: ["tag-1"],
+      }),
+    );
   });
 
   it("creates a reusable interview story from STAR fields", async () => {
@@ -115,7 +155,9 @@ describe("StoryBankPage", () => {
     await waitFor(() =>
       expect(screen.getByText("Scale incident")).toBeInTheDocument(),
     );
-    fireEvent.click(screen.getByRole("button", { name: "Delete Scale incident" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Delete Scale incident" }),
+    );
 
     await waitFor(() => expect(deleteInterviewStory).toHaveBeenCalled());
     expect(vi.mocked(deleteInterviewStory).mock.calls[0]?.[0]).toBe("story-1");
