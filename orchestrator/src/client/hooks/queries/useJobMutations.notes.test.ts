@@ -1,5 +1,5 @@
 import * as api from "@client/api";
-import type { JobNote, UpdateJobNoteInput } from "@shared/types";
+import type { JobNote } from "@shared/types";
 import { act } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { queryKeys } from "@/client/lib/queryKeys";
@@ -64,53 +64,45 @@ describe("job note mutations", () => {
     });
   });
 
-  type NoteMutationCase =
-    | {
-        name: "updating";
-        mutate: { jobId: string; noteId: string; input: UpdateJobNoteInput };
-        mock: () => void;
-      }
-    | {
-        name: "deleting";
-        mutate: { jobId: string; noteId: string };
-        mock: () => void;
-      };
-
-  it.each<NoteMutationCase>([
-    {
-      name: "updating",
-      mutate: {
-        jobId: "job-1",
-        noteId: "note-1",
-        input: { title: "Updated", content: "Updated content" },
-      },
-      mock: () => vi.mocked(api.updateJobNote).mockResolvedValue(noteFixture),
-    },
-    {
-      name: "deleting",
-      mutate: { jobId: "job-1", noteId: "note-1" },
-      mock: () => vi.mocked(api.deleteJobNote).mockResolvedValue(undefined),
-    },
-  ])("invalidates pipeline projections after $name a note", async (testCase) => {
-    testCase.mock();
-    const { queryClient, result } = renderHookWithQueryClient(() => {
-      if (testCase.name === "updating") {
-        return useUpdateJobNoteMutation();
-      }
-
-      return useDeleteJobNoteMutation();
-    });
+  it("invalidates pipeline projections after updating a note", async () => {
+    vi.mocked(api.updateJobNote).mockResolvedValue(noteFixture);
+    const { queryClient, result } = renderHookWithQueryClient(() =>
+      useUpdateJobNoteMutation(),
+    );
     const invalidateSpy = vi
       .spyOn(queryClient, "invalidateQueries")
       .mockImplementation(async () => undefined);
 
     await act(async () => {
-      if (testCase.name === "updating") {
-        await result.current.mutateAsync(testCase.mutate);
-        return;
-      }
+      await result.current.mutateAsync({
+        jobId: "job-1",
+        noteId: "note-1",
+        input: { title: "Updated", content: "Updated content" },
+      });
+    });
 
-      await result.current.mutateAsync(testCase.mutate);
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: queryKeys.jobs.notes("job-1"),
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: queryKeys.jobs.inProgressBoard(),
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: queryKeys.careerOps.pipeline(),
+    });
+  });
+
+  it("invalidates pipeline projections after deleting a note", async () => {
+    vi.mocked(api.deleteJobNote).mockResolvedValue(undefined);
+    const { queryClient, result } = renderHookWithQueryClient(() =>
+      useDeleteJobNoteMutation(),
+    );
+    const invalidateSpy = vi
+      .spyOn(queryClient, "invalidateQueries")
+      .mockImplementation(async () => undefined);
+
+    await act(async () => {
+      await result.current.mutateAsync({ jobId: "job-1", noteId: "note-1" });
     });
 
     expect(invalidateSpy).toHaveBeenCalledWith({
