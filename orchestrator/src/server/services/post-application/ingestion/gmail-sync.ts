@@ -2,7 +2,7 @@ import { logger } from "@infra/logger";
 import { trackServerProductEvent } from "@infra/product-analytics";
 import { getAllJobs } from "@server/repositories/jobs";
 import {
-  getPostApplicationIntegration,
+  getPostApplicationIntegrationWithCredentials,
   updatePostApplicationIntegrationSyncState,
   upsertConnectedPostApplicationIntegration,
 } from "@server/repositories/post-application-integrations";
@@ -182,7 +182,7 @@ export async function runGmailIngestionSync(args: {
   maxMessages?: number;
   searchDays?: number;
 }): Promise<GmailSyncSummary> {
-  const integration = await getPostApplicationIntegration(
+  const integration = await getPostApplicationIntegrationWithCredentials(
     "gmail",
     args.accountKey,
   );

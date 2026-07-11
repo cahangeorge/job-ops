@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@server/repositories/post-application-integrations", () => ({
-  getPostApplicationIntegration: vi.fn().mockResolvedValue({
+  getPostApplicationIntegrationWithCredentials: vi.fn().mockResolvedValue({
     id: "integration-1",
     provider: "gmail",
     accountKey: "default",
@@ -196,6 +196,9 @@ describe("gmail sync auto-log idempotency", () => {
       });
 
     await runGmailIngestionSync({ accountKey: "default", maxMessages: 1 });
+    expect(vi.mocked(global.fetch).mock.calls[0]?.[1]).toMatchObject({
+      headers: { Authorization: "Bearer access-token" },
+    });
     await runGmailIngestionSync({ accountKey: "default", maxMessages: 1 });
 
     expect(upsertPostApplicationMessage).toHaveBeenCalledTimes(2);

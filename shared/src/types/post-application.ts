@@ -77,12 +77,21 @@ export interface PostApplicationIntegration {
   accountKey: string;
   displayName: string | null;
   status: PostApplicationIntegrationStatus;
-  credentials: Record<string, unknown> | null;
+  credentials: PostApplicationCredentialSummary | null;
   lastConnectedAt: number | null;
   lastSyncedAt: number | null;
   lastError: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface PostApplicationCredentialSummary {
+  hasRefreshToken: boolean;
+  hasAccessToken: boolean;
+  scope: string | null;
+  tokenType: string | null;
+  expiryDate: number | null;
+  email: string | null;
 }
 
 export interface PostApplicationSyncRun {

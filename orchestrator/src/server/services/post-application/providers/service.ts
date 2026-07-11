@@ -55,7 +55,7 @@ export async function executePostApplicationProviderAction(
       action: input.action,
       accountKey: input.accountKey,
       initiatedBy: input.initiatedBy ?? null,
-      error,
+      errorName: error instanceof Error ? error.name : "UnknownError",
     });
     throw toProviderAppError(error);
   }

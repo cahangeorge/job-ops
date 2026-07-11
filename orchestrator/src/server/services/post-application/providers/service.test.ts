@@ -2,8 +2,17 @@ import type { PostApplicationIntegration } from "@shared/types";
 import type { Mock } from "vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+function asSummaryString(value: unknown): string | null {
+  return typeof value === "string" ? value : null;
+}
+
+function asSummaryNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
 vi.mock("@server/repositories/post-application-integrations", () => ({
   getPostApplicationIntegration: vi.fn().mockResolvedValue(null),
+  getPostApplicationIntegrationWithCredentials: vi.fn().mockResolvedValue(null),
   upsertConnectedPostApplicationIntegration: vi.fn().mockImplementation(
     async ({
       provider,
@@ -22,7 +31,14 @@ vi.mock("@server/repositories/post-application-integrations", () => ({
         accountKey,
         displayName,
         status: "connected",
-        credentials,
+        credentials: {
+          hasRefreshToken: typeof credentials.refreshToken === "string",
+          hasAccessToken: typeof credentials.accessToken === "string",
+          scope: asSummaryString(credentials.scope),
+          tokenType: asSummaryString(credentials.tokenType),
+          expiryDate: asSummaryNumber(credentials.expiryDate),
+          email: asSummaryString(credentials.email),
+        },
         lastConnectedAt: Date.now(),
         lastSyncedAt: null,
         lastError: null,
@@ -38,7 +54,14 @@ vi.mock("@server/repositories/post-application-integrations", () => ({
         accountKey,
         displayName: "Gmail (default)",
         status: "disconnected",
-        credentials: null,
+        credentials: {
+          hasRefreshToken: false,
+          hasAccessToken: false,
+          scope: null,
+          tokenType: null,
+          expiryDate: null,
+          email: null,
+        },
         lastConnectedAt: Date.now(),
         lastSyncedAt: null,
         lastError: null,
@@ -133,6 +156,8 @@ describe("post-application provider action dispatcher", () => {
         email: "candidate@example.com",
       }),
     );
+    expect(JSON.stringify(response)).not.toContain("refresh-token");
+    expect(JSON.stringify(response)).not.toContain("access-token");
   });
 
   it("dispatches status action to gmail provider", async () => {
@@ -158,7 +183,7 @@ describe("post-application provider action dispatcher", () => {
 
   it("disconnects gmail and clears credentials from integration store", async () => {
     const getIntegrationMock =
-      integrationRepo.getPostApplicationIntegration as Mock;
+      integrationRepo.getPostApplicationIntegrationWithCredentials as Mock;
     getIntegrationMock.mockResolvedValueOnce({
       id: "integration-test",
       provider: "gmail",
@@ -173,7 +198,7 @@ describe("post-application provider action dispatcher", () => {
       lastError: null,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-    } satisfies PostApplicationIntegration);
+    });
 
     const response = await executePostApplicationProviderAction({
       provider: "gmail",
@@ -232,5 +257,30 @@ describe("post-application provider action dispatcher", () => {
     expect(appError.status).toBe(502);
     expect(appError.code).toBe("UPSTREAM_ERROR");
     expect(appError.message).toBe("Provider API timed out");
+  });
+
+  it("does not expose credential-like upstream failures through responses or logs", async () => {
+    const logSpy = vi
+      .spyOn(console, "warn")
+      .mockImplementation(() => undefined);
+    vi.mocked(
+      integrationRepo.upsertConnectedPostApplicationIntegration,
+    ).mockRejectedValueOnce(new Error("upstream body: fixture-refresh-token"));
+
+    await expect(
+      executePostApplicationProviderAction({
+        provider: "gmail",
+        action: "connect",
+        accountKey: "account:gmail:test",
+        connectPayload: { payload: { refreshToken: "fixture-refresh-token" } },
+      }),
+    ).rejects.toMatchObject({
+      status: 500,
+      code: "INTERNAL_ERROR",
+      message: "Provider action failed.",
+    });
+    expect(JSON.stringify(logSpy.mock.calls)).not.toContain(
+      "fixture-refresh-token",
+    );
   });
 });

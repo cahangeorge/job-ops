@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { serviceUnavailable } from "@infra/errors";
 import type {
   PostApplicationIntegration,
   PostApplicationIntegrationStatus,
@@ -7,10 +8,25 @@ import type {
 import { and, eq } from "drizzle-orm";
 import { db, schema } from "../db";
 import { getActiveTenantId } from "../tenancy/context";
+import {
+  decryptPostApplicationCredentials,
+  encryptPostApplicationCredentials,
+  isLegacyPostApplicationCredentials,
+  isPostApplicationCredentialEnvelope,
+  type PostApplicationCredentials,
+  summarizePostApplicationCredentials,
+} from "./post-application-credentials";
 
 const { postApplicationIntegrations } = schema;
 
-type IntegrationCredentials = Record<string, unknown>;
+type IntegrationCredentials = PostApplicationCredentials;
+
+export type PostApplicationIntegrationWithCredentials = Omit<
+  PostApplicationIntegration,
+  "credentials"
+> & {
+  credentials: IntegrationCredentials | null;
+};
 
 type UpsertConnectedIntegrationInput = {
   provider: PostApplicationProvider;
@@ -35,16 +51,33 @@ function asCredentials(value: unknown): IntegrationCredentials | null {
   return value as IntegrationCredentials;
 }
 
+function decryptStoredCredentials(storedCredentials: IntegrationCredentials) {
+  if (isPostApplicationCredentialEnvelope(storedCredentials)) {
+    return decryptPostApplicationCredentials(storedCredentials);
+  }
+  if (isLegacyPostApplicationCredentials(storedCredentials)) {
+    return { credentials: storedCredentials, shouldReencrypt: true };
+  }
+  throw serviceUnavailable(
+    "Post-application credentials could not be decrypted.",
+  );
+}
+
 function mapRowToIntegration(
   row: typeof postApplicationIntegrations.$inferSelect,
 ): PostApplicationIntegration {
+  const credentials = asCredentials(row.credentials);
   return {
     id: row.id,
     provider: row.provider,
     accountKey: row.accountKey,
     displayName: row.displayName,
     status: row.status as PostApplicationIntegrationStatus,
-    credentials: asCredentials(row.credentials),
+    credentials: credentials
+      ? isPostApplicationCredentialEnvelope(credentials)
+        ? credentials.metadata
+        : summarizePostApplicationCredentials(credentials)
+      : null,
     lastConnectedAt: row.lastConnectedAt,
     lastSyncedAt: row.lastSyncedAt,
     lastError: row.lastError,
@@ -53,10 +86,10 @@ function mapRowToIntegration(
   };
 }
 
-export async function getPostApplicationIntegration(
+async function getIntegrationRow(
   provider: PostApplicationProvider,
   accountKey: string,
-): Promise<PostApplicationIntegration | null> {
+) {
   const tenantId = getActiveTenantId();
   const [row] = await db
     .select()
@@ -68,8 +101,66 @@ export async function getPostApplicationIntegration(
         eq(postApplicationIntegrations.tenantId, tenantId),
       ),
     );
+  return row ?? null;
+}
+
+export async function getPostApplicationIntegration(
+  provider: PostApplicationProvider,
+  accountKey: string,
+): Promise<PostApplicationIntegration | null> {
+  const row = await getIntegrationRow(provider, accountKey);
 
   return row ? mapRowToIntegration(row) : null;
+}
+
+export async function getPostApplicationIntegrationWithCredentials(
+  provider: PostApplicationProvider,
+  accountKey: string,
+): Promise<PostApplicationIntegrationWithCredentials | null> {
+  const row = await getIntegrationRow(provider, accountKey);
+  if (!row) return null;
+
+  const storedCredentials = asCredentials(row.credentials);
+  if (!storedCredentials) {
+    return { ...mapRowToIntegration(row), credentials: null };
+  }
+
+  const decrypted = decryptStoredCredentials(storedCredentials);
+
+  if (decrypted.shouldReencrypt) {
+    const tenantId = getActiveTenantId();
+    const result = await db
+      .update(postApplicationIntegrations)
+      .set({
+        credentials: encryptPostApplicationCredentials(decrypted.credentials),
+        updatedAt: new Date().toISOString(),
+      })
+      .where(
+        and(
+          eq(postApplicationIntegrations.id, row.id),
+          eq(postApplicationIntegrations.tenantId, tenantId),
+          eq(postApplicationIntegrations.credentials, row.credentials),
+        ),
+      );
+
+    if (result.changes === 0) {
+      const current = await getIntegrationRow(provider, accountKey);
+      if (!current) return null;
+      const currentCredentials = asCredentials(current.credentials);
+      if (!currentCredentials) {
+        return { ...mapRowToIntegration(current), credentials: null };
+      }
+      return {
+        ...mapRowToIntegration(current),
+        credentials: decryptStoredCredentials(currentCredentials).credentials,
+      };
+    }
+  }
+
+  return {
+    ...mapRowToIntegration(row),
+    credentials: decrypted.credentials,
+  };
 }
 
 export async function upsertConnectedPostApplicationIntegration(
@@ -89,7 +180,7 @@ export async function upsertConnectedPostApplicationIntegration(
       .set({
         displayName: input.displayName ?? existing.displayName,
         status: "connected",
-        credentials: input.credentials,
+        credentials: encryptPostApplicationCredentials(input.credentials),
         lastConnectedAt: nowEpoch,
         lastError: null,
         updatedAt: nowIso,
@@ -116,7 +207,7 @@ export async function upsertConnectedPostApplicationIntegration(
     accountKey: input.accountKey,
     displayName: input.displayName ?? null,
     status: "connected",
-    credentials: input.credentials,
+    credentials: encryptPostApplicationCredentials(input.credentials),
     lastConnectedAt: nowEpoch,
     lastError: null,
     createdAt: nowIso,
@@ -175,7 +266,11 @@ export async function updatePostApplicationIntegrationSyncState(
         : {}),
       ...(input.lastError !== undefined ? { lastError: input.lastError } : {}),
       ...(input.credentials !== undefined
-        ? { credentials: input.credentials }
+        ? {
+            credentials: input.credentials
+              ? encryptPostApplicationCredentials(input.credentials)
+              : null,
+          }
         : {}),
       updatedAt: nowIso,
     })

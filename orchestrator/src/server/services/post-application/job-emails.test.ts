@@ -20,6 +20,9 @@ describe.sequential("post-application job emails service", () => {
     tempDir = await mkdtemp(join(tmpdir(), "job-ops-job-emails-"));
     process.env.DATA_DIR = tempDir;
     process.env.NODE_ENV = "test";
+    process.env.POST_APPLICATION_CREDENTIALS_KEY = Buffer.alloc(32, 1).toString(
+      "base64",
+    );
 
     await import("@server/db/migrate");
     ({ createJob } = await import("@server/repositories/jobs"));
@@ -38,6 +41,7 @@ describe.sequential("post-application job emails service", () => {
     const { closeDb } = await import("@server/db");
     closeDb();
     await rm(tempDir, { recursive: true, force: true });
+    delete process.env.POST_APPLICATION_CREDENTIALS_KEY;
     vi.clearAllMocks();
   });
 

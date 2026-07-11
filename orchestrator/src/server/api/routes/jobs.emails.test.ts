@@ -10,7 +10,13 @@ describe.sequential("Jobs email routes", () => {
   let tempDir: string;
 
   beforeEach(async () => {
-    ({ server, baseUrl, closeDb, tempDir } = await startServer());
+    ({ server, baseUrl, closeDb, tempDir } = await startServer({
+      env: {
+        POST_APPLICATION_CREDENTIALS_KEY: Buffer.alloc(32, 1).toString(
+          "base64",
+        ),
+      },
+    }));
   });
 
   afterEach(async () => {

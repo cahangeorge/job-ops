@@ -73,7 +73,7 @@ export function toProviderAppError(error: unknown): AppError {
     return new AppError({
       status: 500,
       code: "INTERNAL_ERROR",
-      message: error.message || "Provider action failed",
+      message: "Provider action failed.",
       cause: error,
     });
   }
@@ -82,6 +82,5 @@ export function toProviderAppError(error: unknown): AppError {
     status: 500,
     code: "INTERNAL_ERROR",
     message: "Provider action failed",
-    details: error,
   });
 }
