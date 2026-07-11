@@ -51,7 +51,7 @@ Settings gives you runtime overrides for the key parts of discovery, scoring, ta
 - Purpose overrides can inherit the default provider or use a different provider, base URL, API key, and model. For example, you can use `ollama` locally by default and route tailoring to `openai` or `openrouter`.
 - Purpose API keys are stored as secrets. The settings response shows only redacted hints.
 - Provider defaults are applied automatically when the model fields are left blank:
-  - `openai` defaults to `gpt-5.4-mini`
+  - `openai` defaults to `gpt-5.6-luna` for low-cost scoring/project-selection style work; OpenAI tailoring defaults to `gpt-5.6-terra` when no explicit global model override is configured
   - `glm` defaults to `glm-5.1`
   - `gemini` and `gemini_cli` default to `google/gemini-3-flash-preview`
 - The settings page shows provider-aware model pickers for:

@@ -2,6 +2,7 @@ import { logger } from "@infra/logger";
 import * as settingsRepo from "@server/repositories/settings";
 import { getOriginalEnvValue } from "@server/services/envSettings";
 import {
+  DEFAULT_OPENAI_PURPOSE_MODELS,
   getDefaultModelForProvider,
   settingsRegistry,
 } from "@shared/settings-registry";
@@ -143,6 +144,40 @@ const MODEL_KEY_BY_PURPOSE: Record<
   projectSelection: "modelProjectSelection",
 };
 
+function normalizeProviderId(
+  provider: string | null | undefined,
+): string | null {
+  const normalized = provider?.trim().toLowerCase().replace(/-/g, "_");
+  return normalized || null;
+}
+
+function resolvePurposeModelDefault(args: {
+  purpose: LlmPurpose | undefined;
+  purposeProvider: string | null | undefined;
+  effectiveLlmProvider: string;
+  modelValue: string;
+  hasGlobalModelOverride: boolean;
+}): string {
+  if (!args.purpose) return args.modelValue;
+
+  const normalizedPurposeProvider = normalizeProviderId(args.purposeProvider);
+  const normalizedEffectiveProvider = normalizeProviderId(
+    args.effectiveLlmProvider,
+  );
+  if (normalizedPurposeProvider !== normalizedEffectiveProvider) {
+    return getDefaultModelForProvider(args.purposeProvider);
+  }
+
+  if (
+    !args.hasGlobalModelOverride &&
+    normalizedEffectiveProvider === "openai"
+  ) {
+    return DEFAULT_OPENAI_PURPOSE_MODELS[args.purpose];
+  }
+
+  return args.modelValue;
+}
+
 /**
  * Get the effective app settings, combining environment variables and database overrides.
  */
@@ -227,6 +262,9 @@ export async function getEffectiveSettings(): Promise<AppSettings> {
     modelDef.parse(rawModel),
   );
   const modelValue = overrideModel ?? resolvedModelDefault;
+  const hasGlobalModelOverride = Boolean(
+    overrideModel || getOriginalEnvValue("MODEL")?.trim(),
+  );
 
   for (const [key, def] of Object.entries(settingsRegistry)) {
     if (def.kind === "typed") {
@@ -294,10 +332,13 @@ export async function getEffectiveSettings(): Promise<AppSettings> {
       ).find(([, modelKey]) => modelKey === key)?.[0];
       const purposeOverride = purpose ? purposeOverrides[purpose] : undefined;
       const purposeProvider = purposeOverride?.provider ?? effectiveLlmProvider;
-      const purposeModelDefault =
-        purposeProvider === effectiveLlmProvider
-          ? modelValue
-          : getDefaultModelForProvider(purposeProvider);
+      const purposeModelDefault = resolvePurposeModelDefault({
+        purpose,
+        purposeProvider,
+        effectiveLlmProvider,
+        modelValue,
+        hasGlobalModelOverride,
+      });
       const override =
         normalizeModelForProviderCompatibility(
           purposeProvider,

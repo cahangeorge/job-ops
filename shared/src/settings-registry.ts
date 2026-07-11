@@ -12,6 +12,7 @@ import {
   LLM_PROVIDER_VALUES,
   LLM_PURPOSE_VALUES,
   type LlmProviderId,
+  type LlmPurpose,
   type LlmPurposeApiKeys,
   type LlmPurposeOverrides,
   PDF_RENDERER_VALUES,
@@ -73,7 +74,12 @@ function normalizeLlmProviderOrNull(raw: string | undefined): string | null {
 }
 
 export const DEFAULT_GEMINI_MODEL = "google/gemini-3-flash-preview";
-export const DEFAULT_OPENAI_MODEL = "gpt-5.4-mini";
+export const DEFAULT_OPENAI_MODEL = "gpt-5.6-luna";
+export const DEFAULT_OPENAI_PURPOSE_MODELS: Record<LlmPurpose, string> = {
+  scoring: "gpt-5.6-luna",
+  tailoring: "gpt-5.6-terra",
+  projectSelection: "gpt-5.6-luna",
+};
 export const DEFAULT_GLM_MODEL = "glm-5.1";
 export const DEFAULT_CODEX_MODEL = "";
 
@@ -100,7 +106,10 @@ export function getDefaultModelForProvider(
     return DEFAULT_GLM_MODEL;
   }
 
-  if (normalizedProvider === "opencode_go" || normalizedProvider === "ollama_cloud") {
+  if (
+    normalizedProvider === "opencode_go" ||
+    normalizedProvider === "ollama_cloud"
+  ) {
     return DEFAULT_GEMINI_MODEL;
   }
 

@@ -1,3 +1,6 @@
+import { mkdirSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { LaunchOptions } from "playwright";
 
 export interface BrowserLaunchOptions {
@@ -21,6 +24,17 @@ const DEFAULTS: Required<Omit<BrowserLaunchOptions, "args">> = {
   // block_images intentionally NOT set — camoufox docs warn it triggers WAF
   // detection because CF checks whether images are loaded by the browser
 };
+
+function getCamoufoxBrowserEnv(): NodeJS.ProcessEnv {
+  const uid = process.getuid?.() ?? 0;
+  const home = join(tmpdir(), `jobops-camoufox-home-${uid}`);
+  mkdirSync(home, { recursive: true, mode: 0o700 });
+
+  return {
+    ...process.env,
+    HOME: home,
+  };
+}
 
 /**
  * Creates Playwright launch options using Camoufox for anti-detection.
@@ -50,6 +64,12 @@ export async function createLaunchOptions(
     block_webrtc: merged.block_webrtc,
     args: options.args,
   });
+  const browserEnv = getCamoufoxBrowserEnv();
+  opts.env = {
+    ...browserEnv,
+    ...opts.env,
+    HOME: browserEnv.HOME,
+  };
 
   return { launchOptions: opts, usedCamoufox: true };
 }

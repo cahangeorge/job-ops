@@ -107,8 +107,49 @@ export interface PortalScanImportResult {
   jobIds: string[];
 }
 
+export interface LearningResourceRecommendation {
+  title: string;
+  url: string;
+  reason: string;
+}
+
+export interface CvDemandTerm {
+  term: string;
+  demandCount: number;
+  matchedInResume: boolean;
+  matchedSections: string[];
+}
+
+export interface CvSectionDemand {
+  section: string;
+  label: string;
+  demandedTerms: CvDemandTerm[];
+  missingTerms: string[];
+  recommendations: string[];
+}
+
+export interface KnowledgeGapRecommendation {
+  term: string;
+  demandCount: number;
+  jobIds: string[];
+  matchedSections: string[];
+  recommendedResources: LearningResourceRecommendation[];
+  projectIdeas: string[];
+}
+
+export interface JobKnowledgeGapRecommendation {
+  jobId: string;
+  title: string;
+  employer: string;
+  missingTerms: string[];
+  coveredTerms: string[];
+  recommendedResources: LearningResourceRecommendation[];
+  projectIdeas: string[];
+}
+
 export interface PatternAnalysisReport {
   status: "ok" | "insufficient_data";
+  profileStatus: "available" | "missing";
   metadata: { total: number; progressed: number };
   funnel: Array<{ stage: string; count: number }>;
   sourceBreakdown: Array<{
@@ -123,6 +164,9 @@ export interface PatternAnalysisReport {
     action: string;
     reason: string;
   }>;
+  cvSectionDemand: CvSectionDemand[];
+  topKnowledgeGaps: KnowledgeGapRecommendation[];
+  jobKnowledgeGaps: JobKnowledgeGapRecommendation[];
 }
 
 export type OfferEvaluationRecommendation =

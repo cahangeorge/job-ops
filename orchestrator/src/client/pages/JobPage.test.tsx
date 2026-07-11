@@ -79,6 +79,7 @@ vi.mock("../api", () => ({
   getJobNotes: vi.fn(),
   getJobEmails: vi.fn(),
   getInterviewStories: vi.fn(),
+  getPatternAnalysis: vi.fn(),
   createJobNote: vi.fn(),
   updateJobNote: vi.fn(),
   deleteJobNote: vi.fn(),
@@ -206,6 +207,21 @@ beforeEach(() => {
   vi.mocked(api.getJobEmails).mockResolvedValue({
     items: [],
     total: 0,
+  });
+  vi.mocked(api.getPatternAnalysis).mockResolvedValue({
+    status: "ok",
+    profileStatus: "available",
+    metadata: { total: 1, progressed: 0 },
+    funnel: [{ stage: "All applications", count: 1 }],
+    sourceBreakdown: [],
+    scoreThreshold: {
+      recommendedMinimum: null,
+      reason: "No positive outcomes.",
+    },
+    recommendations: [],
+    cvSectionDemand: [],
+    topKnowledgeGaps: [],
+    jobKnowledgeGaps: [],
   });
   vi.mocked(api.getInterviewStories).mockResolvedValue({
     stories: [
@@ -582,6 +598,74 @@ describe("JobPage interview prep", () => {
     );
     expect(vi.mocked(api.createJobNote).mock.calls[0]?.[1]?.content).toContain(
       "Scale incident",
+    );
+  });
+});
+
+describe("JobPage CV intelligence", () => {
+  it("renders per-job knowledge gaps and marks the sidebar item active", async () => {
+    vi.mocked(api.getJob).mockResolvedValue(
+      createJob({
+        id: "job-1",
+        title: "ML Platform Engineer",
+        employer: "ModelCo",
+      }) as Job,
+    );
+    vi.mocked(api.getPatternAnalysis).mockResolvedValue({
+      status: "ok",
+      profileStatus: "available",
+      metadata: { total: 4, progressed: 1 },
+      funnel: [{ stage: "All applications", count: 4 }],
+      sourceBreakdown: [],
+      scoreThreshold: {
+        recommendedMinimum: null,
+        reason: "No positive outcomes.",
+      },
+      recommendations: [],
+      cvSectionDemand: [],
+      topKnowledgeGaps: [
+        {
+          term: "kubernetes",
+          demandCount: 3,
+          jobIds: ["job-1"],
+          matchedSections: [],
+          recommendedResources: [],
+          projectIdeas: [],
+        },
+      ],
+      jobKnowledgeGaps: [
+        {
+          jobId: "job-1",
+          title: "ML Platform Engineer",
+          employer: "ModelCo",
+          missingTerms: ["docker", "kubernetes"],
+          coveredTerms: ["python"],
+          recommendedResources: [
+            {
+              title: "Kubernetes examples",
+              url: "https://github.com/kubernetes/examples",
+              reason: "Free practical manifests.",
+            },
+          ],
+          projectIdeas: ["Deploy an ML service to Kubernetes."],
+        },
+      ],
+    });
+
+    renderJobPage("/job/job-1/cv-intelligence");
+
+    expect(
+      await screen.findByTestId("job-cv-intelligence-panel"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("ML Platform Engineer")).toBeInTheDocument();
+    expect((await screen.findAllByText(/kubernetes/i)).length).toBeGreaterThan(
+      0,
+    );
+    expect(
+      await screen.findByText(/Already covered in your CV: python/i),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /cv intelligence/i })).toHaveClass(
+      "border-input",
     );
   });
 });

@@ -375,9 +375,7 @@ export const AutomaticRunTab: React.FC<AutomaticRunTabProps> = ({
         settings?.searchCities?.override,
     );
     const rememberedCountry = normalizeUiCountryKey(
-      settings?.jobspyCountryIndeed?.value ??
-        settings?.searchCities?.value ??
-        DEFAULT_VALUES.country,
+      settings?.jobspyCountryIndeed?.value ?? DEFAULT_VALUES.country,
     );
     const detectedCountry = !hasExplicitLocationOverride
       ? getDetectedCountryKey()

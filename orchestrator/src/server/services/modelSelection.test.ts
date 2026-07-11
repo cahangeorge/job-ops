@@ -243,8 +243,8 @@ describe("Model Selection Logic", () => {
         },
         modelScorer: { value: "llama3.2", override: null },
         modelTailoring: {
-          value: "gpt-5.4-mini",
-          override: "gpt-5.4-mini",
+          value: "gpt-5.6-terra",
+          override: "gpt-5.6-terra",
         },
         modelProjectSelection: { value: "llama3.2", override: null },
         llmProvider: {
@@ -259,11 +259,11 @@ describe("Model Selection Logic", () => {
         },
         llmPurposeOverrides: {
           value: {
-            tailoring: { provider: "openai", model: "gpt-5.4-mini" },
+            tailoring: { provider: "openai", model: "gpt-5.6-terra" },
           },
           default: {},
           override: {
-            tailoring: { provider: "openai", model: "gpt-5.4-mini" },
+            tailoring: { provider: "openai", model: "gpt-5.6-terra" },
           },
         },
       } as any);
@@ -276,7 +276,7 @@ describe("Model Selection Logic", () => {
         Authorization: "Bearer sk-purpose",
       });
       const body = JSON.parse(fetchCall[1]?.body as string);
-      expect(body.model).toBe("gpt-5.4-mini");
+      expect(body.model).toBe("gpt-5.6-terra");
     });
 
     it("ignores malformed stored purpose API keys", async () => {
@@ -292,8 +292,8 @@ describe("Model Selection Logic", () => {
         },
         modelScorer: { value: "llama3.2", override: null },
         modelTailoring: {
-          value: "gpt-5.4-mini",
-          override: "gpt-5.4-mini",
+          value: "gpt-5.6-terra",
+          override: "gpt-5.6-terra",
         },
         modelProjectSelection: { value: "llama3.2", override: null },
         llmProvider: {
@@ -308,11 +308,11 @@ describe("Model Selection Logic", () => {
         },
         llmPurposeOverrides: {
           value: {
-            tailoring: { provider: "openai", model: "gpt-5.4-mini" },
+            tailoring: { provider: "openai", model: "gpt-5.6-terra" },
           },
           default: {},
           override: {
-            tailoring: { provider: "openai", model: "gpt-5.4-mini" },
+            tailoring: { provider: "openai", model: "gpt-5.6-terra" },
           },
         },
       } as any);

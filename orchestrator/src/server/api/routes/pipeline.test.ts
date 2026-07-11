@@ -77,6 +77,37 @@ describe.sequential("Pipeline API routes", () => {
     expect(authorizedBody.meta.requestId).toBeTruthy();
   });
 
+  it("reconciles an orphaned latest running row when no pipeline is active", async () => {
+    const { db, schema } = await import("@server/db");
+    const { getPipelineStatus } = await import("@server/pipeline/index");
+
+    vi.mocked(getPipelineStatus).mockReturnValueOnce({ isRunning: false });
+    await db.insert(schema.pipelineRuns).values({
+      id: "orphaned-run-1",
+      startedAt: "2026-04-18T12:00:00.000Z",
+      completedAt: null,
+      status: "running",
+      jobsDiscovered: 4,
+      jobsProcessed: 0,
+      errorMessage: null,
+    });
+
+    const res = await fetch(`${baseUrl}/api/pipeline/status`);
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.data.isRunning).toBe(false);
+    expect(body.data.lastRun).toEqual(
+      expect.objectContaining({
+        id: "orphaned-run-1",
+        status: "failed",
+        completedAt: expect.any(String),
+        errorMessage: "Server restarted while pipeline was running",
+      }),
+    );
+  });
+
   it("returns recent pipeline runs in the API envelope", async () => {
     const { db, schema } = await import("@server/db");
 
@@ -489,7 +520,25 @@ describe.sequential("Pipeline API routes", () => {
     });
     expect(badRun.status).toBe(400);
 
-    const { runPipeline } = await import("@server/pipeline/index");
+    const { runPipeline, getPipelineStatus } = await import(
+      "@server/pipeline/index"
+    );
+
+    vi.mocked(getPipelineStatus).mockReturnValueOnce({ isRunning: true });
+    const alreadyRunningRes = await fetch(`${baseUrl}/api/pipeline/run`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sources: ["linkedin"],
+        country: "united kingdom",
+      }),
+    });
+    const alreadyRunningBody = await alreadyRunningRes.json();
+    expect(alreadyRunningRes.status).toBe(409);
+    expect(alreadyRunningBody.ok).toBe(false);
+    expect(alreadyRunningBody.error.message).toContain("already running");
+    expect(runPipeline).not.toHaveBeenCalled();
+
     const runRes = await fetch(`${baseUrl}/api/pipeline/run`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

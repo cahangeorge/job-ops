@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const analyzePatternAnalysisMock = vi.hoisted(() => vi.fn());
 const getJobListItemsMock = vi.hoisted(() => vi.fn());
+const getProfileMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@server/services/pattern-analysis", () => ({
   analyzePatternAnalysis: analyzePatternAnalysisMock,
@@ -10,6 +11,10 @@ vi.mock("@server/services/pattern-analysis", () => ({
 
 vi.mock("@server/repositories/jobs", () => ({
   getJobListItems: getJobListItemsMock,
+}));
+
+vi.mock("@server/services/profile", () => ({
+  getProfile: getProfileMock,
 }));
 
 import { patternAnalysisRouter } from "./pattern-analysis";
@@ -77,6 +82,8 @@ describe("pattern analysis API routes", () => {
   });
 
   it("returns the service output from the pattern analysis route", async () => {
+    const profile = { basics: { summary: "React developer" } };
+    getProfileMock.mockResolvedValue(profile);
     getJobListItemsMock.mockResolvedValue([
       {
         id: "job-1",
@@ -88,6 +95,7 @@ describe("pattern analysis API routes", () => {
     ]);
     analyzePatternAnalysisMock.mockReturnValue({
       status: "ok",
+      profileStatus: "available",
       metadata: { total: 1, progressed: 1 },
       funnel: [{ stage: "All applications", count: 1 }],
       sourceBreakdown: [
@@ -104,23 +112,31 @@ describe("pattern analysis API routes", () => {
           reason: "Positive outcomes cluster at or above 80.",
         },
       ],
+      cvSectionDemand: [],
+      topKnowledgeGaps: [],
+      jobKnowledgeGaps: [],
     });
 
     const res = await invokeGet("/");
 
     expect(res.statusCode).toBe(200);
     expect(getJobListItemsMock).toHaveBeenCalledOnce();
-    expect(analyzePatternAnalysisMock).toHaveBeenCalledWith([
-      expect.objectContaining({
-        id: "job-1",
-        source: "source-a",
-        status: "applied",
-      }),
-    ]);
+    expect(getProfileMock).toHaveBeenCalledOnce();
+    expect(analyzePatternAnalysisMock).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({
+          id: "job-1",
+          source: "source-a",
+          status: "applied",
+        }),
+      ],
+      profile,
+    );
     expect(res.body).toMatchObject({
       ok: true,
       data: {
         status: "ok",
+        profileStatus: "available",
         metadata: { total: 1, progressed: 1 },
       },
     });

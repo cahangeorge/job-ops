@@ -212,8 +212,8 @@ describe.sequential("Settings API routes", () => {
       const body = await res.json();
 
       expect(body.ok).toBe(true);
-      expect(body.data.model.default).toBe("gpt-5.4-mini");
-      expect(body.data.model.value).toBe("gpt-5.4-mini");
+      expect(body.data.model.default).toBe("gpt-5.6-luna");
+      expect(body.data.model.value).toBe("gpt-5.6-luna");
     } finally {
       await stopServer(openAiDefaults);
     }
@@ -241,8 +241,8 @@ describe.sequential("Settings API routes", () => {
       expect(patchRes.status).toBe(200);
       expect(patchBody.ok).toBe(true);
       expect(patchBody.data.llmProvider.value).toBe("openai");
-      expect(patchBody.data.model.default).toBe("gpt-5.4-mini");
-      expect(patchBody.data.model.value).toBe("gpt-5.4-mini");
+      expect(patchBody.data.model.default).toBe("gpt-5.6-luna");
+      expect(patchBody.data.model.value).toBe("gpt-5.6-luna");
     } finally {
       await stopServer(providerAware);
     }
@@ -270,8 +270,8 @@ describe.sequential("Settings API routes", () => {
 
       expect(patchRes.status).toBe(200);
       expect(patchBody.ok).toBe(true);
-      expect(patchBody.data.model.default).toBe("gpt-5.4-mini");
-      expect(patchBody.data.modelTailoring.value).toBe("gpt-5.4-mini");
+      expect(patchBody.data.model.default).toBe("gpt-5.6-luna");
+      expect(patchBody.data.modelTailoring.value).toBe("gpt-5.6-terra");
       expect(patchBody.data.modelTailoring.override).toBeNull();
     } finally {
       await stopServer(providerAware);

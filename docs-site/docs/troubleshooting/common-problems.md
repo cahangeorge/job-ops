@@ -50,7 +50,7 @@ npm --workspace docs-site run build
 - Root cause: the selected provider and model do not match.
 - Open **Settings -> Model** and check both the provider and the current model preview.
 - If you recently switched providers, leave the model fields blank to use the provider default, or select a provider-compatible model and save again.
-- For `openai`, JobOps defaults to `gpt-5.4-mini` when the model field is blank.
+- For `openai`, JobOps defaults to `gpt-5.6-luna` when the global model field is blank; tailoring uses `gpt-5.6-terra` by default when no explicit global model override is configured.
 - For `glm`, JobOps defaults to `glm-5.1` and `https://api.z.ai/api/paas/v4` when the model/base URL fields are blank.
 - For `gemini`, JobOps defaults to `google/gemini-3-flash-preview` when the model field is blank.
 

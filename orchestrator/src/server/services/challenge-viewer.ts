@@ -1,5 +1,6 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
+import { existsSync } from "node:fs";
 import type { IncomingMessage, Server } from "node:http";
 import { connect, type Socket } from "node:net";
 import { logger } from "@infra/logger";
@@ -32,6 +33,35 @@ let startPromise: Promise<ViewerStatus> | null = null;
 const viewerTokens = new Map<string, number>();
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+export function getXDisplaySocketPath(display: string): string | null {
+  const match = /^:(\d+)(?:\.\d+)?$/.exec(display.trim());
+  return match ? `/tmp/.X11-unix/X${match[1]}` : null;
+}
+
+export async function waitForXDisplaySocket(
+  display: string,
+  options: {
+    timeoutMs?: number;
+    intervalMs?: number;
+    exists?: (path: string) => boolean;
+  } = {},
+): Promise<boolean> {
+  const socketPath = getXDisplaySocketPath(display);
+  if (!socketPath) return true;
+
+  const timeoutMs = options.timeoutMs ?? 5_000;
+  const intervalMs = options.intervalMs ?? 100;
+  const exists = options.exists ?? existsSync;
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() <= deadline) {
+    if (exists(socketPath)) return true;
+    await sleep(intervalMs);
+  }
+
+  return false;
+}
 
 function isProcessAlive(process: ChildProcess): boolean {
   return process.exitCode === null && !process.killed;
@@ -200,7 +230,13 @@ async function startViewer(): Promise<ViewerStatus> {
     [display, "-screen", "0", "1280x720x24", "-nolisten", "tcp"],
     "xvfb",
   );
-  await sleep(500);
+  if (!(await waitForXDisplaySocket(display))) {
+    stopViewerProcesses();
+    return {
+      available: false,
+      reason: `Xvfb display ${display} did not become ready in time.`,
+    };
+  }
   startProcess(
     "x11vnc",
     [

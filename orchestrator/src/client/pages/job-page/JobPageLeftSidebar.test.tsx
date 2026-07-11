@@ -56,6 +56,14 @@ describe("JobPageLeftSidebar score ring", () => {
 });
 
 describe("JobPageLeftSidebar application details", () => {
+  it("renders a CV Intelligence job-memory link", () => {
+    renderSidebar();
+
+    expect(
+      screen.getByRole("link", { name: /cv intelligence/i }),
+    ).toHaveAttribute("href", "/job/job-1/cv-intelligence");
+  });
+
   it("hides the applied row when the job has not been applied to yet", () => {
     renderSidebar({ appliedAt: null });
 

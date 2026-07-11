@@ -215,6 +215,45 @@ describe("AutomaticRunTab", () => {
     ).toBeDisabled();
   });
 
+  it("does not treat saved city locations as the selected country", () => {
+    render(
+      <AutomaticRunTab
+        open
+        settings={createAppSettings({
+          searchTerms: {
+            value: ["backend engineer"],
+            default: ["backend engineer"],
+            override: null,
+          },
+          jobspyCountryIndeed: {
+            value: "",
+            default: "",
+            override: null,
+          },
+          searchCities: {
+            value: "London|Manchester",
+            default: "",
+            override: "London|Manchester",
+          },
+        })}
+        enabledSources={["linkedin"]}
+        pipelineSources={["linkedin"]}
+        onToggleSource={vi.fn()}
+        onSetPipelineSources={vi.fn()}
+        isPipelineRunning={false}
+        onSaveAndRun={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Select country" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "London" })).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Start run now" }),
+    ).toBeDisabled();
+  });
+
   it("loads persisted country from settings", () => {
     render(
       <AutomaticRunTab

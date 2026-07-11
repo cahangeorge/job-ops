@@ -17,6 +17,7 @@ import { createLocationIntentFromLegacyInputs } from "@shared/location-domain.js
 import type {
   JobStatus,
   PipelineConfig,
+  PipelineRunConfigSnapshot,
   PipelineRunSavedDetails,
 } from "@shared/types";
 import { getDataDir } from "../config/dataDir";
@@ -251,27 +252,50 @@ export async function runPipeline(
   tenantState.activePipelineRunId = "pending";
   tenantState.cancelRequestedAt = null;
   resetProgress();
-  const locationIntent = await resolveLocationIntent(config);
-  const mergedConfig = { ...DEFAULT_CONFIG, ...config, locationIntent };
-  const configSnapshot = {
-    topN: mergedConfig.topN,
-    minSuitabilityScore: mergedConfig.minSuitabilityScore,
-    sources: mergedConfig.sources,
-    locationIntent,
-  } as const;
 
+  let locationIntent: NonNullable<PipelineConfig["locationIntent"]>;
+  let mergedConfig: PipelineConfig;
+  let configSnapshot: PipelineRunConfigSnapshot;
   let savedDetails: PipelineRunSavedDetails | null = null;
-  try {
-    savedDetails = await buildPipelineRunSavedDetails(mergedConfig);
-  } catch (error) {
-    logger.warn("Failed to capture pipeline run settings snapshot", { error });
-  }
+  let pipelineRun: Awaited<ReturnType<typeof pipelineRepo.createPipelineRun>>;
 
-  const pipelineRun = await pipelineRepo.createPipelineRun({
-    configSnapshot,
-    savedDetails,
-  });
-  tenantState.activePipelineRunId = pipelineRun.id;
+  try {
+    locationIntent = await resolveLocationIntent(config);
+    mergedConfig = { ...DEFAULT_CONFIG, ...config, locationIntent };
+    configSnapshot = {
+      topN: mergedConfig.topN,
+      minSuitabilityScore: mergedConfig.minSuitabilityScore,
+      sources: mergedConfig.sources,
+      locationIntent,
+    } as const;
+
+    try {
+      savedDetails = await buildPipelineRunSavedDetails(mergedConfig);
+    } catch (error) {
+      logger.warn("Failed to capture pipeline run settings snapshot", {
+        error,
+      });
+    }
+
+    pipelineRun = await pipelineRepo.createPipelineRun({
+      configSnapshot,
+      savedDetails,
+    });
+    tenantState.activePipelineRunId = pipelineRun.id;
+  } catch (error) {
+    tenantState.isRunning = false;
+    tenantState.activePipelineRunId = null;
+    tenantState.cancelRequestedAt = null;
+    tenantState.activeChallengeState = null;
+    tenantState.activeLlmConfigState = null;
+
+    return {
+      success: false,
+      jobsDiscovered: 0,
+      jobsProcessed: 0,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
 
   return runWithRequestContext({ pipelineRunId: pipelineRun.id }, async () => {
     const pipelineLogger = logger.child({ pipelineRunId: pipelineRun.id });

@@ -5,6 +5,10 @@ import { analyzePatternAnalysis } from "./pattern-analysis";
 function makeJob(overrides: {
   id: string;
   source: string;
+  title?: string;
+  employer?: string;
+  jobDescription?: string | null;
+  skills?: string | null;
   status:
     | "discovered"
     | "processing"
@@ -26,6 +30,10 @@ function makeJob(overrides: {
   return {
     id: overrides.id,
     source: overrides.source,
+    title: overrides.title ?? `Role ${overrides.id}`,
+    employer: overrides.employer ?? "Acme",
+    jobDescription: overrides.jobDescription ?? null,
+    skills: overrides.skills ?? null,
     status: overrides.status,
     outcome: overrides.outcome ?? null,
     suitabilityScore: overrides.suitabilityScore ?? null,
@@ -134,5 +142,152 @@ describe("analyzePatternAnalysis", () => {
         }),
       ]),
     );
+  });
+
+  it("analyzes demand against resume sections and recommends missing learning resources", () => {
+    const report = analyzePatternAnalysis(
+      [
+        makeJob({
+          id: "frontend-platform",
+          source: "manual",
+          title: "Frontend Platform Engineer",
+          employer: "DesignCo",
+          status: "ready",
+          jobDescription:
+            "Build React and TypeScript UI systems with accessibility, testing, and Kubernetes deployment awareness.",
+          skills: JSON.stringify([
+            "React",
+            "TypeScript",
+            "Kubernetes",
+            "Accessibility",
+          ]),
+        }),
+        makeJob({
+          id: "cloud-tools",
+          source: "manual",
+          title: "Cloud Tools Engineer",
+          employer: "InfraCo",
+          status: "ready",
+          jobDescription:
+            "Own Docker, Kubernetes, AWS, CI/CD, and observability for internal developer tools.",
+          skills: "Docker, Kubernetes, AWS, CI/CD, Observability",
+        }),
+      ],
+      {
+        basics: {
+          summary:
+            "Frontend engineer focused on React and TypeScript product work.",
+        },
+        sections: {
+          skills: {
+            items: [
+              {
+                id: "react",
+                name: "React",
+                description: "UI systems",
+                level: 5,
+                keywords: ["TypeScript"],
+                visible: true,
+              },
+            ],
+          },
+          projects: {
+            items: [
+              {
+                id: "design-system",
+                name: "Design System",
+                description: "React component library",
+                date: "2025",
+                summary: "Built reusable React components.",
+                visible: true,
+              },
+            ],
+          },
+        },
+      },
+    );
+
+    expect(report.profileStatus).toBe("available");
+    expect(report.cvSectionDemand).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          section: "skills",
+          demandedTerms: expect.arrayContaining([
+            expect.objectContaining({ term: "kubernetes", demandCount: 2 }),
+            expect.objectContaining({ term: "aws", demandCount: 1 }),
+          ]),
+          missingTerms: expect.arrayContaining(["kubernetes", "aws"]),
+        }),
+        expect.objectContaining({
+          section: "projects",
+          missingTerms: expect.arrayContaining(["kubernetes"]),
+        }),
+      ]),
+    );
+    expect(report.topKnowledgeGaps[0]).toMatchObject({
+      term: "kubernetes",
+      demandCount: 2,
+      recommendedResources: expect.arrayContaining([
+        expect.objectContaining({
+          title: expect.stringMatching(/kubernetes/i),
+          url: expect.stringContaining("github.com"),
+        }),
+      ]),
+      projectIdeas: expect.arrayContaining([expect.stringMatching(/deploy/i)]),
+    });
+  });
+
+  it("builds per-job knowledge gap recommendations", () => {
+    const report = analyzePatternAnalysis(
+      [
+        makeJob({
+          id: "ml-platform",
+          source: "manual",
+          title: "ML Platform Engineer",
+          employer: "ModelCo",
+          status: "ready",
+          jobDescription:
+            "Use Python, Docker, Kubernetes, and observability to ship machine learning services.",
+        }),
+      ],
+      {
+        sections: {
+          skills: {
+            items: [
+              {
+                id: "python",
+                name: "Python",
+                description: "Automation",
+                level: 4,
+                keywords: [],
+                visible: true,
+              },
+            ],
+          },
+        },
+      },
+    );
+
+    expect(report.jobKnowledgeGaps).toEqual([
+      expect.objectContaining({
+        jobId: "ml-platform",
+        title: "ML Platform Engineer",
+        employer: "ModelCo",
+        missingTerms: [
+          "docker",
+          "kubernetes",
+          "observability",
+          "machine learning",
+        ],
+        recommendedResources: expect.arrayContaining([
+          expect.objectContaining({
+            url: expect.stringContaining("github.com"),
+          }),
+        ]),
+        projectIdeas: expect.arrayContaining([
+          expect.stringMatching(/ML|machine learning|service/i),
+        ]),
+      }),
+    ]);
   });
 });

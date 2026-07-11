@@ -1384,6 +1384,24 @@ describe("OrchestratorPage", () => {
     expect(screen.getByTestId("help-dialog")).toHaveTextContent("closed");
   });
 
+  it("does not auto-open the keyboard shortcut dialog on first desktop visit", () => {
+    localStorage.removeItem("has-seen-keyboard-shortcuts");
+    window.matchMedia = createMatchMedia(
+      true,
+    ) as unknown as typeof window.matchMedia;
+
+    render(
+      <MemoryRouter initialEntries={["/jobs/ready"]}>
+        <Routes>
+          <Route path="/jobs/:tab" element={<OrchestratorPage />} />
+          <Route path="/jobs/:tab/:jobId" element={<OrchestratorPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId("help-dialog")).toHaveTextContent("closed");
+  });
+
   it("does not auto-open the keyboard shortcut dialog on touch-only devices", () => {
     localStorage.removeItem("has-seen-keyboard-shortcuts");
     window.matchMedia = createMatchMedia({

@@ -400,7 +400,7 @@ describe("SettingsPage", () => {
 
     const purposeModels = screen.getAllByLabelText(/^model$/i);
     fireEvent.change(purposeModels.at(-1) as HTMLElement, {
-      target: { value: "gpt-5.4-mini" },
+      target: { value: "gpt-5.6-terra" },
     });
     fireEvent.change(screen.getByLabelText(/^api key$/i), {
       target: { value: "sk-tailoring" },
@@ -412,7 +412,7 @@ describe("SettingsPage", () => {
     expect(api.updateSettings).toHaveBeenCalledWith(
       expect.objectContaining({
         llmPurposeOverrides: {
-          tailoring: { provider: "openai", model: "gpt-5.4-mini" },
+          tailoring: { provider: "openai", model: "gpt-5.6-terra" },
         },
         llmPurposeApiKeys: { tailoring: "sk-tailoring" },
       }),
@@ -515,7 +515,7 @@ describe("SettingsPage", () => {
         llmPurposeOverrides: {
           value: {
             scoring: { model: "google/gemini-3-flash-preview" },
-            tailoring: { provider: "openai", model: "gpt-5.4-mini" },
+            tailoring: { provider: "openai", model: "gpt-5.6-terra" },
             projectSelection: {
               baseUrl: "https://generativelanguage.googleapis.com",
               model: "google/gemini-3-flash-preview",
@@ -524,7 +524,7 @@ describe("SettingsPage", () => {
           default: {},
           override: {
             scoring: { model: "google/gemini-3-flash-preview" },
-            tailoring: { provider: "openai", model: "gpt-5.4-mini" },
+            tailoring: { provider: "openai", model: "gpt-5.6-terra" },
             projectSelection: {
               baseUrl: "https://generativelanguage.googleapis.com",
               model: "google/gemini-3-flash-preview",
@@ -554,7 +554,7 @@ describe("SettingsPage", () => {
         modelTailoring: null,
         modelProjectSelection: null,
         llmPurposeOverrides: {
-          tailoring: { provider: "openai", model: "gpt-5.4-mini" },
+          tailoring: { provider: "openai", model: "gpt-5.6-terra" },
         },
       }),
     );

@@ -114,4 +114,20 @@ describe.sequential("pipeline cancellation", () => {
     expect(pipeline.getPipelineStatus().isRunning).toBe(false);
     expect(pipeline.isPipelineCancelRequested()).toBe(false);
   });
+
+  it("resets running state when creating the pipeline run fails", async () => {
+    const pipeline = await import("./orchestrator");
+    const pipelineRepo = await import("../repositories/pipeline");
+
+    vi.mocked(pipelineRepo.createPipelineRun).mockRejectedValueOnce(
+      new Error("database unavailable"),
+    );
+
+    const result = await pipeline.runPipeline({ sources: [] });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("database unavailable");
+    expect(pipeline.getPipelineStatus().isRunning).toBe(false);
+    expect(pipeline.requestPipelineCancel().accepted).toBe(false);
+  });
 });

@@ -106,7 +106,22 @@ function resolveRequestOrigin(req: Request): string | null {
 pipelineRouter.get("/status", async (_req: Request, res: Response) => {
   try {
     const { isRunning } = getPipelineStatus();
-    const lastRun = await pipelineRepo.getLatestPipelineRun();
+    let lastRun = await pipelineRepo.getLatestPipelineRun();
+    if (!isRunning && lastRun?.status === "running") {
+      const completedAt = new Date().toISOString();
+      const errorMessage = "Server restarted while pipeline was running";
+      await pipelineRepo.updatePipelineRun(lastRun.id, {
+        status: "failed",
+        completedAt,
+        errorMessage,
+      });
+      lastRun = {
+        ...lastRun,
+        status: "failed",
+        completedAt,
+        errorMessage,
+      };
+    }
     const data: PipelineStatusResponse = {
       isRunning,
       lastRun,
@@ -480,6 +495,10 @@ pipelineRouter.post("/run", async (req: Request, res: Response) => {
         locationIntent,
       });
       return okWithMeta(res, simulated, { simulated: true });
+    }
+
+    if (getPipelineStatus().isRunning) {
+      return fail(res, conflict("Pipeline is already running"));
     }
 
     // Start pipeline in background

@@ -14,6 +14,7 @@ describe("PatternAnalysisPage", () => {
   beforeEach(() => {
     vi.mocked(getPatternAnalysis).mockResolvedValue({
       status: "ok",
+      profileStatus: "available",
       metadata: { total: 8, progressed: 6 },
       funnel: [
         { stage: "All applications", count: 8 },
@@ -46,6 +47,55 @@ describe("PatternAnalysisPage", () => {
           reason: "Positive outcomes cluster at or above 70.",
         },
       ],
+      cvSectionDemand: [
+        {
+          section: "skills",
+          label: "Skills",
+          demandedTerms: [
+            {
+              term: "kubernetes",
+              demandCount: 4,
+              matchedInResume: false,
+              matchedSections: [],
+            },
+          ],
+          missingTerms: ["kubernetes"],
+          recommendations: ["Add truthful skill keywords for kubernetes."],
+        },
+      ],
+      topKnowledgeGaps: [
+        {
+          term: "kubernetes",
+          demandCount: 4,
+          jobIds: ["job-1", "job-2"],
+          matchedSections: [],
+          recommendedResources: [
+            {
+              title: "Kubernetes examples",
+              url: "https://github.com/kubernetes/examples",
+              reason: "Free practical manifests.",
+            },
+          ],
+          projectIdeas: ["Deploy a small service to Kubernetes."],
+        },
+      ],
+      jobKnowledgeGaps: [
+        {
+          jobId: "job-1",
+          title: "Platform Engineer",
+          employer: "InfraCo",
+          missingTerms: ["kubernetes", "aws"],
+          coveredTerms: ["typescript"],
+          recommendedResources: [
+            {
+              title: "Kubernetes examples",
+              url: "https://github.com/kubernetes/examples",
+              reason: "Free practical manifests.",
+            },
+          ],
+          projectIdeas: ["Deploy a small service to Kubernetes."],
+        },
+      ],
     });
   });
 
@@ -64,11 +114,18 @@ describe("PatternAnalysisPage", () => {
     expect(
       screen.getByText(/Raise the minimum suitability score floor to 70/i),
     ).toBeInTheDocument();
+    expect(screen.getByText("CV intelligence")).toBeInTheDocument();
+    expect(screen.getAllByText(/kubernetes/i).length).toBeGreaterThan(0);
+    expect(screen.getByText("Platform Engineer")).toBeInTheDocument();
+    expect(
+      screen.getAllByText(/Deploy a small service to Kubernetes/i).length,
+    ).toBeGreaterThan(0);
   });
 
   it("shows the insufficient-data message when the report is not ready", async () => {
     vi.mocked(getPatternAnalysis).mockResolvedValueOnce({
       status: "insufficient_data",
+      profileStatus: "missing",
       metadata: { total: 4, progressed: 4 },
       funnel: [{ stage: "Progressed applications", count: 4 }],
       sourceBreakdown: [],
@@ -85,6 +142,9 @@ describe("PatternAnalysisPage", () => {
             "The current sample is too small for a reliable recommendation.",
         },
       ],
+      cvSectionDemand: [],
+      topKnowledgeGaps: [],
+      jobKnowledgeGaps: [],
     });
 
     renderWithQueryClient(

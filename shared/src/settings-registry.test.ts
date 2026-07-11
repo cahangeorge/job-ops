@@ -348,7 +348,7 @@ describe("settingsRegistry helpers", () => {
     });
 
     it("uses provider-specific default models", () => {
-      expect(getDefaultModelForProvider("openai")).toBe("gpt-5.4-mini");
+      expect(getDefaultModelForProvider("openai")).toBe("gpt-5.6-luna");
       expect(getDefaultModelForProvider("glm")).toBe("glm-5.1");
       expect(getDefaultModelForProvider("gemini")).toBe(
         "google/gemini-3-flash-preview",
@@ -370,7 +370,7 @@ describe("settingsRegistry helpers", () => {
         tailoring: {
           provider: "openai-compatible",
           baseUrl: "https://api.openai.com",
-          model: "gpt-5.4-mini",
+          model: "gpt-5.6-terra",
         },
         projectSelection: {},
       });
@@ -380,7 +380,7 @@ describe("settingsRegistry helpers", () => {
         tailoring: {
           provider: "openai_compatible",
           baseUrl: "https://api.openai.com",
-          model: "gpt-5.4-mini",
+          model: "gpt-5.6-terra",
         },
       });
     });
@@ -441,9 +441,9 @@ describe("settingsRegistry helpers", () => {
       expect(settingsRegistry.llmPurposeOverrides.serialize({})).toBeNull();
       expect(
         settingsRegistry.llmPurposeOverrides.serialize({
-          tailoring: { model: "gpt-5.4-mini" },
+          tailoring: { model: "gpt-5.6-terra" },
         }),
-      ).toBe(JSON.stringify({ tailoring: { model: "gpt-5.4-mini" } }));
+      ).toBe(JSON.stringify({ tailoring: { model: "gpt-5.6-terra" } }));
     });
   });
 });

@@ -3,6 +3,7 @@ import type { Job } from "@shared/types.js";
 import {
   BadgeCheck,
   BookOpenCheck,
+  BrainCircuit,
   ClipboardList,
   FileText,
   FolderKanban,
@@ -24,6 +25,7 @@ export type JobMemoryView =
   | "documents"
   | "timeline"
   | "interview-prep"
+  | "cv-intelligence"
   | "career-ops-evaluation"
   | "emails"
   | "ghostwriter";
@@ -62,6 +64,11 @@ const memoryLinks = [
     id: "interview-prep" as const,
     label: "Interview Prep",
     icon: BookOpenCheck,
+  },
+  {
+    id: "cv-intelligence" as const,
+    label: "CV Intelligence",
+    icon: BrainCircuit,
   },
   {
     id: "career-ops-evaluation" as const,

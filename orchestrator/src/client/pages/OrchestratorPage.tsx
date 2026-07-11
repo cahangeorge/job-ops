@@ -1,5 +1,4 @@
 import * as api from "@client/api";
-import { useKeyboardAvailability } from "@client/hooks/useKeyboardAvailability";
 import { useSettings } from "@client/hooks/useSettings";
 import { showErrorToast } from "@client/lib/error-toast";
 import { queryKeys } from "@client/lib/queryKeys";
@@ -13,7 +12,6 @@ import { Button } from "@/components/ui/button";
 import { Drawer, DrawerClose, DrawerContent } from "@/components/ui/drawer";
 import { KeyboardShortcutBar } from "../components/KeyboardShortcutBar";
 import { KeyboardShortcutDialog } from "../components/KeyboardShortcutDialog";
-import { useDemoInfo } from "../hooks/useDemoInfo";
 import { type FilterTab, tabs } from "./orchestrator/constants";
 import { FloatingJobActionsBar } from "./orchestrator/FloatingJobActionsBar";
 import { JobCommandBar } from "./orchestrator/JobCommandBar";
@@ -105,7 +103,6 @@ export const OrchestratorPage: React.FC = () => {
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [isHelpDialogOpen, setIsHelpDialogOpen] = useState(false);
   const [isDetailDrawerOpen, setIsDetailDrawerOpen] = useState(false);
-  const hasKeyboard = useKeyboardAvailability();
 
   const [isDesktop, setIsDesktop] = useState(() =>
     typeof window !== "undefined"
@@ -121,7 +118,6 @@ export const OrchestratorPage: React.FC = () => {
   );
 
   const { settings } = useSettings();
-  const demoInfo = useDemoInfo();
   const {
     jobs,
     selectedJob,
@@ -436,15 +432,6 @@ export const OrchestratorPage: React.FC = () => {
       setIsDetailDrawerOpen(false);
     }
   }, [isDesktop, isDetailDrawerOpen]);
-
-  useEffect(() => {
-    if (demoInfo?.demoMode) return;
-    if (!hasKeyboard) return;
-    const hasSeen = localStorage.getItem("has-seen-keyboard-shortcuts");
-    if (!hasSeen) {
-      setIsHelpDialogOpen(true);
-    }
-  }, [demoInfo?.demoMode, hasKeyboard]);
 
   const onDrawerOpenChange = (open: boolean) => {
     setIsDetailDrawerOpen(open);

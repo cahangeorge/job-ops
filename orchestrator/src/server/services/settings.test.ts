@@ -125,7 +125,7 @@ describe("getEffectiveSettings", () => {
   it("exposes purpose overrides and redacted purpose API key hints", async () => {
     vi.mocked(getAllSettings).mockResolvedValue({
       llmPurposeOverrides: JSON.stringify({
-        tailoring: { provider: "openai", model: "gpt-5.4-mini" },
+        tailoring: { provider: "openai", model: "gpt-5.6-terra" },
       }),
       llmPurposeApiKeys: JSON.stringify({ tailoring: "sk-purpose" }),
     } as never);
@@ -133,8 +133,35 @@ describe("getEffectiveSettings", () => {
     const settings = await getEffectiveSettings();
 
     expect(settings.llmPurposeOverrides.override).toEqual({
-      tailoring: { provider: "openai", model: "gpt-5.4-mini" },
+      tailoring: { provider: "openai", model: "gpt-5.6-terra" },
     });
     expect(settings.llmPurposeApiKeyHints).toEqual({ tailoring: "sk-p" });
+  });
+
+  it("uses GPT-5.6 OpenAI purpose defaults when no global model override is configured", async () => {
+    vi.mocked(getAllSettings).mockResolvedValue({
+      llmProvider: "openai",
+    } as never);
+
+    const settings = await getEffectiveSettings();
+
+    expect(settings.model.value).toBe("gpt-5.6-luna");
+    expect(settings.modelScorer.value).toBe("gpt-5.6-luna");
+    expect(settings.modelTailoring.value).toBe("gpt-5.6-terra");
+    expect(settings.modelProjectSelection.value).toBe("gpt-5.6-luna");
+  });
+
+  it("honors an explicit global OpenAI model override for all purpose defaults", async () => {
+    vi.mocked(getAllSettings).mockResolvedValue({
+      llmProvider: "openai",
+      model: "gpt-5.6-sol",
+    } as never);
+
+    const settings = await getEffectiveSettings();
+
+    expect(settings.model.value).toBe("gpt-5.6-sol");
+    expect(settings.modelScorer.value).toBe("gpt-5.6-sol");
+    expect(settings.modelTailoring.value).toBe("gpt-5.6-sol");
+    expect(settings.modelProjectSelection.value).toBe("gpt-5.6-sol");
   });
 });

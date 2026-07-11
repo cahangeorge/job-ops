@@ -9,11 +9,14 @@ import {
 import { PageHeader, PageMain } from "@client/components/layout";
 import type { JobSource, StageEvent } from "@shared/types.js";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChartColumn } from "lucide-react";
+import { ChartColumn, ExternalLink } from "lucide-react";
 import type React from "react";
 import { useCallback, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { queryKeys } from "@/client/lib/queryKeys";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { OverviewPipelineRunsSection } from "./overview/OverviewPipelineRunsSection";
 
 type JobWithEvents = {
@@ -96,6 +99,12 @@ export const HomePage: React.FC = () => {
     },
   });
 
+  const cvIntelligenceQuery = useQuery({
+    queryKey: ["pattern-analysis", "overview"],
+    queryFn: api.getPatternAnalysis,
+    staleTime: 60_000,
+  });
+
   const jobsWithEvents = useMemo(
     () => overviewQuery.data?.jobsWithEvents ?? [],
     [overviewQuery.data],
@@ -142,6 +151,44 @@ export const HomePage: React.FC = () => {
       />
 
       <PageMain>
+        <Card className="border-border/50">
+          <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <CardTitle>CV intelligence</CardTitle>
+              <p className="mt-1 text-sm text-muted-foreground">
+                See which skills recur across scraped jobs, where your CV
+                already covers them, and what to learn or build next.
+              </p>
+            </div>
+            <Button asChild size="sm" variant="outline">
+              <Link to="/pattern-analysis">
+                Open analysis
+                <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
+              </Link>
+            </Button>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-2">
+            {cvIntelligenceQuery.isLoading ? (
+              <span className="text-sm text-muted-foreground">
+                Loading CV demand map…
+              </span>
+            ) : null}
+            {cvIntelligenceQuery.data?.topKnowledgeGaps.length ? (
+              cvIntelligenceQuery.data.topKnowledgeGaps
+                .slice(0, 6)
+                .map((gap) => (
+                  <Badge key={gap.term} variant="secondary">
+                    {gap.term} · {gap.demandCount} jobs
+                  </Badge>
+                ))
+            ) : cvIntelligenceQuery.isSuccess ? (
+              <span className="text-sm text-muted-foreground">
+                No repeated CV gaps detected yet.
+              </span>
+            ) : null}
+          </CardContent>
+        </Card>
+
         <ApplicationsPerDayChart
           appliedAt={appliedDates}
           isLoading={isLoading}

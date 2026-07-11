@@ -642,7 +642,7 @@ function normalizeGeminiModelName(value: string): string {
 }
 
 function getPreferredModel(provider: LlmProvider): string | null {
-  if (provider === "openai") return "gpt-5.4-mini";
+  if (provider === "openai") return "gpt-5.6-luna";
   if (provider === "glm") return "glm-5.1";
   if (provider === "gemini" || provider === "gemini_cli") {
     return "google/gemini-3-flash-preview";
