@@ -16,6 +16,12 @@ export async function invalidateJobNotesData(
   await queryClient.invalidateQueries({
     queryKey: queryKeys.jobs.notes(jobId),
   });
+  await queryClient.invalidateQueries({
+    queryKey: queryKeys.jobs.inProgressBoard(),
+  });
+  await queryClient.invalidateQueries({
+    queryKey: queryKeys.careerOps.pipeline(),
+  });
 }
 
 export function useUpdateJobMutation() {

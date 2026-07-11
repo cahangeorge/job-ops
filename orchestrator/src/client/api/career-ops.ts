@@ -1,3 +1,4 @@
+import type { CareerPipelineProjection } from "@shared/types";
 import { fetchApi } from "./core";
 
 export interface AtsKeywordAnalysisInput {
@@ -417,4 +418,8 @@ export async function getCareerOpsCoverage(): Promise<CareerOpsAvailabilityRespo
 
 export async function getCareerOpsAvailability(): Promise<boolean> {
   return getCareerOpsCoverage().then((response) => response.available === true);
+}
+
+export async function getCareerPipeline(): Promise<CareerPipelineProjection> {
+  return fetchApi<CareerPipelineProjection>("/career-ops/pipeline");
 }

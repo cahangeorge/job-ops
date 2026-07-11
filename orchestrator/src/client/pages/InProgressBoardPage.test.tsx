@@ -1,4 +1,9 @@
-import type { JobListItem, StageEvent } from "@shared/types";
+import type {
+  CareerPipelineProjection,
+  CareerPipelineStage,
+  JobListItem,
+  StageEvent,
+} from "@shared/types";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
@@ -55,6 +60,7 @@ const getBoardCardRoot = (cardTitle: HTMLElement): HTMLElement => {
 
 vi.mock("../api", () => ({
   getJobs: vi.fn(),
+  getCareerPipeline: vi.fn(),
   getJobStageEvents: vi.fn(),
   transitionJobStage: vi.fn(),
   updateJobStageEvent: vi.fn(),
@@ -120,6 +126,62 @@ const makeEvent = (overrides: Partial<StageEvent>): StageEvent => ({
   ...overrides,
 });
 
+const EMPTY_PIPELINE_STAGES: CareerPipelineStage[] = [
+  "assessment",
+  "hiring_manager_screen",
+  "technical_interview",
+  "onsite",
+  "offer",
+  "closed",
+];
+
+const makePipeline = (): CareerPipelineProjection => ({
+  columns: [
+    {
+      stage: "recruiter_screen",
+      label: "Recruiter Screen",
+      cards: [
+        {
+          job: {
+            id: "job-1",
+            title: "Backend Engineer",
+            employer: "Acme",
+            outcome: null,
+            appliedAt: "2025-12-30T00:00:00.000Z",
+            discoveredAt: "2026-01-01T00:00:00.000Z",
+            followUpUrgency: "urgent",
+          },
+          stage: "recruiter_screen",
+          latestEvent: {
+            id: "evt-1",
+            title: "Recruiter Screen",
+            toStage: "recruiter_screen",
+            occurredAt: 1_700_000_000,
+          },
+          pendingTaskCount: 1,
+          overdueTaskCount: 0,
+          noteCount: 2,
+          latestNoteAt: "2026-01-01T00:00:00.000Z",
+          nextAction: {
+            id: "task-1",
+            title: "Send follow-up",
+            dueDate: 1_700_010_000,
+          },
+          nextInterview: null,
+          isStale: false,
+          staleDays: 0,
+          needsFollowUp: true,
+        },
+      ],
+    },
+    ...EMPTY_PIPELINE_STAGES.map((stage) => ({
+      stage,
+      label: stage,
+      cards: [],
+    })),
+  ],
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
 
@@ -138,6 +200,7 @@ beforeEach(() => {
     revision: "r1",
   } as Awaited<ReturnType<typeof api.getJobs>>);
   vi.mocked(api.getJobStageEvents).mockResolvedValue([makeEvent({})]);
+  vi.mocked(api.getCareerPipeline).mockResolvedValue(makePipeline());
   vi.mocked(api.transitionJobStage).mockResolvedValue(
     makeEvent({ toStage: "offer", title: "Offer" }),
   );
@@ -152,6 +215,23 @@ beforeEach(() => {
 });
 
 describe("InProgressBoardPage", () => {
+  it("loads the canonical career pipeline projection", async () => {
+    render(
+      <MemoryRouter>
+        <InProgressBoardPage />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(api.getCareerPipeline).toHaveBeenCalledWith();
+    });
+    expect(await screen.findByText("1 open task")).toBeInTheDocument();
+    expect(screen.getByText("2 notes")).toBeInTheDocument();
+    expect(
+      screen.getByRole("combobox", { name: "Filter board by stage" }),
+    ).toBeInTheDocument();
+  });
+
   it("loads in-progress jobs and renders cards", async () => {
     render(
       <MemoryRouter>
@@ -160,17 +240,16 @@ describe("InProgressBoardPage", () => {
     );
 
     await waitFor(() => {
-      expect(api.getJobs).toHaveBeenCalledWith({
-        statuses: ["in_progress"],
-        view: "list",
-      });
+      expect(api.getCareerPipeline).toHaveBeenCalledWith();
     });
 
     expect(await screen.findByText("Backend Engineer")).toBeInTheDocument();
   });
 
-  it("shows cards even when no stage events are present", async () => {
-    vi.mocked(api.getJobStageEvents).mockResolvedValue([]);
+  it("shows cards when the projection has no latest event", async () => {
+    const projection = makePipeline();
+    projection.columns[0].cards[0].latestEvent = null;
+    vi.mocked(api.getCareerPipeline).mockResolvedValue(projection);
 
     render(
       <MemoryRouter>
@@ -276,7 +355,9 @@ describe("InProgressBoardPage", () => {
   });
 
   it("surfaces load errors", async () => {
-    vi.mocked(api.getJobs).mockRejectedValue(new Error("Failed to load board"));
+    vi.mocked(api.getCareerPipeline).mockRejectedValue(
+      new Error("Failed to load board"),
+    );
 
     render(
       <MemoryRouter>
@@ -287,6 +368,25 @@ describe("InProgressBoardPage", () => {
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith("Failed to load board");
     });
+    expect(
+      screen.getByRole("alert", { name: /unable to load/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows an accessible empty state for an empty projection", async () => {
+    const projection = makePipeline();
+    for (const column of projection.columns) column.cards = [];
+    vi.mocked(api.getCareerPipeline).mockResolvedValue(projection);
+
+    render(
+      <MemoryRouter>
+        <InProgressBoardPage />
+      </MemoryRouter>,
+    );
+
+    expect(
+      await screen.findByRole("status", { name: /no applications/i }),
+    ).toBeInTheDocument();
   });
 
   it("renders follow-up urgency and saves a follow-up draft from the card", async () => {

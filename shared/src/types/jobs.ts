@@ -328,6 +328,72 @@ export type JobListItem = Pick<
   postingLivenessReason?: string | null;
 };
 
+export const CAREER_PIPELINE_STAGES = [
+  "recruiter_screen",
+  "assessment",
+  "hiring_manager_screen",
+  "technical_interview",
+  "onsite",
+  "offer",
+  "closed",
+] as const;
+
+export type CareerPipelineStage = (typeof CAREER_PIPELINE_STAGES)[number];
+
+export type CareerPipelineJob = Pick<
+  JobListItem,
+  | "id"
+  | "title"
+  | "employer"
+  | "outcome"
+  | "appliedAt"
+  | "discoveredAt"
+  | "followUpUrgency"
+>;
+
+export interface CareerPipelineLatestEvent {
+  id: string;
+  title: string;
+  toStage: ApplicationStage;
+  occurredAt: number;
+}
+
+export interface CareerPipelineNextInterview {
+  id: string;
+  scheduledAt: number;
+  durationMins: number | null;
+  type: InterviewType;
+}
+
+export interface CareerPipelineCard {
+  job: CareerPipelineJob;
+  stage: CareerPipelineStage;
+  latestEvent: CareerPipelineLatestEvent | null;
+  pendingTaskCount: number;
+  overdueTaskCount: number;
+  noteCount: number;
+  latestNoteAt: string | null;
+  nextAction: {
+    id: string;
+    title: string;
+    dueDate: number | null;
+  } | null;
+  nextInterview: CareerPipelineNextInterview | null;
+  isStale: boolean;
+  staleDays: number;
+  needsFollowUp: boolean;
+}
+
+export interface CareerPipelineColumn {
+  stage: CareerPipelineStage;
+  label: string;
+  cards: CareerPipelineCard[];
+}
+
+export interface CareerPipelineProjection {
+  columns: CareerPipelineColumn[];
+}
+
 export interface CreateJobInput {
   source: JobSource;
   title: string;

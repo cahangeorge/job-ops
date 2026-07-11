@@ -13,6 +13,7 @@ export const queryKeys = {
   careerOps: {
     all: ["career-ops"] as const,
     availability: () => [...queryKeys.careerOps.all, "availability"] as const,
+    pipeline: () => [...queryKeys.careerOps.all, "pipeline"] as const,
   },
   storyBank: {
     all: ["story-bank"] as const,

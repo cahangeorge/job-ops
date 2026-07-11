@@ -20,6 +20,9 @@ export async function invalidateJobData(
     queryKey: queryKeys.jobs.inProgressBoard(),
   });
   await queryClient.invalidateQueries({
+    queryKey: queryKeys.careerOps.pipeline(),
+  });
+  await queryClient.invalidateQueries({
     queryKey: queryKeys.jobs.detail(jobId),
   });
   await queryClient.invalidateQueries({

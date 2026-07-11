@@ -6,13 +6,13 @@ import { PageHeader, PageMain } from "@client/components/layout";
 import {
   APPLICATION_STAGES,
   type ApplicationStage,
-  type JobListItem,
+  type CareerPipelineCard,
+  type CareerPipelineStage,
   STAGE_LABELS,
-  type StageEvent,
 } from "@shared/types.js";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import confetti from "canvas-confetti";
-import { ArrowDownAZ, Columns3, Plus } from "lucide-react";
+import { ArrowDownAZ, Columns3, Filter, Plus } from "lucide-react";
 import React from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -35,11 +35,7 @@ import { cn } from "@/lib/utils";
 import * as api from "../api";
 import { InProgressBoardCard } from "./InProgressBoardCard";
 
-type BoardCard = {
-  job: JobListItem;
-  stage: ApplicationStage;
-  latestEventAt: number | null;
-};
+type BoardCard = CareerPipelineCard & { latestEventAt: number | null };
 
 type BoardStage = Exclude<ApplicationStage, "applied">;
 
@@ -62,7 +58,7 @@ const BOARD_STAGES = APPLICATION_STAGES.filter(
   (stage) => stage !== "applied",
 ) as BoardStage[];
 
-const toBoardStage = (stage: ApplicationStage): BoardStage =>
+const toBoardStage = (stage: ApplicationStage): CareerPipelineStage =>
   stage === "applied" ? "recruiter_screen" : stage;
 
 const getCardLeftAccentClass = (stage: ApplicationStage) => {
@@ -76,16 +72,6 @@ const getCardLeftAccentClass = (stage: ApplicationStage) => {
     return "border-2 border-amber-300/50 shadow-[0_4px_12px_-4px_rgba(251,191,36,0.7)]";
   }
   return "";
-};
-
-const resolveCurrentStage = (
-  events: StageEvent[] | null,
-): { stage: ApplicationStage; latestEventAt: number | null } => {
-  const latest = events?.at(-1) ?? null;
-  if (latest) {
-    return { stage: latest.toStage, latestEventAt: latest.occurredAt };
-  }
-  return { stage: "applied", latestEventAt: null };
 };
 
 export const InProgressBoardPage: React.FC = () => {
@@ -107,37 +93,24 @@ export const InProgressBoardPage: React.FC = () => {
   const [sortMode, setSortMode] = React.useState<
     "updated" | "title" | "company"
   >("updated");
+  const [stageFilter, setStageFilter] = React.useState<"all" | BoardStage>(
+    "all",
+  );
   const [logEventTarget, setLogEventTarget] = React.useState<{
-    job: JobListItem;
+    job: BoardCard["job"];
     stage: ApplicationStage;
   } | null>(null);
 
   const boardQuery = useQuery({
-    queryKey: queryKeys.jobs.inProgressBoard(),
+    queryKey: queryKeys.careerOps.pipeline(),
     queryFn: async () => {
-      const response = await api.getJobs({
-        statuses: ["in_progress"],
-        view: "list",
-      });
-
-      const jobs = response.jobs;
-      const eventResults = await Promise.allSettled(
-        jobs.map((job) => api.getJobStageEvents(job.id)),
+      const projection = await api.getCareerPipeline();
+      return projection.columns.flatMap((column) =>
+        column.cards.map((card) => ({
+          ...card,
+          latestEventAt: card.latestEvent?.occurredAt ?? null,
+        })),
       );
-
-      return jobs.map((job, index) => {
-        const result = eventResults[index];
-        const events =
-          result?.status === "fulfilled"
-            ? [...result.value].sort((a, b) => a.occurredAt - b.occurredAt)
-            : null;
-        const resolved = resolveCurrentStage(events);
-        return {
-          job,
-          stage: resolved.stage,
-          latestEventAt: resolved.latestEventAt,
-        };
-      });
     },
   });
 
@@ -184,7 +157,9 @@ export const InProgressBoardPage: React.FC = () => {
     };
 
     for (const card of cards) {
-      grouped[toBoardStage(card.stage)].push(card);
+      if (stageFilter === "all" || card.stage === stageFilter) {
+        grouped[toBoardStage(card.stage)].push(card);
+      }
     }
 
     for (const stage of BOARD_STAGES) {
@@ -192,7 +167,7 @@ export const InProgressBoardPage: React.FC = () => {
     }
 
     return grouped;
-  }, [cards, sortMode]);
+  }, [cards, sortMode, stageFilter]);
 
   const handleDropToStage = React.useCallback(
     async (toStage: ApplicationStage) => {
@@ -203,33 +178,34 @@ export const InProgressBoardPage: React.FC = () => {
 
       const { jobId } = dragging;
       const previousCards =
-        queryClient.getQueryData<BoardCard[]>(
-          queryKeys.jobs.inProgressBoard(),
-        ) ?? [];
+        queryClient.getQueryData<BoardCard[]>(queryKeys.careerOps.pipeline()) ??
+        [];
       const nowEpoch = Math.floor(Date.now() / 1000);
 
       setMovingJobId(jobId);
+      const updateBoardCards = (current: BoardCard[] | undefined) =>
+        (current ?? []).map((card) =>
+          card.job.id === jobId
+            ? {
+                ...card,
+                stage: toBoardStage(toStage),
+                latestEventAt: nowEpoch,
+              }
+            : card,
+        );
       queryClient.setQueryData<BoardCard[]>(
-        queryKeys.jobs.inProgressBoard(),
-        (current) =>
-          (current ?? []).map((card) =>
-            card.job.id === jobId
-              ? { ...card, stage: toStage, latestEventAt: nowEpoch }
-              : card,
-          ),
+        queryKeys.careerOps.pipeline(),
+        updateBoardCards,
       );
 
       try {
         await transitionMutation.mutateAsync({ jobId, toStage });
         toast.success(`Moved to ${STAGE_LABELS[toStage]}`);
         await queryClient.invalidateQueries({
-          queryKey: queryKeys.jobs.inProgressBoard(),
+          queryKey: queryKeys.careerOps.pipeline(),
         });
       } catch (error) {
-        queryClient.setQueryData(
-          queryKeys.jobs.inProgressBoard(),
-          previousCards,
-        );
+        queryClient.setQueryData(queryKeys.careerOps.pipeline(), previousCards);
         showErrorToast(error, "Failed to move stage");
       } finally {
         setMovingJobId(null);
@@ -274,7 +250,7 @@ export const InProgressBoardPage: React.FC = () => {
   );
 
   const handleCreateFollowUpDraft = React.useCallback(
-    async (job: JobListItem) => {
+    async (job: BoardCard["job"]) => {
       const appliedAt = job.appliedAt ? Date.parse(job.appliedAt) : Number.NaN;
       const daysSinceApplication = Number.isFinite(appliedAt)
         ? Math.max(0, Math.floor((Date.now() - appliedAt) / 86_400_000))
@@ -289,7 +265,7 @@ export const InProgressBoardPage: React.FC = () => {
         });
         await api.createJobNote(job.id, draft);
         await queryClient.invalidateQueries({
-          queryKey: queryKeys.jobs.inProgressBoard(),
+          queryKey: queryKeys.careerOps.pipeline(),
         });
         toast.success("Follow-up draft saved");
       } catch (error) {
@@ -323,6 +299,28 @@ export const InProgressBoardPage: React.FC = () => {
                 <SelectItem value="company">Company</SelectItem>
               </SelectContent>
             </Select>
+            <Select
+              value={stageFilter}
+              onValueChange={(value) =>
+                setStageFilter(value as "all" | BoardStage)
+              }
+            >
+              <SelectTrigger
+                className="h-8 w-[148px] text-xs"
+                aria-label="Filter board by stage"
+              >
+                <Filter className="mr-1.5 h-3.5 w-3.5" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All stages</SelectItem>
+                {BOARD_STAGES.map((stage) => (
+                  <SelectItem key={stage} value={stage}>
+                    {STAGE_LABELS[stage]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Button
               size="sm"
               className="h-8 gap-1.5 text-xs"
@@ -336,9 +334,28 @@ export const InProgressBoardPage: React.FC = () => {
       />
       <PageMain className="flex h-[calc(100dvh-5rem)] max-w-[1600px] flex-col">
         {isLoading ? (
-          <div className="rounded-lg border border-dashed border-border/60 p-6 text-sm text-muted-foreground">
+          <output
+            aria-busy="true"
+            aria-label="Loading in-progress board"
+            className="rounded-lg border border-dashed border-border/60 p-6 text-sm text-muted-foreground"
+          >
             Loading board...
+          </output>
+        ) : boardQuery.isError ? (
+          <div
+            role="alert"
+            aria-label="Unable to load in-progress board"
+            className="rounded-lg border border-destructive/40 p-6 text-sm text-destructive"
+          >
+            Unable to load the in-progress board. Please try again.
           </div>
+        ) : cards.length === 0 ? (
+          <output
+            aria-label="No applications in progress"
+            className="rounded-lg border border-dashed border-border/60 p-6 text-sm text-muted-foreground"
+          >
+            No applications are currently in progress.
+          </output>
         ) : (
           <div className="min-h-0 flex-1 overflow-x-auto pb-2">
             <div className="flex h-full min-w-max items-stretch gap-4">
@@ -395,37 +412,64 @@ export const InProgressBoardPage: React.FC = () => {
                           Drop a card here or log a stage.
                         </div>
                       ) : (
-                        laneCards.map(({ job, latestEventAt, stage }) => (
-                          <InProgressBoardCard
-                            key={job.id}
-                            job={job}
-                            stage={stage}
-                            latestEventAt={latestEventAt}
-                            jobPageLinkState={jobPageLinkState}
-                            isMoving={movingJobId === job.id}
-                            cardClassName={getCardLeftAccentClass(stage)}
-                            onDragStart={(event) => {
-                              if (
-                                (event.target as HTMLElement).closest(
-                                  "[data-board-card-menu]",
-                                )
-                              ) {
-                                event.preventDefault();
-                                return;
+                        laneCards.map(
+                          ({
+                            job,
+                            latestEventAt,
+                            stage,
+                            pendingTaskCount,
+                            overdueTaskCount,
+                            noteCount,
+                            nextAction,
+                            nextInterview,
+                            isStale,
+                            staleDays,
+                            needsFollowUp,
+                          }) => (
+                            <InProgressBoardCard
+                              key={job.id}
+                              job={job}
+                              stage={stage}
+                              latestEventAt={latestEventAt}
+                              pendingTaskCount={pendingTaskCount}
+                              overdueTaskCount={overdueTaskCount}
+                              noteCount={noteCount}
+                              nextAction={nextAction}
+                              nextInterview={nextInterview}
+                              isStale={isStale}
+                              staleDays={staleDays}
+                              needsFollowUp={needsFollowUp}
+                              jobPageLinkState={jobPageLinkState}
+                              isMoving={movingJobId === job.id}
+                              cardClassName={getCardLeftAccentClass(stage)}
+                              onDragStart={(event) => {
+                                if (
+                                  (event.target as HTMLElement).closest(
+                                    "[data-board-card-menu]",
+                                  )
+                                ) {
+                                  event.preventDefault();
+                                  return;
+                                }
+                                setDragging({
+                                  jobId: job.id,
+                                  fromStage: stage,
+                                });
+                                event.dataTransfer.effectAllowed = "move";
+                              }}
+                              onDragEnd={() => {
+                                setDragging(null);
+                                setDropTargetStage(null);
+                              }}
+                              onLogEvent={() =>
+                                setLogEventTarget({ job, stage })
                               }
-                              setDragging({ jobId: job.id, fromStage: stage });
-                              event.dataTransfer.effectAllowed = "move";
-                            }}
-                            onDragEnd={() => {
-                              setDragging(null);
-                              setDropTargetStage(null);
-                            }}
-                            onLogEvent={() => setLogEventTarget({ job, stage })}
-                            onCreateFollowUpDraft={() =>
-                              void handleCreateFollowUpDraft(job)
-                            }
-                          />
-                        ))
+                              onCreateFollowUpDraft={() =>
+                                void handleCreateFollowUpDraft(job)
+                              }
+                            />
+                          ),
+                        )
                       )}
                     </div>
                   </section>

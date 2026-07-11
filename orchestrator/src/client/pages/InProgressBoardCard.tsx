@@ -1,4 +1,8 @@
-import type { ApplicationStage, JobListItem } from "@shared/types.js";
+import type {
+  ApplicationStage,
+  CareerPipelineJob,
+  CareerPipelineNextInterview,
+} from "@shared/types.js";
 import { ExternalLink, MoreVertical, PlusCircle, Send } from "lucide-react";
 import type React from "react";
 import { Link } from "react-router-dom";
@@ -14,9 +18,17 @@ import {
 import { cn, formatTimestamp } from "@/lib/utils";
 
 export type InProgressBoardCardProps = {
-  job: JobListItem;
+  job: CareerPipelineJob;
   stage: ApplicationStage;
   latestEventAt: number | null;
+  pendingTaskCount?: number;
+  overdueTaskCount?: number;
+  noteCount?: number;
+  nextAction?: { title: string; dueDate: number | null } | null;
+  nextInterview?: CareerPipelineNextInterview | null;
+  isStale?: boolean;
+  staleDays?: number;
+  needsFollowUp?: boolean;
   jobPageLinkState: { jobPageBackTo: string };
   isMoving: boolean;
   cardClassName?: string;
@@ -30,6 +42,14 @@ export const InProgressBoardCard: React.FC<InProgressBoardCardProps> = ({
   job,
   stage,
   latestEventAt,
+  pendingTaskCount = 0,
+  overdueTaskCount = 0,
+  noteCount = 0,
+  nextAction = null,
+  nextInterview = null,
+  isStale = false,
+  staleDays = 0,
+  needsFollowUp = false,
   jobPageLinkState,
   isMoving,
   cardClassName,
@@ -132,6 +152,27 @@ export const InProgressBoardCard: React.FC<InProgressBoardCardProps> = ({
           {latestEventAt != null
             ? `Updated ${formatTimestamp(latestEventAt)}`
             : "No stage events yet"}
+        </div>
+        <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] text-muted-foreground">
+          {pendingTaskCount > 0 ? (
+            <span>
+              {pendingTaskCount} open task{pendingTaskCount === 1 ? "" : "s"}
+            </span>
+          ) : null}
+          {overdueTaskCount > 0 ? (
+            <span>{overdueTaskCount} overdue</span>
+          ) : null}
+          {nextAction ? <span>Next: {nextAction.title}</span> : null}
+          {noteCount > 0 ? (
+            <span>
+              {noteCount} note{noteCount === 1 ? "" : "s"}
+            </span>
+          ) : null}
+          {nextInterview ? (
+            <span>Interview {formatTimestamp(nextInterview.scheduledAt)}</span>
+          ) : null}
+          {isStale ? <span>Stale {staleDays}d</span> : null}
+          {needsFollowUp ? <span>Follow-up needed</span> : null}
         </div>
       </Link>
       {followUpLabel && onCreateFollowUpDraft ? (
