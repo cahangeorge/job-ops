@@ -1,6 +1,6 @@
 import { rm } from "node:fs/promises";
 import { AppError, badRequest } from "@infra/errors";
-import { fail, ok, okWithMeta } from "@infra/http";
+import { asyncRoute, fail, ok, okWithMeta } from "@infra/http";
 import { logger } from "@infra/logger";
 import { trackServerProductEvent } from "@infra/product-analytics";
 import { isDemoMode } from "@server/config/demo";
@@ -12,11 +12,13 @@ import {
   simulateGeneratePdf,
   simulateSummarizeJob,
 } from "@server/services/demo-simulator";
+import { requireCurrentDesignResume } from "@server/services/design-resume";
 import {
   removeStoredJobDocument,
   storeJobDocument,
 } from "@server/services/job-document-storage";
 import { uploadJobPdf } from "@server/services/job-pdf-upload";
+import { createTailoredCvCandidate } from "@server/services/tailored-cv-candidate";
 import { getSafeInlineJobDocumentMediaType } from "@shared/job-document-classification.js";
 import { type Request, type Response, Router } from "express";
 import {
@@ -406,6 +408,24 @@ jobsDocumentsRouter.delete(
       fail(res, err);
     }
   },
+);
+
+jobsDocumentsRouter.post(
+  "/:id/tailored-cv-candidate",
+  asyncRoute(async (req: Request, res: Response) => {
+    const job = await requireJob(req.params.id);
+    const designResume = await requireCurrentDesignResume();
+    const candidate = createTailoredCvCandidate({ job, designResume });
+
+    logger.info("Tailored CV candidate preview created", {
+      route: "POST /api/jobs/:id/tailored-cv-candidate",
+      jobId: job.id,
+      designResumeDocumentId: candidate.provenance.designResumeDocumentId,
+      designResumeRevision: candidate.provenance.designResumeRevision,
+      candidateInputHash: candidate.provenance.inputHash,
+    });
+    ok(res, candidate);
+  }),
 );
 
 jobsDocumentsRouter.post(

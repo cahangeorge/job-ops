@@ -8,6 +8,7 @@ const repo = vi.hoisted(() => ({
   getDesignResumeAssetByIdAnyTenant: vi.fn(),
   listDesignResumeAssets: vi.fn(),
   upsertDesignResumeDocument: vi.fn(),
+  updateDesignResumeDocumentIfRevision: vi.fn(),
   insertDesignResumeAsset: vi.fn(),
   deleteDesignResumeAssetsForDocument: vi.fn(),
   findDesignResumeAssetForDocument: vi.fn(),
@@ -118,6 +119,14 @@ describe("design resume service", () => {
         createdAt: "2026-04-07T00:00:00.000Z",
       }),
     );
+    repo.updateDesignResumeDocumentIfRevision.mockImplementation(
+      async (input) =>
+        makeDocumentRow({
+          ...input,
+          revision: input.revision,
+          createdAt: "2026-04-07T00:00:00.000Z",
+        }),
+    );
     repo.findDesignResumeAssetForDocument.mockResolvedValue(null);
     repo.insertDesignResumeAsset.mockResolvedValue({ id: "asset-1" });
     vi.mocked(getConfiguredRxResumeBaseResumeId).mockResolvedValue({
@@ -146,6 +155,55 @@ describe("design resume service", () => {
         ],
       }),
     ).rejects.toThrow("Invalid array patch path");
+  });
+
+  it("allows exactly one concurrent update from the same base revision", async () => {
+    let persistedRevision = 1;
+    repo.updateDesignResumeDocumentIfRevision.mockImplementation(
+      async (input) => {
+        if (input.expectedRevision !== persistedRevision) return null;
+        persistedRevision = input.revision;
+        return makeDocumentRow({
+          ...input,
+          revision: input.revision,
+          createdAt: "2026-04-07T00:00:00.000Z",
+        });
+      },
+    );
+
+    const document = makeValidResumeJson();
+    const results = await Promise.allSettled([
+      updateCurrentDesignResume({ baseRevision: 1, document }),
+      updateCurrentDesignResume({ baseRevision: 1, document }),
+    ]);
+
+    expect(
+      results.filter((result) => result.status === "fulfilled"),
+    ).toHaveLength(1);
+    expect(
+      results.filter((result) => result.status === "rejected"),
+    ).toHaveLength(1);
+    expect(persistedRevision).toBe(2);
+    expect(repo.updateDesignResumeDocumentIfRevision).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects an update when the persisted tenant-scoped revision changes before its write", async () => {
+    repo.updateDesignResumeDocumentIfRevision.mockResolvedValueOnce(null);
+
+    await expect(
+      updateCurrentDesignResume({
+        baseRevision: 1,
+        document: makeValidResumeJson(),
+      }),
+    ).rejects.toMatchObject({ status: 409, code: "CONFLICT" });
+
+    expect(repo.updateDesignResumeDocumentIfRevision).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "primary",
+        expectedRevision: 1,
+        revision: 2,
+      }),
+    );
   });
 
   it("uses a tenant-scoped design resume id on first import for a tenant", async () => {
@@ -608,7 +666,7 @@ describe("design resume service", () => {
       document: editedDraft,
     });
 
-    expect(repo.upsertDesignResumeDocument).toHaveBeenCalledWith(
+    expect(repo.updateDesignResumeDocumentIfRevision).toHaveBeenCalledWith(
       expect.objectContaining({
         resumeJson: expect.objectContaining({
           summary: expect.objectContaining({
@@ -638,7 +696,7 @@ describe("design resume service", () => {
         mimeType: "image/webp",
       }),
     );
-    expect(repo.upsertDesignResumeDocument).toHaveBeenCalledWith(
+    expect(repo.updateDesignResumeDocumentIfRevision).toHaveBeenCalledWith(
       expect.objectContaining({
         resumeJson: expect.objectContaining({
           picture: expect.objectContaining({

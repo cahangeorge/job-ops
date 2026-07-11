@@ -389,6 +389,25 @@ export interface DesignResumePdfResponse {
   generatedAt: string;
 }
 
+export interface TailoredCvCandidateProvenance {
+  version: "v1";
+  jobId: string;
+  jobUpdatedAt: string;
+  jobDescriptionHash: string;
+  designResumeDocumentId: string;
+  designResumeRevision: number;
+  inputHash: string;
+}
+
+/**
+ * An in-memory tailored CV preview. No candidate record is persisted.
+ */
+export interface TailoredCvCandidate {
+  resumeJson: DesignResumeJson;
+  selectedProjectIds: string[];
+  provenance: TailoredCvCandidateProvenance;
+}
+
 export type DesignResumeAiFieldValueType =
   | "plain_text"
   | "html"

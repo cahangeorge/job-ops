@@ -760,7 +760,9 @@ async function localizeImportedDesignResumePicture(
 }
 
 export async function updateCurrentDesignResume(
-  input: DesignResumePatchRequest,
+  input: DesignResumePatchRequest & {
+    expectedJob?: { id: string; updatedAt: string };
+  },
 ): Promise<DesignResumeDocument> {
   const current = await requireCurrentDesignResume();
   if (current.revision !== input.baseRevision) {
@@ -788,8 +790,9 @@ export async function updateCurrentDesignResume(
   }
 
   const now = new Date().toISOString();
-  const saved = await designResumeRepo.upsertDesignResumeDocument({
+  const saved = await designResumeRepo.updateDesignResumeDocumentIfRevision({
     id: current.id,
+    expectedRevision: input.baseRevision,
     title: buildDocumentTitle(nextDocument),
     resumeJson: nextDocument,
     revision: current.revision + 1,
@@ -797,7 +800,12 @@ export async function updateCurrentDesignResume(
     sourceMode: current.sourceMode,
     importedAt: current.importedAt,
     updatedAt: now,
+    expectedJob: input.expectedJob,
   });
+
+  if (!saved) {
+    throw conflict("Resume Studio has changed. Refresh and try again.");
+  }
 
   return (await hydrateDocument(saved)) as DesignResumeDocument;
 }

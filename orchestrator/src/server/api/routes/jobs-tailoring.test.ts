@@ -1,4 +1,7 @@
 import type { Server } from "node:http";
+import { buildDefaultReactiveResumeDocument } from "@server/services/rxresume/document";
+import { parseV5ResumeData } from "@server/services/rxresume/schema/v5";
+import type { DesignResumeJson } from "@shared/types";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { startServer, stopServer } from "./test-utils";
 
@@ -45,6 +48,31 @@ describe.sequential("Jobs tailoring PATCH route", () => {
       throw new Error("Expected manual job import to return job id");
     }
     return jobId;
+  }
+
+  async function seedDesignResume(): Promise<void> {
+    const { replaceCurrentDesignResumeDocument } = await import(
+      "@server/services/design-resume"
+    );
+    const resumeJson = parseV5ResumeData(
+      buildDefaultReactiveResumeDocument(),
+    ) as DesignResumeJson;
+    resumeJson.sections.projects.items = [
+      {
+        id: "project-1",
+        hidden: false,
+        name: "Candidate project",
+        period: "2025",
+        website: { label: "", url: "" },
+        description: "Built a reliable service.",
+      },
+    ];
+
+    await replaceCurrentDesignResumeDocument({
+      resumeJson,
+      sourceResumeId: null,
+      sourceMode: "v5",
+    });
   }
 
   it("accepts tailoredHeadline and tailoredSkills when JSON shape is valid", async () => {
@@ -102,5 +130,208 @@ describe.sequential("Jobs tailoring PATCH route", () => {
 
     expect(body.ok).toBe(false);
     expect(body.error?.message || "").toContain("JSON array");
+  });
+
+  it("returns a tenant-scoped tailored CV preview without regenerating a PDF", async () => {
+    const jobId = await createManualJobId();
+    await seedDesignResume();
+
+    const saved = await fetch(`${baseUrl}/api/jobs/${jobId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Connection: "close" },
+      body: JSON.stringify({
+        tailoredSummary: "Tailored for the backend role.",
+        tailoredHeadline: "Platform Engineer",
+        tailoredSkills: JSON.stringify([
+          { name: "Backend", keywords: ["TypeScript", "Node.js"] },
+        ]),
+        selectedProjectIds: "project-1",
+      }),
+    });
+    expect(saved.status).toBe(200);
+
+    const response = await fetch(
+      `${baseUrl}/api/jobs/${jobId}/tailored-cv-candidate`,
+      {
+        method: "POST",
+        headers: { Connection: "close" },
+      },
+    );
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      ok: boolean;
+      data?: {
+        selectedProjectIds: string[];
+        provenance: {
+          jobUpdatedAt: string;
+          designResumeDocumentId: string;
+          designResumeRevision: number;
+          inputHash: string;
+        };
+        resumeJson: {
+          basics: { headline: string };
+          summary: { content: string };
+          sections: { projects: { items: Array<{ hidden: boolean }> } };
+        };
+      };
+    };
+
+    expect(body.ok).toBe(true);
+    expect(body.data).toMatchObject({
+      selectedProjectIds: ["project-1"],
+      provenance: {
+        jobUpdatedAt: expect.any(String),
+        designResumeDocumentId: expect.stringContaining("primary"),
+        designResumeRevision: 1,
+        inputHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+      },
+      resumeJson: {
+        basics: { headline: "Platform Engineer" },
+        summary: { content: "Tailored for the backend role." },
+      },
+    });
+    expect(body.data?.resumeJson.sections.projects.items[0]?.hidden).toBe(
+      false,
+    );
+  });
+
+  it("returns 409 when applying a candidate based on a stale Resume Studio revision", async () => {
+    const jobId = await createManualJobId();
+    await seedDesignResume();
+
+    const previewResponse = await fetch(
+      `${baseUrl}/api/jobs/${jobId}/tailored-cv-candidate`,
+      { method: "POST", headers: { Connection: "close" } },
+    );
+    const preview = (await previewResponse.json()) as {
+      data: Record<string, unknown>;
+    };
+
+    const resumeResponse = await fetch(`${baseUrl}/api/design-resume`, {
+      headers: { Connection: "close" },
+    });
+    const resume = (await resumeResponse.json()) as {
+      data: { revision: number; resumeJson: Record<string, unknown> };
+    };
+    const updatedResume = await fetch(`${baseUrl}/api/design-resume`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Connection: "close" },
+      body: JSON.stringify({
+        baseRevision: resume.data.revision,
+        document: resume.data.resumeJson,
+      }),
+    });
+    expect(updatedResume.status).toBe(200);
+
+    const applyResponse = await fetch(
+      `${baseUrl}/api/jobs/${jobId}/tailored-cv-candidate/apply`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Connection: "close" },
+        body: JSON.stringify(preview.data),
+      },
+    );
+
+    expect(applyResponse.status).toBe(409);
+    await expect(applyResponse.json()).resolves.toMatchObject({
+      ok: false,
+      error: { code: "CONFLICT" },
+    });
+  });
+
+  it("returns 409 without writing the resume when the job changes after preview", async () => {
+    const jobId = await createManualJobId();
+    await seedDesignResume();
+
+    const previewResponse = await fetch(
+      `${baseUrl}/api/jobs/${jobId}/tailored-cv-candidate`,
+      { method: "POST", headers: { Connection: "close" } },
+    );
+    expect(previewResponse.status).toBe(200);
+    const preview = (await previewResponse.json()) as {
+      data: Record<string, unknown>;
+    };
+
+    const jobUpdate = await fetch(`${baseUrl}/api/jobs/${jobId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Connection: "close" },
+      body: JSON.stringify({ tailoredHeadline: "Changed after preview" }),
+    });
+    expect(jobUpdate.status).toBe(200);
+
+    const applyResponse = await fetch(
+      `${baseUrl}/api/jobs/${jobId}/tailored-cv-candidate/apply`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Connection: "close" },
+        body: JSON.stringify(preview.data),
+      },
+    );
+    expect(applyResponse.status).toBe(409);
+
+    const resumeResponse = await fetch(`${baseUrl}/api/design-resume`, {
+      headers: { Connection: "close" },
+    });
+    const resume = (await resumeResponse.json()) as {
+      data: { revision: number };
+    };
+    expect(resume.data.revision).toBe(1);
+  });
+
+  it("allows only one concurrent candidate apply for the same Resume Studio revision", async () => {
+    const jobId = await createManualJobId();
+    await seedDesignResume();
+
+    const saved = await fetch(`${baseUrl}/api/jobs/${jobId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Connection: "close" },
+      body: JSON.stringify({
+        tailoredHeadline: "Platform Engineer",
+        tailoredSummary: "Tailored for concurrent update protection.",
+      }),
+    });
+    expect(saved.status).toBe(200);
+
+    const previewResponse = await fetch(
+      `${baseUrl}/api/jobs/${jobId}/tailored-cv-candidate`,
+      { method: "POST", headers: { Connection: "close" } },
+    );
+    expect(previewResponse.status).toBe(200);
+    const preview = (await previewResponse.json()) as {
+      data: Record<string, unknown>;
+    };
+
+    const apply = () =>
+      fetch(`${baseUrl}/api/jobs/${jobId}/tailored-cv-candidate/apply`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Connection: "close" },
+        body: JSON.stringify(preview.data),
+      });
+    const applyResponses = await Promise.all([apply(), apply()]);
+
+    expect(applyResponses.map((response) => response.status).sort()).toEqual([
+      200, 409,
+    ]);
+
+    const resumeResponse = await fetch(`${baseUrl}/api/design-resume`, {
+      headers: { Connection: "close" },
+    });
+    const resume = (await resumeResponse.json()) as {
+      data: {
+        revision: number;
+        resumeJson: {
+          basics: { headline: string };
+          summary: { content: string };
+        };
+      };
+    };
+    expect(resume.data).toMatchObject({
+      revision: 2,
+      resumeJson: {
+        basics: { headline: "Platform Engineer" },
+        summary: { content: "Tailored for concurrent update protection." },
+      },
+    });
   });
 });

@@ -1,8 +1,8 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, exists, sql } from "drizzle-orm";
 import { db, schema } from "../db/index";
 import { getActiveTenantId } from "../tenancy/context";
 
-const { designResumeAssets, designResumeDocuments } = schema;
+const { designResumeAssets, designResumeDocuments, jobs } = schema;
 
 export async function getLatestDesignResumeDocument() {
   const tenantId = getActiveTenantId();
@@ -114,6 +114,66 @@ export async function upsertDesignResumeDocument(input: {
     });
   }
 
+  return getDesignResumeDocumentById(input.id);
+}
+
+/**
+ * Replaces a document only when the tenant-scoped persisted revision still
+ * matches the revision the caller read. This is the write boundary for
+ * Resume Studio optimistic concurrency control.
+ */
+export async function updateDesignResumeDocumentIfRevision(input: {
+  id: string;
+  expectedRevision: number;
+  title: string;
+  resumeJson: Record<string, unknown>;
+  revision: number;
+  sourceResumeId: string | null;
+  sourceMode: string | null;
+  importedAt: string | null;
+  updatedAt: string;
+  expectedJob?: {
+    id: string;
+    updatedAt: string;
+  };
+}) {
+  const tenantId = getActiveTenantId();
+  const result = await db
+    .update(designResumeDocuments)
+    .set({
+      title: input.title,
+      resumeJson: input.resumeJson,
+      revision: input.revision,
+      sourceResumeId: input.sourceResumeId,
+      sourceMode: input.sourceMode,
+      importedAt: input.importedAt,
+      updatedAt: input.updatedAt,
+    })
+    .where(
+      and(
+        eq(designResumeDocuments.tenantId, tenantId),
+        eq(designResumeDocuments.id, input.id),
+        eq(designResumeDocuments.revision, input.expectedRevision),
+        ...(input.expectedJob
+          ? [
+              exists(
+                db
+                  .select({ value: sql`1` })
+                  .from(jobs)
+                  .where(
+                    and(
+                      eq(jobs.tenantId, tenantId),
+                      eq(jobs.id, input.expectedJob.id),
+                      eq(jobs.updatedAt, input.expectedJob.updatedAt),
+                    ),
+                  ),
+              ),
+            ]
+          : []),
+      ),
+    );
+
+  if (result.changes !== 1) return null;
   return getDesignResumeDocumentById(input.id);
 }
 

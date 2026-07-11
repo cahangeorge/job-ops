@@ -2,6 +2,7 @@ import type {
   ApplicationStage,
   ApplicationTask,
   CreateInterviewStoryInput,
+  DesignResumeDocument,
   InterviewStory,
   Job,
   JobActionRequest,
@@ -18,6 +19,7 @@ import type {
   StageEvent,
   StageEventMetadata,
   StageTransitionTarget,
+  TailoredCvCandidate,
   TracerAnalyticsResponse,
   TracerReadinessResponse,
   UpdateInterviewStoryInput,
@@ -362,6 +364,27 @@ export async function generateJobPdf(id: string): Promise<Job> {
   return fetchApi<Job>(`/jobs/${id}/generate-pdf`, {
     method: "POST",
   });
+}
+
+export async function previewTailoredCvCandidate(
+  id: string,
+): Promise<TailoredCvCandidate> {
+  return fetchApi<TailoredCvCandidate>(`/jobs/${id}/tailored-cv-candidate`, {
+    method: "POST",
+  });
+}
+
+export async function applyTailoredCvCandidate(
+  id: string,
+  candidate: TailoredCvCandidate,
+): Promise<DesignResumeDocument> {
+  return fetchApi<DesignResumeDocument>(
+    `/jobs/${id}/tailored-cv-candidate/apply`,
+    {
+      method: "POST",
+      body: JSON.stringify(candidate),
+    },
+  );
 }
 
 export async function checkSponsor(id: string): Promise<Job> {

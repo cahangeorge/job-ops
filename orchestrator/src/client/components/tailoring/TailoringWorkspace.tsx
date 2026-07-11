@@ -1,7 +1,7 @@
 import * as api from "@client/api";
 import { useProfile } from "@client/hooks/useProfile";
 import { useTracerReadiness } from "@client/hooks/useTracerReadiness";
-import type { Job } from "@shared/types.js";
+import type { Job, TailoredCvCandidate } from "@shared/types.js";
 import {
   Check,
   CircleAlert,
@@ -16,6 +16,13 @@ import { toast } from "sonner";
 import { formatUserFacingError } from "@/client/lib/error-format";
 import { showErrorToast } from "@/client/lib/error-toast";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Tooltip,
   TooltipContent,
@@ -166,6 +173,10 @@ export const TailoringWorkspace: React.FC<TailoringWorkspaceProps> = (
   const [generateTarget, setGenerateTarget] =
     useState<TailoringGenerateTarget | null>(null);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [isPreviewingCandidate, setIsPreviewingCandidate] = useState(false);
+  const [candidatePreview, setCandidatePreview] =
+    useState<TailoredCvCandidate | null>(null);
+  const [isApplyingCandidate, setIsApplyingCandidate] = useState(false);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveInFlightRef = useRef<Promise<void> | null>(null);
   const saveAgainRef = useRef(false);
@@ -445,6 +456,33 @@ export const TailoringWorkspace: React.FC<TailoringWorkspaceProps> = (
     }
   }, [props.onBeforeGenerate, props.onUpdate, flushAutosave, props.job.id]);
 
+  const handlePreviewCandidate = useCallback(async () => {
+    try {
+      setIsPreviewingCandidate(true);
+      await flushAutosave();
+      setCandidatePreview(await api.previewTailoredCvCandidate(props.job.id));
+    } catch (error) {
+      showErrorToast(error, "Tailored CV preview failed");
+    } finally {
+      setIsPreviewingCandidate(false);
+    }
+  }, [flushAutosave, props.job.id]);
+
+  const handleApplyCandidate = useCallback(async () => {
+    if (!candidatePreview) return;
+
+    try {
+      setIsApplyingCandidate(true);
+      await api.applyTailoredCvCandidate(props.job.id, candidatePreview);
+      setCandidatePreview(null);
+      toast.success("Tailored CV applied to Resume Studio");
+    } catch (error) {
+      showErrorToast(error, "Tailored CV apply failed");
+    } finally {
+      setIsApplyingCandidate(false);
+    }
+  }, [candidatePreview, props.job.id]);
+
   const handleUndoSummary = useCallback(() => {
     setSummary(originalValues.summary);
   }, [originalValues.summary, setSummary]);
@@ -471,7 +509,11 @@ export const TailoringWorkspace: React.FC<TailoringWorkspaceProps> = (
     );
   }, [aiBaseline.skillsJson, setSkillsDraft]);
 
-  const disableInputs = Boolean(generateTarget) || isGeneratingPdf;
+  const disableInputs =
+    Boolean(generateTarget) ||
+    isGeneratingPdf ||
+    isPreviewingCandidate ||
+    isApplyingCandidate;
   const isDraftReady = textHasValue(summary) && textHasValue(headline);
 
   const tailoringSectionsProps = useMemo<TailoringSectionsProps>(
@@ -604,7 +646,7 @@ export const TailoringWorkspace: React.FC<TailoringWorkspaceProps> = (
           <AutosaveStatusIcon status={autosaveStatus} />
         </div>
 
-        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
+        <div className="grid gap-2 sm:grid-cols-3 xl:grid-cols-1">
           <Button
             onClick={handleSummarizeEditor}
             disabled={Boolean(generateTarget) || isGeneratingPdf}
@@ -617,6 +659,24 @@ export const TailoringWorkspace: React.FC<TailoringWorkspaceProps> = (
               <RefreshCcw className="h-4 w-4" />
             )}
             Generate all
+          </Button>
+          <Button
+            onClick={handlePreviewCandidate}
+            disabled={
+              Boolean(generateTarget) ||
+              isGeneratingPdf ||
+              isPreviewingCandidate ||
+              !isDraftReady
+            }
+            variant="outline"
+            size="sm"
+          >
+            {isPreviewingCandidate ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <FileText className="h-4 w-4" />
+            )}
+            Preview CV
           </Button>
           <Button
             onClick={handleGeneratePdf}
@@ -636,6 +696,58 @@ export const TailoringWorkspace: React.FC<TailoringWorkspaceProps> = (
       </div>
 
       <TailoringSections {...tailoringSectionsProps} />
+
+      <Dialog
+        open={candidatePreview !== null}
+        onOpenChange={(open) => {
+          if (!open) setCandidatePreview(null);
+        }}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              {candidatePreview?.resumeJson.basics.headline || "Tailored CV"}
+            </DialogTitle>
+            <DialogDescription>
+              Preview from Resume Studio revision{" "}
+              {candidatePreview?.provenance.designResumeRevision}. No PDF was
+              generated.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 text-sm">
+            <p className="whitespace-pre-wrap text-muted-foreground">
+              {candidatePreview?.resumeJson.summary.content ||
+                "No tailored summary."}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Selected projects:{" "}
+              {candidatePreview?.selectedProjectIds.length ?? 0}
+            </p>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setCandidatePreview(null)}
+              disabled={isApplyingCandidate}
+            >
+              Keep editing
+            </Button>
+            <Button
+              type="button"
+              onClick={handleApplyCandidate}
+              disabled={isApplyingCandidate}
+            >
+              {isApplyingCandidate ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Check className="h-4 w-4" />
+              )}
+              Apply to Resume Studio
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

@@ -105,6 +105,15 @@ describe.sequential("Tenant isolation", () => {
     });
     expect(crossTenantJob.status).toBe(404);
 
+    const crossTenantTailoredCv = await fetch(
+      `${baseUrl}/api/jobs/${adminJob.id}/tailored-cv-candidate`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${adamToken}` },
+      },
+    );
+    expect(crossTenantTailoredCv.status).toBe(404);
+
     const pdfBytes = Buffer.from("%PDF-1.4\n%EOF\n").toString("base64");
     const uploadPdfRes = await fetch(`${baseUrl}/api/jobs/${adminJob.id}/pdf`, {
       method: "POST",
