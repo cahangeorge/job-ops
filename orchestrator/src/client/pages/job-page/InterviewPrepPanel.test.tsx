@@ -101,6 +101,33 @@ describe("InterviewPrepPanel", () => {
     expect(api.getInterviewStories).toHaveBeenCalledWith();
   });
 
+  it("records Story Bank usage and confirms a successful interview prep save", async () => {
+    const { queryClient } = renderPanel();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+    await screen.findByText("Scale incident");
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: /Use story Scale incident/i }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Save prep to notes" }));
+
+    await waitFor(() =>
+      expect(api.recordStoryUsage).toHaveBeenCalledWith({
+        storyId: "story-1",
+        jobId: "job-1",
+        usageKind: "interview_prep",
+        provenance: { noteId: "note-1" },
+      }),
+    );
+    await waitFor(() =>
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: queryKeys.storyBank.all,
+      }),
+    );
+    expect(toast.success).toHaveBeenCalledWith("Interview prep saved to notes");
+    expect(toast.warning).not.toHaveBeenCalled();
+  });
+
   it("saves the note and invalidates caches when Story Bank usage tracking fails", async () => {
     const { queryClient } = renderPanel();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
