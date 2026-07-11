@@ -187,9 +187,22 @@ export const InterviewPrepPanel: React.FC<InterviewPrepPanelProps> = ({ job }) =
           generatedPrep,
         }),
       }),
-    onSuccess: async () => {
+    onSuccess: async (note) => {
+      await Promise.all(
+        selectedStories.map((story) =>
+          api.recordStoryUsage({
+            storyId: story.id,
+            jobId: job.id,
+            usageKind: "interview_prep",
+            provenance: { noteId: note.id },
+          }),
+        ),
+      );
       await queryClient.invalidateQueries({
         queryKey: queryKeys.jobs.notes(job.id),
+      });
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.storyBank.all,
       });
       toast.success("Interview prep saved to notes");
     },

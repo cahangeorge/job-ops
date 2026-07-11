@@ -1,6 +1,7 @@
 import { createJob } from "@shared/testing/factories.js";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { queryKeys } from "@client/lib/queryKeys";
 import { renderWithQueryClient } from "@/client/test/renderWithQueryClient";
 import { InterviewPrepPanel } from "./InterviewPrepPanel";
 
@@ -8,6 +9,7 @@ vi.mock("@client/api", () => ({
   createJobNote: vi.fn(),
   generateInterviewPrep: vi.fn(),
   getInterviewStories: vi.fn(),
+  recordStoryUsage: vi.fn(),
 }));
 
 vi.mock("sonner", () => ({
@@ -75,6 +77,7 @@ describe("InterviewPrepPanel", () => {
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
     });
+    vi.mocked(api.recordStoryUsage).mockResolvedValue();
   });
 
   it("renders the job interview prep guidance and reusable Story Bank entries", async () => {
@@ -97,7 +100,8 @@ describe("InterviewPrepPanel", () => {
   });
 
   it("saves selected Story Bank entries into a job note", async () => {
-    renderPanel();
+    const { queryClient } = renderPanel();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
     await screen.findByText("Scale incident");
     fireEvent.click(
@@ -122,6 +126,17 @@ describe("InterviewPrepPanel", () => {
     expect(vi.mocked(api.createJobNote).mock.calls[0]?.[1]?.content).toContain(
       "Error rate dropped below 1%.",
     );
+    await waitFor(() =>
+      expect(api.recordStoryUsage).toHaveBeenCalledWith({
+        storyId: "story-1",
+        jobId: "job-1",
+        usageKind: "interview_prep",
+        provenance: { noteId: "note-1" },
+      }),
+    );
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: queryKeys.storyBank.all,
+    });
   });
 
   it("generates interview prep with AI, recommends stories, and saves generated outlines", async () => {
