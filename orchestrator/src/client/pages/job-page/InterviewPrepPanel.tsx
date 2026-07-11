@@ -130,7 +130,7 @@ export const InterviewPrepPanel: React.FC<InterviewPrepPanelProps> = ({ job }) =
 
   const storiesQuery = useQuery({
     queryKey: queryKeys.storyBank.list(),
-    queryFn: api.getInterviewStories,
+    queryFn: () => api.getInterviewStories(),
     staleTime: 30_000,
   });
 

@@ -88,6 +88,14 @@ describe("InterviewPrepPanel", () => {
     expect(screen.getByText(/Traffic spiked during launch/)).toBeInTheDocument();
   });
 
+  it("loads Story Bank stories without passing TanStack Query context as a filter", async () => {
+    renderPanel();
+
+    await screen.findByText("Scale incident");
+
+    expect(api.getInterviewStories).toHaveBeenCalledWith();
+  });
+
   it("saves selected Story Bank entries into a job note", async () => {
     renderPanel();
 
