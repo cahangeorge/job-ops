@@ -1,7 +1,8 @@
+import { queryKeys } from "@client/lib/queryKeys";
 import { createJob } from "@shared/testing/factories.js";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { queryKeys } from "@client/lib/queryKeys";
 import { renderWithQueryClient } from "@/client/test/renderWithQueryClient";
 import { InterviewPrepPanel } from "./InterviewPrepPanel";
 
@@ -16,6 +17,7 @@ vi.mock("sonner", () => ({
   toast: {
     success: vi.fn(),
     error: vi.fn(),
+    warning: vi.fn(),
   },
 }));
 
@@ -99,9 +101,12 @@ describe("InterviewPrepPanel", () => {
     expect(api.getInterviewStories).toHaveBeenCalledWith();
   });
 
-  it("saves selected Story Bank entries into a job note", async () => {
+  it("saves the note and invalidates caches when Story Bank usage tracking fails", async () => {
     const { queryClient } = renderPanel();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+    vi.mocked(api.recordStoryUsage).mockRejectedValue(
+      new Error("Usage tracking unavailable"),
+    );
 
     await screen.findByText("Scale incident");
     fireEvent.click(
@@ -134,9 +139,18 @@ describe("InterviewPrepPanel", () => {
         provenance: { noteId: "note-1" },
       }),
     );
+    await waitFor(() =>
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: queryKeys.jobs.notes("job-1"),
+      }),
+    );
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: queryKeys.storyBank.all,
     });
+    expect(toast.warning).toHaveBeenCalledWith(
+      "Interview prep saved to notes, but Story Bank usage tracking failed",
+    );
+    expect(toast.error).not.toHaveBeenCalled();
   });
 
   it("generates interview prep with AI, recommends stories, and saves generated outlines", async () => {

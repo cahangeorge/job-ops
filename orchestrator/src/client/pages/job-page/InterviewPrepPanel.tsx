@@ -188,7 +188,7 @@ export const InterviewPrepPanel: React.FC<InterviewPrepPanelProps> = ({ job }) =
         }),
       }),
     onSuccess: async (note) => {
-      await Promise.all(
+      const usageResults = await Promise.allSettled(
         selectedStories.map((story) =>
           api.recordStoryUsage({
             storyId: story.id,
@@ -204,6 +204,11 @@ export const InterviewPrepPanel: React.FC<InterviewPrepPanelProps> = ({ job }) =
       await queryClient.invalidateQueries({
         queryKey: queryKeys.storyBank.all,
       });
+      if (usageResults.some((result) => result.status === "rejected")) {
+        toast.warning(
+          "Interview prep saved to notes, but Story Bank usage tracking failed",
+        );
+      }
       toast.success("Interview prep saved to notes");
     },
     onError: (error) => {
