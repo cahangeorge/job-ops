@@ -9,6 +9,17 @@ import { buildDefaultReactiveResumeDocument } from "./rxresume/document";
 import { parseV5ResumeData } from "./rxresume/schema/v5";
 import { createTailoredCvCandidate } from "./tailored-cv-candidate";
 
+const template = {
+  id: "design-resume-v5",
+  version: "5",
+  variables: [
+    "basics.headline",
+    "summary.content",
+    "sections.skills.items",
+    "sections.projects.items",
+  ],
+} as const;
+
 type CandidateJob = Pick<
   Job,
   | "id"
@@ -22,7 +33,7 @@ type CandidateJob = Pick<
 
 type CandidateDesignResume = Pick<
   DesignResumeDocument,
-  "id" | "revision" | "resumeJson"
+  "id" | "revision" | "resumeJson" | "sourceMode"
 >;
 
 function makeCandidateJob(overrides: Partial<CandidateJob> = {}): CandidateJob {
@@ -76,7 +87,7 @@ function makeDesignResume(): CandidateDesignResume {
     },
   ];
 
-  return { id: "resume-primary", revision: 7, resumeJson };
+  return { id: "resume-primary", revision: 7, resumeJson, sourceMode: "v5" };
 }
 
 describe("createTailoredCvCandidate", () => {
@@ -85,6 +96,14 @@ describe("createTailoredCvCandidate", () => {
     const candidate = createTailoredCvCandidate({
       job: makeCandidateJob(),
       designResume,
+      template,
+      selectedStoryProofPoints: [
+        {
+          id: "story-1",
+          excerpt: "Scaled the platform and cut latency.",
+          hash: "c".repeat(64),
+        },
+      ],
     });
 
     expect(candidate.provenance).toEqual({
@@ -96,11 +115,22 @@ describe("createTailoredCvCandidate", () => {
         .digest("hex"),
       designResumeDocumentId: "resume-primary",
       designResumeRevision: 7,
+      template,
+      selectedStoryIds: ["story-1"],
+      selectedStoryProofPoints: [
+        {
+          id: "story-1",
+          excerpt: "Scaled the platform and cut latency.",
+          hash: "c".repeat(64),
+        },
+      ],
       inputHash: expect.any(String),
     });
     expect(candidate.selectedProjectIds).toEqual(["project-a", "project-b"]);
     expect(candidate.resumeJson.basics.headline).toBe("Platform Engineer");
-    expect(candidate.resumeJson.summary.content).toBe("Tailored summary");
+    expect(candidate.resumeJson.summary.content).toBe(
+      "Tailored summary<p><strong>Selected proof points</strong></p><ul><li>Scaled the platform and cut latency.</li></ul>",
+    );
     expect(candidate.resumeJson.sections.projects.items).toEqual([
       expect.objectContaining({ id: "project-a", hidden: false }),
       expect.objectContaining({ id: "project-b", hidden: false }),
@@ -114,6 +144,34 @@ describe("createTailoredCvCandidate", () => {
     expect(designResume.resumeJson.basics.headline).toBe("Base headline");
   });
 
+  it("adds selected Story Bank proof points to the rendered v5 summary", () => {
+    const withoutProofPoints = createTailoredCvCandidate({
+      job: makeCandidateJob(),
+      designResume: makeDesignResume(),
+      template,
+      selectedStoryProofPoints: [],
+    });
+    const withProofPoints = createTailoredCvCandidate({
+      job: makeCandidateJob(),
+      designResume: makeDesignResume(),
+      template,
+      selectedStoryProofPoints: [
+        {
+          id: "story-1",
+          excerpt: "Scaled the platform and cut latency.",
+          hash: "c".repeat(64),
+        },
+      ],
+    });
+
+    expect(withoutProofPoints.resumeJson.summary.content).toBe(
+      "Tailored summary",
+    );
+    expect(withProofPoints.resumeJson.summary.content).toBe(
+      "Tailored summary<p><strong>Selected proof points</strong></p><ul><li>Scaled the platform and cut latency.</li></ul>",
+    );
+  });
+
   it("rejects project selections that are absent from the snapped Design Resume", () => {
     expect(() =>
       createTailoredCvCandidate({
@@ -124,6 +182,8 @@ describe("createTailoredCvCandidate", () => {
           tailoredSummary: null,
         }),
         designResume: makeDesignResume(),
+        template,
+        selectedStoryProofPoints: [],
       }),
     ).toThrow("Unknown selected project IDs: missing-project");
   });
@@ -135,7 +195,20 @@ describe("createTailoredCvCandidate", () => {
           tailoredSkills: JSON.stringify([{ name: "Backend", keywords: [] }]),
         }),
         designResume: makeDesignResume(),
+        template,
+        selectedStoryProofPoints: [],
       }),
     ).toThrow("Tailored skill groups require a name and at least one keyword");
+  });
+
+  it("rejects an unsupported template contract", () => {
+    expect(() =>
+      createTailoredCvCandidate({
+        job: makeCandidateJob(),
+        designResume: makeDesignResume(),
+        template: { ...template, version: "4" } as never,
+        selectedStoryProofPoints: [],
+      }),
+    ).toThrow("Unsupported Tailored CV template contract");
   });
 });

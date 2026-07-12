@@ -11,9 +11,13 @@ import type {
   DesignResumeJson,
   Job,
   TailoredCvCandidate,
+  TailoredCvStoryProofPoint,
+  TailoredCvTemplateContract,
 } from "@shared/types";
 
 const TAILORED_CV_CANDIDATE_VERSION = "v1";
+const MAX_SELECTED_STORY_PROOF_POINTS = 20;
+const MAX_STORY_PROOF_POINT_EXCERPT_LENGTH = 360;
 
 type CandidateJob = Pick<
   Job,
@@ -28,11 +32,76 @@ type CandidateJob = Pick<
 
 type CandidateDesignResume = Pick<
   DesignResumeDocument,
-  "id" | "revision" | "resumeJson"
+  "id" | "revision" | "resumeJson" | "sourceMode"
 >;
+
+const DESIGN_RESUME_V5_TEMPLATE: TailoredCvTemplateContract = {
+  id: "design-resume-v5",
+  version: "5",
+  variables: [
+    "basics.headline",
+    "summary.content",
+    "sections.skills.items",
+    "sections.projects.items",
+  ],
+};
+
+function isDesignResumeV5Template(
+  template: TailoredCvTemplateContract,
+): boolean {
+  return (
+    template.id === DESIGN_RESUME_V5_TEMPLATE.id &&
+    template.version === DESIGN_RESUME_V5_TEMPLATE.version &&
+    template.variables.length === DESIGN_RESUME_V5_TEMPLATE.variables.length &&
+    template.variables.every(
+      (variable, index) =>
+        variable === DESIGN_RESUME_V5_TEMPLATE.variables[index],
+    )
+  );
+}
+
+function requireTemplateVariables(resumeJson: DesignResumeJson) {
+  if (
+    !resumeJson.basics ||
+    typeof resumeJson.basics.headline !== "string" ||
+    !resumeJson.summary ||
+    typeof resumeJson.summary.content !== "string" ||
+    !Array.isArray(resumeJson.sections?.skills?.items) ||
+    !Array.isArray(resumeJson.sections?.projects?.items)
+  ) {
+    throw badRequest(
+      "Design Resume v5 is missing required Tailored CV template variables.",
+    );
+  }
+}
 
 function sha256(value: string): string {
   return createHash("sha256").update(value).digest("hex");
+}
+
+function escapeHtmlText(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function appendSelectedStoryProofPoints(
+  resumeJson: DesignResumeJson,
+  proofPoints: TailoredCvStoryProofPoint[],
+): void {
+  const items = proofPoints
+    .slice(0, MAX_SELECTED_STORY_PROOF_POINTS)
+    .map((proofPoint) =>
+      proofPoint.excerpt.trim().slice(0, MAX_STORY_PROOF_POINT_EXCERPT_LENGTH),
+    )
+    .filter(Boolean)
+    .map((excerpt) => `<li>${escapeHtmlText(excerpt)}</li>`);
+  if (items.length === 0) return;
+
+  resumeJson.summary.content += `<p><strong>Selected proof points</strong></p><ul>${items.join("")}</ul>`;
 }
 
 function stableStringify(value: unknown): string {
@@ -107,10 +176,19 @@ function parseTailoredSkills(value: string | null): Array<{
 export function createTailoredCvCandidate(args: {
   job: CandidateJob;
   designResume: CandidateDesignResume;
+  template: TailoredCvTemplateContract;
+  selectedStoryProofPoints: TailoredCvStoryProofPoint[];
 }): TailoredCvCandidate {
+  if (
+    args.designResume.sourceMode !== "v5" ||
+    !isDesignResumeV5Template(args.template)
+  ) {
+    throw badRequest("Unsupported Tailored CV template contract.");
+  }
   const resumeJson = cloneResumeData(
     args.designResume.resumeJson,
   ) as DesignResumeJson;
+  requireTemplateVariables(resumeJson);
   const tailoredSkills = parseTailoredSkills(args.job.tailoredSkills);
   const { catalog } = extractProjectsFromResume(resumeJson);
   const availableProjectIds = new Set(catalog.map((project) => project.id));
@@ -142,6 +220,7 @@ export function createTailoredCvCandidate(args: {
       skills: tailoredSkills,
     },
   });
+  appendSelectedStoryProofPoints(resumeJson, args.selectedStoryProofPoints);
   applyProjectVisibility({
     resumeData: resumeJson,
     selectedProjectIds: new Set(selectedProjectIds),
@@ -163,6 +242,8 @@ export function createTailoredCvCandidate(args: {
       revision: args.designResume.revision,
       resumeJson: args.designResume.resumeJson,
     },
+    template: args.template,
+    selectedStoryProofPoints: args.selectedStoryProofPoints,
   };
 
   return {
@@ -175,6 +256,9 @@ export function createTailoredCvCandidate(args: {
       jobDescriptionHash: sha256(args.job.jobDescription ?? ""),
       designResumeDocumentId: args.designResume.id,
       designResumeRevision: args.designResume.revision,
+      template: args.template,
+      selectedStoryIds: args.selectedStoryProofPoints.map((story) => story.id),
+      selectedStoryProofPoints: args.selectedStoryProofPoints,
       inputHash: sha256(stableStringify(provenanceInput)),
     },
   };

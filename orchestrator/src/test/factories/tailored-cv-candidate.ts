@@ -21,6 +21,18 @@ export function makeTailoredCvCandidate(
       jobDescriptionHash: "a".repeat(64),
       designResumeDocumentId: "resume-1",
       designResumeRevision: 3,
+      template: {
+        id: "design-resume-v5",
+        version: "5",
+        variables: [
+          "basics.headline",
+          "summary.content",
+          "sections.skills.items",
+          "sections.projects.items",
+        ],
+      },
+      selectedStoryIds: [],
+      selectedStoryProofPoints: [],
       inputHash: "b".repeat(64),
     },
     ...overrides,

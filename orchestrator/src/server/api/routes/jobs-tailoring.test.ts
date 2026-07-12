@@ -11,6 +11,20 @@ describe.sequential("Jobs tailoring PATCH route", () => {
   let closeDb: () => void;
   let tempDir: string;
 
+  const tailoredCvPreviewRequest = {
+    storyIds: [],
+    template: {
+      id: "design-resume-v5",
+      version: "5",
+      variables: [
+        "basics.headline",
+        "summary.content",
+        "sections.skills.items",
+        "sections.projects.items",
+      ],
+    },
+  };
+
   beforeEach(async () => {
     ({ server, baseUrl, closeDb, tempDir } = await startServer());
   });
@@ -132,6 +146,38 @@ describe.sequential("Jobs tailoring PATCH route", () => {
     expect(body.error?.message || "").toContain("JSON array");
   });
 
+  it("rejects missing or unknown Story Bank proof points and template contracts", async () => {
+    const jobId = await createManualJobId();
+    await seedDesignResume();
+
+    const missingTemplate = await fetch(
+      `${baseUrl}/api/jobs/${jobId}/tailored-cv-candidate`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Connection: "close" },
+        body: JSON.stringify({ storyIds: [] }),
+      },
+    );
+    expect(missingTemplate.status).toBe(400);
+
+    const unknownStory = await fetch(
+      `${baseUrl}/api/jobs/${jobId}/tailored-cv-candidate`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Connection: "close" },
+        body: JSON.stringify({
+          ...tailoredCvPreviewRequest,
+          storyIds: ["7d7b1744-4e0f-4174-9d30-31d85d66f5b9"],
+        }),
+      },
+    );
+    expect(unknownStory.status).toBe(400);
+    await expect(unknownStory.json()).resolves.toMatchObject({
+      ok: false,
+      error: { code: "INVALID_REQUEST" },
+    });
+  });
+
   it("returns a tenant-scoped tailored CV preview without regenerating a PDF", async () => {
     const jobId = await createManualJobId();
     await seedDesignResume();
@@ -154,7 +200,8 @@ describe.sequential("Jobs tailoring PATCH route", () => {
       `${baseUrl}/api/jobs/${jobId}/tailored-cv-candidate`,
       {
         method: "POST",
-        headers: { Connection: "close" },
+        headers: { "Content-Type": "application/json", Connection: "close" },
+        body: JSON.stringify(tailoredCvPreviewRequest),
       },
     );
 
@@ -202,7 +249,11 @@ describe.sequential("Jobs tailoring PATCH route", () => {
 
     const previewResponse = await fetch(
       `${baseUrl}/api/jobs/${jobId}/tailored-cv-candidate`,
-      { method: "POST", headers: { Connection: "close" } },
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Connection: "close" },
+        body: JSON.stringify(tailoredCvPreviewRequest),
+      },
     );
     const preview = (await previewResponse.json()) as {
       data: Record<string, unknown>;
@@ -246,7 +297,11 @@ describe.sequential("Jobs tailoring PATCH route", () => {
 
     const previewResponse = await fetch(
       `${baseUrl}/api/jobs/${jobId}/tailored-cv-candidate`,
-      { method: "POST", headers: { Connection: "close" } },
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Connection: "close" },
+        body: JSON.stringify(tailoredCvPreviewRequest),
+      },
     );
     expect(previewResponse.status).toBe(200);
     const preview = (await previewResponse.json()) as {
@@ -295,7 +350,11 @@ describe.sequential("Jobs tailoring PATCH route", () => {
 
     const previewResponse = await fetch(
       `${baseUrl}/api/jobs/${jobId}/tailored-cv-candidate`,
-      { method: "POST", headers: { Connection: "close" } },
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Connection: "close" },
+        body: JSON.stringify(tailoredCvPreviewRequest),
+      },
     );
     expect(previewResponse.status).toBe(200);
     const preview = (await previewResponse.json()) as {

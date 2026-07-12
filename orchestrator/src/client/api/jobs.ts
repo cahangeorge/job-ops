@@ -430,9 +430,14 @@ export async function generateJobPdf(id: string): Promise<Job> {
 
 export async function previewTailoredCvCandidate(
   id: string,
+  request: {
+    storyIds: string[];
+    template: TailoredCvCandidate["provenance"]["template"];
+  },
 ): Promise<TailoredCvCandidate> {
   return fetchApi<TailoredCvCandidate>(`/jobs/${id}/tailored-cv-candidate`, {
     method: "POST",
+    body: JSON.stringify(request),
   });
 }
 

@@ -389,6 +389,23 @@ export interface DesignResumePdfResponse {
   generatedAt: string;
 }
 
+export interface TailoredCvTemplateContract {
+  id: "design-resume-v5";
+  version: "5";
+  variables: readonly [
+    "basics.headline",
+    "summary.content",
+    "sections.skills.items",
+    "sections.projects.items",
+  ];
+}
+
+export interface TailoredCvStoryProofPoint {
+  id: string;
+  excerpt: string;
+  hash: string;
+}
+
 export interface TailoredCvCandidateProvenance {
   version: "v1";
   jobId: string;
@@ -396,6 +413,9 @@ export interface TailoredCvCandidateProvenance {
   jobDescriptionHash: string;
   designResumeDocumentId: string;
   designResumeRevision: number;
+  template: TailoredCvTemplateContract;
+  selectedStoryIds: string[];
+  selectedStoryProofPoints: TailoredCvStoryProofPoint[];
   inputHash: string;
 }
 

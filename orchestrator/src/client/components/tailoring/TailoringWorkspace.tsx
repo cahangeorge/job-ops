@@ -1,7 +1,11 @@
 import * as api from "@client/api";
 import { useProfile } from "@client/hooks/useProfile";
 import { useTracerReadiness } from "@client/hooks/useTracerReadiness";
-import type { Job, TailoredCvCandidate } from "@shared/types.js";
+import type {
+  Job,
+  TailoredCvCandidate,
+  TailoredCvTemplateContract,
+} from "@shared/types.js";
 import {
   Check,
   CircleAlert,
@@ -68,6 +72,36 @@ interface TailoringBaseline {
 
 type AutosaveStatus = "saved" | "unsaved" | "saving" | "error";
 type TailoringGenerateTarget = "all" | "summary" | "headline" | "skills";
+
+const DESIGN_RESUME_V5_TEMPLATE: TailoredCvTemplateContract = {
+  id: "design-resume-v5",
+  version: "5",
+  variables: [
+    "basics.headline",
+    "summary.content",
+    "sections.skills.items",
+    "sections.projects.items",
+  ],
+};
+
+export const MAX_TAILORED_CV_PROOF_POINTS = 20;
+
+export function toggleTailoredCvProofPoint(
+  storyIds: string[],
+  storyId: string,
+): string[] {
+  if (storyIds.includes(storyId))
+    return storyIds.filter((id) => id !== storyId);
+  if (storyIds.length >= MAX_TAILORED_CV_PROOF_POINTS) return storyIds;
+  return [...storyIds, storyId].sort();
+}
+
+export function createTailoredCvPreviewRequest(storyIds: string[]) {
+  return {
+    storyIds: [...storyIds].sort(),
+    template: DESIGN_RESUME_V5_TEMPLATE,
+  };
+}
 
 const AutosaveStatusIcon: React.FC<{ status: AutosaveStatus }> = ({
   status,
@@ -176,6 +210,10 @@ export const TailoringWorkspace: React.FC<TailoringWorkspaceProps> = (
   const [isPreviewingCandidate, setIsPreviewingCandidate] = useState(false);
   const [candidatePreview, setCandidatePreview] =
     useState<TailoredCvCandidate | null>(null);
+  const [storyBankStories, setStoryBankStories] = useState<
+    Array<{ id: string; title: string; result: string }>
+  >([]);
+  const [selectedStoryIds, setSelectedStoryIds] = useState<string[]>([]);
   const [isApplyingCandidate, setIsApplyingCandidate] = useState(false);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveInFlightRef = useRef<Promise<void> | null>(null);
@@ -186,6 +224,35 @@ export const TailoringWorkspace: React.FC<TailoringWorkspaceProps> = (
   const { profile, error: profileError } = useProfile();
   const { readiness: tracerReadiness, isChecking: isTracerReadinessChecking } =
     useTracerReadiness();
+
+  useEffect(() => {
+    if (!props.job.id) return;
+    setCandidatePreview(null);
+    setSelectedStoryIds([]);
+  }, [props.job.id]);
+
+  useEffect(() => {
+    let active = true;
+    api
+      .getInterviewStories()
+      .then(({ stories }) => {
+        if (active) {
+          setStoryBankStories(
+            stories.map((story) => ({
+              id: story.id,
+              title: story.title,
+              result: story.result,
+            })),
+          );
+        }
+      })
+      .catch(() => {
+        if (active) setStoryBankStories([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const originalValues = useMemo(() => {
     const skillsDraft = toEditableSkillGroups(getOriginalSkills(profile));
@@ -460,13 +527,24 @@ export const TailoringWorkspace: React.FC<TailoringWorkspaceProps> = (
     try {
       setIsPreviewingCandidate(true);
       await flushAutosave();
-      setCandidatePreview(await api.previewTailoredCvCandidate(props.job.id));
+      setCandidatePreview(
+        await api.previewTailoredCvCandidate(props.job.id, {
+          ...createTailoredCvPreviewRequest(selectedStoryIds),
+        }),
+      );
     } catch (error) {
       showErrorToast(error, "Tailored CV preview failed");
     } finally {
       setIsPreviewingCandidate(false);
     }
-  }, [flushAutosave, props.job.id]);
+  }, [flushAutosave, props.job.id, selectedStoryIds]);
+
+  const handleToggleStory = useCallback((storyId: string) => {
+    setCandidatePreview(null);
+    setSelectedStoryIds((current) =>
+      toggleTailoredCvProofPoint(current, storyId),
+    );
+  }, []);
 
   const handleApplyCandidate = useCallback(async () => {
     if (!candidatePreview) return;
@@ -697,6 +775,58 @@ export const TailoringWorkspace: React.FC<TailoringWorkspaceProps> = (
 
       <TailoringSections {...tailoringSectionsProps} />
 
+      <section
+        aria-labelledby="tailored-cv-proof-points-title"
+        className="space-y-2 rounded-md border p-3"
+      >
+        <div>
+          <h2
+            id="tailored-cv-proof-points-title"
+            className="text-sm font-semibold"
+          >
+            Story Bank proof points
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            Select up to {MAX_TAILORED_CV_PROOF_POINTS} proof points to include
+            in this Tailored CV preview ({selectedStoryIds.length}/
+            {MAX_TAILORED_CV_PROOF_POINTS} selected).
+          </p>
+        </div>
+        {storyBankStories.length === 0 ? (
+          <p className="text-xs text-muted-foreground">
+            No Story Bank proof points available.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {storyBankStories.map((story) => (
+              <label
+                key={story.id}
+                className="flex cursor-pointer gap-2 text-sm"
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedStoryIds.includes(story.id)}
+                  onChange={() => handleToggleStory(story.id)}
+                  disabled={
+                    disableInputs ||
+                    (!selectedStoryIds.includes(story.id) &&
+                      selectedStoryIds.length >= MAX_TAILORED_CV_PROOF_POINTS)
+                  }
+                />
+                <span>
+                  <span className="font-medium">{story.title}</span>
+                  {story.result ? (
+                    <span className="block text-xs text-muted-foreground">
+                      {story.result}
+                    </span>
+                  ) : null}
+                </span>
+              </label>
+            ))}
+          </div>
+        )}
+      </section>
+
       <Dialog
         open={candidatePreview !== null}
         onOpenChange={(open) => {
@@ -723,6 +853,22 @@ export const TailoringWorkspace: React.FC<TailoringWorkspaceProps> = (
               Selected projects:{" "}
               {candidatePreview?.selectedProjectIds.length ?? 0}
             </p>
+            <p className="text-xs text-muted-foreground">
+              Template: {candidatePreview?.provenance.template.id} v
+              {candidatePreview?.provenance.template.version}
+            </p>
+            <div>
+              <p className="text-xs font-medium">
+                Selected Story Bank proof points
+              </p>
+              <ul className="mt-1 space-y-1 text-xs text-muted-foreground">
+                {candidatePreview?.provenance.selectedStoryProofPoints.map(
+                  (story) => (
+                    <li key={story.id}>{story.excerpt}</li>
+                  ),
+                )}
+              </ul>
+            </div>
           </div>
           <div className="flex justify-end gap-2">
             <Button
