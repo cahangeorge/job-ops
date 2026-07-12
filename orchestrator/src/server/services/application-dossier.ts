@@ -14,6 +14,11 @@ const { applicationDossiers, applicationDraftRevisions, jobPostingSnapshots } =
   schema;
 
 const MAX_MANUAL_DRAFT_CHARS = 100_000;
+const DOSSIER_HISTORY_LIMIT = 20;
+const DOSSIER_HISTORY_QUERY_LIMIT = DOSSIER_HISTORY_LIMIT + 1;
+const DOSSIER_CONTENT_SUMMARY_MAX_CHARS = 10_000;
+const DOSSIER_STORY_EXCERPT_MAX_CHARS = 240;
+const DOSSIER_STORY_TITLE_MAX_CHARS = 120;
 
 export type CreateManualDraftInput = {
   content: string;
@@ -26,6 +31,25 @@ function sha256(value: string): string {
 
 function normalizeWhitespace(value: string | null | undefined): string {
   return (value ?? "").replace(/\s+/g, " ").trim();
+}
+
+function boundedSummary(value: unknown, maxChars: number): string {
+  if (typeof value !== "string") return "";
+  const normalized = normalizeWhitespace(value);
+  return normalized.length > maxChars
+    ? `${normalized.slice(0, maxChars - 1)}…`
+    : normalized;
+}
+
+function parseSnapshot(value: string): Record<string, unknown> {
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : {};
+  } catch {
+    return {};
+  }
 }
 
 function bounded(value: string, max: number, field: string): string {
@@ -106,7 +130,7 @@ async function requireJob(jobId: string) {
  * state. Submitted artifacts and submission-stage guards are not touched here.
  */
 export class ApplicationDossierService {
-  async startOrGet(jobId: string) {
+  private async startOrGetInternal(jobId: string) {
     const { tenantId, requestId } = requireContext();
     const job = await requireJob(jobId);
     const normalizedText = bounded(
@@ -210,6 +234,90 @@ export class ApplicationDossierService {
     return result;
   }
 
+  async startOrGet(jobId: string) {
+    const result = await this.startOrGetInternal(jobId);
+    const [revisionRows, artifactRows] = await Promise.all([
+      dossierRepo.listApplicationDraftRevisionsForJob(
+        jobId,
+        DOSSIER_HISTORY_QUERY_LIMIT,
+      ),
+      dossierRepo.listSubmittedApplicationArtifactsForJob(
+        jobId,
+        DOSSIER_HISTORY_QUERY_LIMIT,
+      ),
+    ]);
+    const revisions = revisionRows
+      .slice(0, DOSSIER_HISTORY_LIMIT)
+      .map((row) => {
+        const content = parseSnapshot(row.contentSnapshot);
+        const resume = parseSnapshot(row.resumeSnapshot);
+        const stories = parseSnapshot(row.storySnapshot).stories;
+        return {
+          id: row.id,
+          revisionNumber: row.revisionNumber,
+          createdAt: row.createdAt,
+          content: boundedSummary(
+            content.body,
+            DOSSIER_CONTENT_SUMMARY_MAX_CHARS,
+          ),
+          resumeRevision:
+            typeof resume.revision === "number" ? resume.revision : null,
+          stories: Array.isArray(stories)
+            ? stories.slice(0, 20).flatMap((story) => {
+                if (!story || typeof story !== "object" || Array.isArray(story))
+                  return [];
+                const entry = story as Record<string, unknown>;
+                if (typeof entry.id !== "string") return [];
+                const excerpt = boundedSummary(
+                  entry.excerpt,
+                  DOSSIER_STORY_EXCERPT_MAX_CHARS,
+                );
+                return [
+                  {
+                    id: entry.id,
+                    title:
+                      boundedSummary(
+                        excerpt.split(" — ")[0],
+                        DOSSIER_STORY_TITLE_MAX_CHARS,
+                      ) || "Story Bank entry",
+                    excerpt,
+                  },
+                ];
+              })
+            : [],
+        };
+      });
+    const submittedArtifacts = artifactRows
+      .slice(0, DOSSIER_HISTORY_LIMIT)
+      .map((row) => ({
+        id: row.id,
+        draftRevisionId: row.draftRevisionId,
+        byteSize: row.byteSize,
+        mediaType: row.mediaType,
+        qaResult: row.qaResult,
+        createdAt: row.createdAt,
+      }));
+    return {
+      dossier: {
+        id: result.dossier.id,
+        lifecycleState: result.dossier.lifecycleState,
+        createdAt: result.dossier.createdAt,
+        updatedAt: result.dossier.updatedAt,
+      },
+      posting: {
+        id: result.postingSnapshot.id,
+        retrievedAt: result.postingSnapshot.retrievedAt,
+        hashPrefix: result.postingSnapshot.contentHash.slice(0, 8),
+      },
+      revisions,
+      submittedArtifacts,
+      hasMore: {
+        revisions: revisionRows.length > DOSSIER_HISTORY_LIMIT,
+        submittedArtifacts: artifactRows.length > DOSSIER_HISTORY_LIMIT,
+      },
+    };
+  }
+
   async createManualDraftRevision(
     jobId: string,
     input: CreateManualDraftInput,
@@ -220,7 +328,7 @@ export class ApplicationDossierService {
     }
     const content = input.content.trim();
     if (!content) throw conflict("Draft content is required.");
-    const { dossier, postingSnapshot } = await this.startOrGet(jobId);
+    const { dossier, postingSnapshot } = await this.startOrGetInternal(jobId);
     if (
       dossier.lifecycleState !== "draft" &&
       dossier.lifecycleState !== "pending_approval"
@@ -385,6 +493,19 @@ export class ApplicationDossierService {
       revisionId: revision.id,
       revisionNumber: revision.revisionNumber,
     });
-    return { dossier: updatedDossier, revision, postingSnapshot };
+    return {
+      dossier: {
+        id: updatedDossier.id,
+        lifecycleState: updatedDossier.lifecycleState,
+        createdAt: updatedDossier.createdAt,
+        updatedAt: updatedDossier.updatedAt,
+      },
+      revision: { id: revision.id, revisionNumber: revision.revisionNumber },
+      posting: {
+        id: postingSnapshot.id,
+        retrievedAt: postingSnapshot.retrievedAt,
+        hashPrefix: postingSnapshot.contentHash.slice(0, 8),
+      },
+    };
   }
 }

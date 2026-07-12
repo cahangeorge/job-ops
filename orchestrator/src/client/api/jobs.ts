@@ -33,6 +33,69 @@ import {
   withQuery,
 } from "./core";
 
+export type JobDossierLifecycleState =
+  | "draft"
+  | "pending_approval"
+  | "approved"
+  | "submitted"
+  | "withdrawn"
+  | "closed";
+
+export type JobDossier = {
+  dossier: {
+    id: string;
+    lifecycleState: JobDossierLifecycleState;
+    createdAt?: string;
+    updatedAt?: string;
+  };
+  posting: { id: string; retrievedAt: string; hashPrefix: string };
+  revisions: Array<{
+    id: string;
+    revisionNumber: number;
+    createdAt: string;
+    content: string;
+    resumeRevision: number | null;
+    stories: Array<{ id: string; title: string; excerpt: string }>;
+  }>;
+  submittedArtifacts: Array<{
+    id: string;
+    draftRevisionId: string;
+    byteSize: number;
+    mediaType: string;
+    qaResult: string;
+    createdAt: string;
+  }>;
+  hasMore: { revisions: boolean; submittedArtifacts: boolean };
+};
+
+export type CreateJobDossierDraftInput = {
+  content: string;
+  storyIds: string[];
+};
+
+export type CreateJobDossierDraftResult = Pick<JobDossier, "dossier"> & {
+  revision: { id: string; revisionNumber: number };
+  posting: JobDossier["posting"];
+};
+
+export async function getJobDossier(id: string): Promise<JobDossier> {
+  return fetchApi<JobDossier>(`/jobs/${id}/dossier`);
+}
+
+export async function createJobDossierDraft(
+  id: string,
+  input: CreateJobDossierDraftInput,
+): Promise<CreateJobDossierDraftResult> {
+  const response = await fetchApi<CreateJobDossierDraftResult>(
+    `/jobs/${id}/dossier/drafts`,
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
+  );
+  return response;
+}
+
 function toJobIdList(idOrIds: string | string[]): string[] {
   return Array.isArray(idOrIds) ? idOrIds : [idOrIds];
 }

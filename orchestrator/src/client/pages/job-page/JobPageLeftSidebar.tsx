@@ -28,7 +28,8 @@ export type JobMemoryView =
   | "cv-intelligence"
   | "career-ops-evaluation"
   | "emails"
-  | "ghostwriter";
+  | "ghostwriter"
+  | "dossier";
 
 type JobPageLeftSidebarProps = {
   job: Job;
@@ -84,6 +85,11 @@ const memoryLinks = [
     id: "ghostwriter" as const,
     label: "Ghostwriter",
     icon: Sparkles,
+  },
+  {
+    id: "dossier" as const,
+    label: "Dossier",
+    icon: ClipboardList,
   },
 ];
 

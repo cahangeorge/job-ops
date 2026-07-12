@@ -55,6 +55,7 @@ export const queryKeys = {
       [...queryKeys.jobs.all, "stage-events", id] as const,
     tasks: (id: string) => [...queryKeys.jobs.all, "tasks", id] as const,
     notes: (id: string) => [...queryKeys.jobs.all, "notes", id] as const,
+    dossier: (id: string) => [...queryKeys.jobs.all, "dossier", id] as const,
     documents: (id: string) =>
       [...queryKeys.jobs.all, "documents", id] as const,
     emails: (id: string, limit: number) =>

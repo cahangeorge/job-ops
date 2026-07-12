@@ -54,7 +54,7 @@ describe.sequential("job dossier routes", () => {
     return { response, body: await response.json() };
   }
 
-  it("returns the existing dossier and deterministic snapshot when started twice", async () => {
+  it("returns an existing dossier with a safe posting summary when started twice", async () => {
     const job = await createJob();
 
     const first = await getJson(`/api/jobs/${job.id}/dossier`);
@@ -62,18 +62,8 @@ describe.sequential("job dossier routes", () => {
 
     expect(first.response.status).toBe(200);
     expect(second.body.data.dossier.id).toBe(first.body.data.dossier.id);
-    expect(second.body.data.postingSnapshot.id).toBe(
-      first.body.data.postingSnapshot.id,
-    );
-    expect(first.body.data.postingSnapshot.normalizedText).toContain(
-      "Platform Engineer",
-    );
-    expect(first.body.data.postingSnapshot.contentHash).toMatch(
-      /^[a-f0-9]{64}$/,
-    );
-    expect(first.body.data.postingSnapshot.sourceUrl).toBe(
-      "https://example.test/platform",
-    );
+    expect(second.body.data.posting.id).toBe(first.body.data.posting.id);
+    expect(first.body.data.posting.hashPrefix).toMatch(/^[a-f0-9]{8}$/);
   });
 
   it("starts a no-URL manual job with a stable local source URI", async () => {
@@ -95,20 +85,8 @@ describe.sequential("job dossier routes", () => {
     expect(second.response.status).toBe(200);
     expect(first.body.ok).toBe(true);
     expect(first.body.data.dossier.id).toBe(second.body.data.dossier.id);
-    expect(first.body.data.postingSnapshot.id).toBe(
-      second.body.data.postingSnapshot.id,
-    );
-    expect(first.body.data.postingSnapshot.sourceUrl).toBe(
-      `local-job://job/${job.id}`,
-    );
-    expect(
-      JSON.parse(first.body.data.postingSnapshot.retrievalMetadata),
-    ).toMatchObject({
-      sourceUrl: {
-        kind: "local_canonical_job_identity",
-        uri: `local-job://job/${job.id}`,
-      },
-    });
+    expect(first.body.data.posting.id).toBe(second.body.data.posting.id);
+    expect(first.body.data.posting.hashPrefix).toMatch(/^[a-f0-9]{8}$/);
   });
 
   it("captures a new posting snapshot after canonical job fields change without changing the dossier", async () => {
@@ -120,9 +98,7 @@ describe.sequential("job dossier routes", () => {
     const second = await getJson(`/api/jobs/${job.id}/dossier`);
 
     expect(second.body.data.dossier.id).toBe(first.body.data.dossier.id);
-    expect(second.body.data.postingSnapshot.id).not.toBe(
-      first.body.data.postingSnapshot.id,
-    );
+    expect(second.body.data.posting.id).not.toBe(first.body.data.posting.id);
     const { db, schema } = await import("@server/db");
     const snapshots = await db
       .select()
@@ -173,11 +149,104 @@ describe.sequential("job dossier routes", () => {
     expect(first.body.data.revision.revisionNumber).toBe(1);
     expect(second.body.data.revision.revisionNumber).toBe(2);
     expect(first.body.data.dossier.lifecycleState).toBe("pending_approval");
-    expect(first.body.data.revision.storySnapshot).toContain("No downtime");
-    expect(second.body.data.revision.storySnapshot).toContain(
-      "Changed after drafting",
-    );
-    expect(first.body.data.revision.contentHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(first.body.data.revision).toEqual({
+      id: expect.any(String),
+      revisionNumber: 1,
+    });
+    const { db, schema } = await import("@server/db");
+    const [storedFirstRevision] = await db
+      .select()
+      .from(schema.applicationDraftRevisions)
+      .where(
+        (await import("drizzle-orm")).eq(
+          schema.applicationDraftRevisions.id,
+          first.body.data.revision.id,
+        ),
+      );
+    expect(storedFirstRevision.storySnapshot).toContain("No downtime");
+  });
+
+  it("returns only bounded safe dossier history summaries", async () => {
+    const job = await createJob();
+    const initial = await getJson(`/api/jobs/${job.id}/dossier`);
+    const dossierId = initial.body.data.dossier.id;
+    const { db, schema } = await import("@server/db");
+
+    for (let revisionNumber = 1; revisionNumber <= 21; revisionNumber += 1) {
+      const revisionId = `revision-${revisionNumber}`;
+      await db.insert(schema.applicationDraftRevisions).values({
+        id: revisionId,
+        tenantId: "tenant_default",
+        dossierId,
+        jobId: job.id,
+        revisionNumber,
+        jobSnapshot: '{"rawJob":"do not expose"}',
+        resumeSnapshot: '{"revision":7,"private":"do not expose"}',
+        storySnapshot:
+          '{"stories":[{"id":"story-1","excerpt":"Delivery — Safe release details"}]}',
+        contentSnapshot: `{"body":"${"x".repeat(10_050)}"}`,
+        provenance: '{"token":"do not expose"}',
+        contentHash: "a".repeat(64),
+        createdAt: `2026-01-${String(revisionNumber).padStart(2, "0")}T00:00:00.000Z`,
+      });
+    }
+    await db.insert(schema.submittedApplicationArtifacts).values({
+      id: "artifact-21",
+      tenantId: "tenant_default",
+      dossierId,
+      jobId: job.id,
+      draftRevisionId: "revision-21",
+      storagePath: "data/submitted-applications/private-21.pdf",
+      sha256: "21".padStart(64, "0"),
+      byteSize: 21,
+      mediaType: "application/pdf",
+      qaResult: "passed",
+      createdAt: "2026-02-21T00:00:00.000Z",
+    });
+
+    const response = await getJson(`/api/jobs/${job.id}/dossier`);
+    const serialized = JSON.stringify(response.body.data);
+
+    expect(response.response.status).toBe(200);
+    expect(response.body.data.revisions).toHaveLength(20);
+    expect(response.body.data.revisions[0]).toMatchObject({
+      revisionNumber: 21,
+      resumeRevision: 7,
+      stories: [
+        {
+          id: "story-1",
+          title: "Delivery",
+          excerpt: "Delivery — Safe release details",
+        },
+      ],
+    });
+    expect(response.body.data.revisions[0].content).toHaveLength(10_000);
+    expect(response.body.data.submittedArtifacts).toHaveLength(1);
+    expect(response.body.data.submittedArtifacts[0]).toMatchObject({
+      id: "artifact-21",
+      draftRevisionId: "revision-21",
+      byteSize: 21,
+      mediaType: "application/pdf",
+      qaResult: "passed",
+    });
+    expect(response.body.data.hasMore).toEqual({
+      revisions: true,
+      submittedArtifacts: false,
+    });
+    for (const forbidden of [
+      "jobSnapshot",
+      "resumeSnapshot",
+      "storySnapshot",
+      "provenance",
+      "contentHash",
+      "storagePath",
+      "sha256",
+      "rawJob",
+      "private-",
+      "do not expose",
+    ]) {
+      expect(serialized).not.toContain(forbidden);
+    }
   });
 
   it("rejects missing jobs, missing Story Bank IDs, missing Design Resume, and oversize content", async () => {
