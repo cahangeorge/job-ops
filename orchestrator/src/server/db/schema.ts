@@ -248,6 +248,80 @@ export const interviewStories = sqliteTable("interview_stories", {
   updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),
 });
 
+export const competencies = sqliteTable(
+  "competencies",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    name: text("name").notNull(),
+    createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+  },
+  (table) => ({
+    tenantIdUnique: uniqueIndex("idx_competencies_tenant_id_unique").on(
+      table.tenantId,
+      table.id,
+    ),
+    tenantNameUnique: uniqueIndex("idx_competencies_tenant_name_unique").on(
+      table.tenantId,
+      table.name,
+    ),
+  }),
+);
+
+export const competencyEvidence = sqliteTable(
+  "competency_evidence",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    competencyId: text("competency_id").notNull(),
+    sourceType: text("source_type").notNull(),
+    sourceId: text("source_id").notNull(),
+    sourceVersion: text("source_version").notNull().default(""),
+    sourceRevision: text("source_revision").notNull().default(""),
+    extractionMethod: text("extraction_method", {
+      enum: ["manual", "deterministic"],
+    }).notNull(),
+    confidence: real("confidence").notNull(),
+    evidenceExcerpt: text("evidence_excerpt").notNull(),
+    evidenceHash: text("evidence_hash").notNull(),
+    observationStage: text("observation_stage", {
+      enum: APPLICATION_STAGES,
+    }),
+    observationOutcome: text("observation_outcome", {
+      enum: APPLICATION_OUTCOMES,
+    }),
+    createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+  },
+  (table) => ({
+    competencyForeignKey: foreignKey({
+      columns: [table.tenantId, table.competencyId],
+      foreignColumns: [competencies.tenantId, competencies.id],
+    }).onDelete("restrict"),
+    tenantIdUnique: uniqueIndex("idx_competency_evidence_tenant_id_unique").on(
+      table.tenantId,
+      table.id,
+    ),
+    sourceVersionUnique: uniqueIndex(
+      "idx_competency_evidence_tenant_source_version_unique",
+    ).on(
+      table.tenantId,
+      table.competencyId,
+      table.sourceType,
+      table.sourceId,
+      table.sourceVersion,
+      table.sourceRevision,
+      table.evidenceHash,
+    ),
+    tenantCompetencyIndex: index(
+      "idx_competency_evidence_tenant_competency",
+    ).on(table.tenantId, table.competencyId, table.createdAt),
+  }),
+);
+
 export const applicationDossiers = sqliteTable(
   "application_dossiers",
   {

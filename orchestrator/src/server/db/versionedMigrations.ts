@@ -421,6 +421,49 @@ export const VERSIONED_MIGRATIONS: readonly VersionedMigration[] = [
         ON application_approvals(tenant_id, submitted_artifact_id);
     `,
   },
+  {
+    version: 5,
+    sql: `
+      CREATE TABLE competencies (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        name TEXT NOT NULL CHECK(length(trim(name)) > 0 AND length(name) <= 128),
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE RESTRICT,
+        UNIQUE(tenant_id, id),
+        UNIQUE(tenant_id, name)
+      );
+
+      CREATE TABLE competency_evidence (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        competency_id TEXT NOT NULL,
+        source_type TEXT NOT NULL CHECK(source_type IN ('job_posting_snapshot', 'story_bank', 'tailored_cv_candidate', 'reviewer_finding', 'dossier_revision', 'stage_event', 'submitted_artifact', 'manual')),
+        source_id TEXT NOT NULL CHECK(length(trim(source_id)) > 0 AND length(source_id) <= 128),
+        source_version TEXT NOT NULL DEFAULT '' CHECK(length(source_version) <= 128),
+        source_revision TEXT NOT NULL DEFAULT '' CHECK(length(source_revision) <= 128),
+        extraction_method TEXT NOT NULL CHECK(extraction_method IN ('manual', 'deterministic')),
+        confidence REAL NOT NULL CHECK(confidence >= 0 AND confidence <= 1),
+        evidence_excerpt TEXT NOT NULL CHECK(length(trim(evidence_excerpt)) > 0 AND length(evidence_excerpt) <= 2000),
+        evidence_hash TEXT NOT NULL CHECK(length(evidence_hash) = 64 AND evidence_hash NOT GLOB '*[^0-9a-f]*'),
+        observation_stage TEXT CHECK(observation_stage IS NULL OR observation_stage IN ('applied', 'recruiter_screen', 'assessment', 'hiring_manager_screen', 'technical_interview', 'onsite', 'offer', 'closed')),
+        observation_outcome TEXT CHECK(observation_outcome IS NULL OR observation_outcome IN ('offer_accepted', 'offer_declined', 'rejected', 'withdrawn', 'no_response', 'ghosted')),
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        CHECK((observation_stage IS NULL) = (observation_outcome IS NULL)),
+        CHECK(source_type <> 'stage_event' OR (observation_stage IS NOT NULL AND observation_outcome IS NOT NULL)),
+        FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE RESTRICT,
+        FOREIGN KEY (tenant_id, competency_id) REFERENCES competencies(tenant_id, id) ON DELETE RESTRICT,
+        UNIQUE(tenant_id, id),
+        UNIQUE(tenant_id, competency_id, source_type, source_id, source_version, source_revision, evidence_hash)
+      );
+      CREATE INDEX idx_competency_evidence_tenant_competency
+        ON competency_evidence(tenant_id, competency_id, created_at);
+      CREATE TRIGGER competency_evidence_no_update
+        BEFORE UPDATE ON competency_evidence BEGIN SELECT RAISE(ABORT, 'competency_evidence is append-only'); END;
+      CREATE TRIGGER competency_evidence_no_delete
+        BEFORE DELETE ON competency_evidence BEGIN SELECT RAISE(ABORT, 'competency_evidence is append-only'); END;
+    `,
+  },
 ];
 
 function checksum(sql: string): string {

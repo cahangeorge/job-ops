@@ -89,7 +89,7 @@ describe("versioned SQLite migrations", () => {
 
     expect(
       database.prepare("SELECT count(*) AS count FROM schema_migrations").get(),
-    ).toEqual({ count: 4 });
+    ).toEqual({ count: 5 });
     assertCompositeForeignKey(database);
   });
 
@@ -503,6 +503,51 @@ describe("versioned SQLite migrations", () => {
         )
         .run("x".repeat(1_000_001), "f".repeat(64)),
     ).toThrow(/CHECK constraint failed/);
+  });
+
+  it("enforces immutable, bounded stage-event observation snapshots", () => {
+    const database = databaseWithJobs();
+    runVersionedMigrations(database);
+    database.exec(`
+      INSERT INTO tenants(id) VALUES ('tenant-a');
+      INSERT INTO competencies(id, tenant_id, name)
+      VALUES ('competency-a', 'tenant-a', 'Communication');
+      INSERT INTO competency_evidence(
+        id, tenant_id, competency_id, source_type, source_id, extraction_method,
+        confidence, evidence_excerpt, evidence_hash, observation_stage, observation_outcome
+      ) VALUES (
+        'evidence-a', 'tenant-a', 'competency-a', 'stage_event', 'event-a', 'manual',
+        0.8, 'Recorded interview result', '${"a".repeat(64)}', 'technical_interview', 'rejected'
+      );
+    `);
+
+    expect(() =>
+      database
+        .prepare(
+          `INSERT INTO competency_evidence(
+            id, tenant_id, competency_id, source_type, source_id, extraction_method,
+            confidence, evidence_excerpt, evidence_hash
+          ) VALUES ('evidence-missing', 'tenant-a', 'competency-a', 'stage_event', 'event-b', 'manual', 0.8, 'Missing snapshot', '${"b".repeat(64)}')`,
+        )
+        .run(),
+    ).toThrow(/CHECK constraint failed/);
+    expect(() =>
+      database
+        .prepare(
+          `INSERT INTO competency_evidence(
+            id, tenant_id, competency_id, source_type, source_id, extraction_method,
+            confidence, evidence_excerpt, evidence_hash, observation_stage, observation_outcome
+          ) VALUES ('evidence-invalid', 'tenant-a', 'competency-a', 'stage_event', 'event-c', 'manual', 0.8, 'Invalid snapshot', '${"c".repeat(64)}', 'invalid', 'rejected')`,
+        )
+        .run(),
+    ).toThrow(/CHECK constraint failed/);
+    expect(() =>
+      database
+        .prepare(
+          "UPDATE competency_evidence SET observation_outcome = 'withdrawn' WHERE id = 'evidence-a'",
+        )
+        .run(),
+    ).toThrow(/append-only/);
   });
 
   it("allows only one final artifact and retains audit records with their parents", () => {
