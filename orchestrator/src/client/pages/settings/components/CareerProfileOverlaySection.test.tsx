@@ -117,4 +117,50 @@ describe("CareerProfileOverlaySection", () => {
       ),
     );
   });
+
+  it("clears minimum salary without dropping other constraint values", async () => {
+    vi.mocked(api.updateCareerProfileOverlay).mockClear();
+    vi.mocked(api.getCareerProfileOverlay).mockResolvedValue({
+      preferences: { roles: ["Platform Engineer"] },
+      targets: { companies: ["Acme"] },
+      constraints: {
+        minimumSalary: 100000,
+        requiresVisaSponsorship: true,
+        excludedCompanies: ["AvoidCo"],
+      },
+      provenance: { source: "imported" },
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+    vi.mocked(api.updateCareerProfileOverlay).mockResolvedValue({
+      preferences: {},
+      targets: {},
+      constraints: {},
+      provenance: {},
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:01.000Z",
+    });
+
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <CareerProfileOverlaySection layoutMode="panel" />
+      </QueryClientProvider>,
+    );
+
+    const minimumSalary = await screen.findByDisplayValue("100000");
+    fireEvent.change(minimumSalary, { target: { value: "" } });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Save career preferences" }),
+    );
+
+    await waitFor(() =>
+      expect(api.updateCareerProfileOverlay).toHaveBeenCalled(),
+    );
+
+    const [payload] = vi.mocked(api.updateCareerProfileOverlay).mock.calls[0];
+    expect(payload.constraints).toEqual({
+      requiresVisaSponsorship: true,
+      excludedCompanies: ["AvoidCo"],
+    });
+  });
 });
