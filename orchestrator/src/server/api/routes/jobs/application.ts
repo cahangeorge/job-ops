@@ -4,12 +4,14 @@ import { trackServerProductEvent } from "@infra/product-analytics";
 import { isDemoMode } from "@server/config/demo";
 import { resolveRequestOrigin } from "@server/infra/request-origin";
 import * as jobsRepo from "@server/repositories/jobs";
+import { trackCanonicalActivationEvent } from "@server/services/activation-funnel";
+import { ApplicationDossierService } from "@server/services/application-dossier";
 import { simulateApplyJob } from "@server/services/demo-simulator";
 import { HumanApplicationSubmissionService } from "@server/services/human-application-submission";
-import { trackCanonicalActivationEvent } from "@server/services/activation-funnel";
 import { notifyJobCompleteWebhook } from "@server/services/jobs/webhooks";
 import * as visaSponsors from "@server/services/visa-sponsors/index";
 import { type Request, type Response, Router } from "express";
+import { z } from "zod";
 import {
   humanSubmissionSchema,
   hydrateJobPdfFreshness,
@@ -18,6 +20,42 @@ import {
 } from "./shared";
 
 export const jobsApplicationRouter = Router();
+
+const manualDraftSchema = z
+  .object({
+    content: z.string().trim().min(1).max(100_000),
+    storyIds: z.array(z.string().uuid()).max(20).default([]),
+  })
+  .strict();
+
+jobsApplicationRouter.get(
+  "/:id/dossier",
+  async (req: Request, res: Response) => {
+    try {
+      ok(res, await new ApplicationDossierService().startOrGet(req.params.id));
+    } catch (error) {
+      fail(res, toJobsRouteError(error));
+    }
+  },
+);
+
+jobsApplicationRouter.post(
+  "/:id/dossier/drafts",
+  async (req: Request, res: Response) => {
+    try {
+      const input = manualDraftSchema.parse(req.body);
+      ok(
+        res,
+        await new ApplicationDossierService().createManualDraftRevision(
+          req.params.id,
+          input,
+        ),
+      );
+    } catch (error) {
+      fail(res, toJobsRouteError(error));
+    }
+  },
+);
 
 jobsApplicationRouter.post(
   "/:id/check-sponsor",
