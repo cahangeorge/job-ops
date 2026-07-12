@@ -66,6 +66,10 @@ vi.mock("./pages/VisaSponsorsPage", () => ({
   VisaSponsorsPage: () => null,
 }));
 
+vi.mock("./pages/OutcomeLearningPage", () => ({
+  OutcomeLearningPage: () => <div>outcome-learning-page</div>,
+}));
+
 describe("App demo banner", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -172,4 +176,22 @@ describe("App demo banner", () => {
     expect(screen.getByText("design-resume-page")).toBeInTheDocument();
   });
 
+  it("renders the outcome-learning route", () => {
+    vi.mocked(useDemoInfo).mockReturnValue({
+      demoMode: false,
+      resetCadenceHours: 6,
+      lastResetAt: null,
+      nextResetAt: null,
+      baselineVersion: null,
+      baselineName: null,
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/outcome-learning"]}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText("outcome-learning-page")).toBeInTheDocument();
+  });
 });

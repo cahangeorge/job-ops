@@ -170,6 +170,41 @@ export interface PatternAnalysisReport {
   jobKnowledgeGaps: JobKnowledgeGapRecommendation[];
 }
 
+export type OutcomeLearningSourceType =
+  | "job_posting_snapshot"
+  | "story_bank"
+  | "tailored_cv_candidate"
+  | "reviewer_finding"
+  | "dossier_revision"
+  | "stage_event"
+  | "submitted_artifact"
+  | "manual";
+
+export type OutcomeLearningExtractionMethod = "manual" | "deterministic";
+
+export interface OutcomeLearningReport {
+  smallSampleThreshold: number;
+  competencies: Array<{
+    competencyName: string;
+    sampleSize: number;
+    observations: Array<{
+      stage: string;
+      outcome: string;
+      numerator: number;
+      denominator: number;
+      sampleSize: number;
+      observation: "descriptive" | "insufficient_sample";
+    }>;
+    evidenceSources: Array<{
+      sourceType: OutcomeLearningSourceType;
+      sourceVersion: string;
+      sourceRevision: string;
+      extractionMethod: OutcomeLearningExtractionMethod;
+      confidence: number;
+    }>;
+  }>;
+}
+
 export type OfferEvaluationRecommendation =
   | "accept"
   | "negotiate"
@@ -400,6 +435,10 @@ export async function batchGenerateCoverLetters(
 
 export async function getPatternAnalysis(): Promise<PatternAnalysisReport> {
   return fetchApi<PatternAnalysisReport>("/pattern-analysis");
+}
+
+export async function getOutcomeLearning(): Promise<OutcomeLearningReport> {
+  return fetchApi<OutcomeLearningReport>("/outcome-learning");
 }
 
 export async function evaluateJobOffer(

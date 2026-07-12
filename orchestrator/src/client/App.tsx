@@ -28,6 +28,7 @@ import { JobPage } from "./pages/JobPage";
 import { OfflinePage } from "./pages/OfflinePage";
 import { OnboardingPage } from "./pages/OnboardingPage";
 import { OrchestratorPage } from "./pages/OrchestratorPage";
+import { OutcomeLearningPage } from "./pages/OutcomeLearningPage";
 import { PatternAnalysisPage } from "./pages/PatternAnalysisPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { SignInPage } from "./pages/SignInPage";
@@ -200,6 +201,10 @@ export const App: React.FC = () => {
                 <Route
                   path="/pattern-analysis"
                   element={<PatternAnalysisPage />}
+                />
+                <Route
+                  path="/outcome-learning"
+                  element={<OutcomeLearningPage />}
                 />
                 <Route path="/story-bank" element={<StoryBankPage />} />
                 <Route path="/tracer-links" element={<TracerLinksPage />} />

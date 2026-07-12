@@ -66,6 +66,12 @@ export const NAV_LINKS: NavLink[] = [
     activePaths: ["/pattern-analysis"],
   },
   {
+    to: "/outcome-learning",
+    label: "Outcome Learning",
+    icon: ChartNoAxesCombined,
+    activePaths: ["/outcome-learning"],
+  },
+  {
     to: "/story-bank",
     label: "Story Bank",
     icon: BookOpenCheck,

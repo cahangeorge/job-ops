@@ -15,6 +15,49 @@ describe("CareerOps API client", () => {
     vi.restoreAllMocks();
   });
 
+  it("gets the outcome-learning workspace report", async () => {
+    const response = {
+      smallSampleThreshold: 5,
+      competencies: [
+        {
+          competencyName: "Communication",
+          sampleSize: 2,
+          observations: [
+            {
+              stage: "interview",
+              outcome: "offer_accepted",
+              numerator: 1,
+              denominator: 2,
+              sampleSize: 2,
+              observation: "insufficient_sample" as const,
+            },
+          ],
+          evidenceSources: [
+            {
+              sourceType: "stage_event" as const,
+              sourceVersion: "1",
+              sourceRevision: "",
+              extractionMethod: "manual" as const,
+              confidence: 0.9,
+            },
+          ],
+        },
+      ],
+    };
+    const fetchSpy = vi
+      .spyOn(global, "fetch")
+      .mockResolvedValueOnce(
+        createJsonResponse(200, { ok: true, data: response }),
+      );
+
+    await expect(api.getOutcomeLearning()).resolves.toEqual(response);
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/outcome-learning",
+      expect.any(Object),
+    );
+  });
+
   it("posts interview prep generation payloads", async () => {
     const response = {
       prepGuidance: "Focus on reliability leadership.",
