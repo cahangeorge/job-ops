@@ -69,7 +69,7 @@ export function resolveStageTransitionForTarget(
       reasonCode: "withdrawn",
     };
   }
-  if (target === "no_change") {
+  if (target === "no_change" || target === "applied") {
     return { toStage: "no_change", outcome: null, reasonCode: null };
   }
 

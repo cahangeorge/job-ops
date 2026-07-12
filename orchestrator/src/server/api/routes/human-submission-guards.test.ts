@@ -1,9 +1,9 @@
 // @vitest-environment node
 
 import { createHash } from "node:crypto";
-import { writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import type { Server } from "node:http";
-import { join } from "node:path";
+import { dirname } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { submissionTextPdf } from "./fixtures/submission-text-pdf.fixture";
 import { startServer, stopServer } from "./test-utils";
@@ -41,6 +41,14 @@ describe.sequential("human submission guards", () => {
       userId: "test-user",
       role: "owner",
     });
+  }
+
+  async function writeTenantWorkingPdf(jobId: string): Promise<string> {
+    const { getTenantJobPdfPath } = await import("@server/services/pdf-storage");
+    const workingPdfPath = getTenantJobPdfPath(jobId);
+    await mkdir(dirname(workingPdfPath), { recursive: true });
+    await writeFile(workingPdfPath, submissionTextPdf);
+    return workingPdfPath;
   }
 
   it("rejects legacy and generic ways to set an application to applied", async () => {
@@ -86,7 +94,7 @@ describe.sequential("human submission guards", () => {
       employer: "Acme",
       jobUrl: "https://example.test/submitted-role",
     });
-    const workingPdfPath = join(tempDir, "working-submission.pdf");
+    const workingPdfPath = await writeTenantWorkingPdf(job.id);
     const originalHash = createHash("sha256")
       .update(submissionTextPdf)
       .digest("hex");
@@ -96,7 +104,6 @@ describe.sequential("human submission guards", () => {
     await expect(
       inspectSubmissionPdf(submissionTextPdf, originalHash),
     ).resolves.toMatchObject({ qaResult: "passed" });
-    await writeFile(workingPdfPath, submissionTextPdf);
     await updateJob(job.id, { pdfPath: workingPdfPath, status: "ready" });
 
     const dossierId = "dossier-submitted";
@@ -201,8 +208,7 @@ describe.sequential("human submission guards", () => {
       employer: "Acme",
       jobUrl: "https://example.test/hash-guarded-role",
     });
-    const workingPdfPath = join(tempDir, "working-hash-guarded.pdf");
-    await writeFile(workingPdfPath, submissionTextPdf);
+    const workingPdfPath = await writeTenantWorkingPdf(job.id);
     await updateJob(job.id, { pdfPath: workingPdfPath, status: "ready" });
     await db.insert(schema.applicationDossiers).values({
       id: "dossier-hash-guarded",
@@ -276,9 +282,8 @@ describe.sequential("human submission guards", () => {
       employer: "Acme",
       jobUrl: "https://example.test/submission-side-effects",
     });
-    const workingPdfPath = join(tempDir, "working-side-effects.pdf");
+    const workingPdfPath = await writeTenantWorkingPdf(job.id);
     const hash = createHash("sha256").update(submissionTextPdf).digest("hex");
-    await writeFile(workingPdfPath, submissionTextPdf);
     await updateJob(job.id, { pdfPath: workingPdfPath, status: "ready" });
     await db.insert(schema.applicationDossiers).values({
       id: "dossier-side-effects",

@@ -1,5 +1,6 @@
 import {
   AppError,
+  badRequest,
   conflict,
   notFound,
   unprocessableEntity,
@@ -142,6 +143,9 @@ export async function approvePostApplicationInboxItem(args: {
       (args.toStage as PostApplicationRouterStageTarget | undefined) ??
       message.stageTarget ??
       stageTargetFromMessageType(message.messageType);
+    if (resolvedTarget === "applied") {
+      throw badRequest("Applied stage requires human submission.");
+    }
     const transition = resolveStageTransitionForTarget(resolvedTarget);
 
     if (transition.toStage !== "no_change") {

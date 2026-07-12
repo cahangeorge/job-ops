@@ -119,6 +119,33 @@ describe.sequential("Post-Application Review Workflow API", () => {
     expect(stageRows.length).toBeGreaterThan(0);
   });
 
+  it("rejects an inbox attempt to mark a job applied without human submission", async () => {
+    const { message, jobId } = await seedPendingMessage({
+      stageTarget: "applied",
+    });
+    const { db, schema } = await import("@server/db");
+    const { getJobById } = await import("@server/repositories/jobs");
+
+    const res = await fetch(
+      `${baseUrl}/api/post-application/inbox/${message.id}/approve`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider: "gmail",
+          accountKey: "default",
+          jobId,
+          stageTarget: "applied",
+        }),
+      },
+    );
+
+    expect(res.status).toBe(400);
+    expect((await res.json()).ok).toBe(false);
+    expect((await getJobById(jobId))?.status).not.toBe("applied");
+    expect(await db.select().from(schema.stageEvents)).toHaveLength(0);
+  });
+
   it("returns conflict on second approve and increments sync-run approval once", async () => {
     const { startPostApplicationSyncRun, getPostApplicationSyncRunById } =
       await import("@server/repositories/post-application-sync-runs");

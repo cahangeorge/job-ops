@@ -1852,28 +1852,16 @@ describe.sequential("Jobs API routes", () => {
       const { trackCanonicalActivationEvent } = await import(
         "@server/services/activation-funnel"
       );
-      // 1. Initial transition to applied
-      const trans1 = await fetch(`${baseUrl}/api/jobs/${jobId}/stages`, {
+      // 1. Applied is a protected terminal transition, so direct tracker writes reject it.
+      const appliedShortcut = await fetch(`${baseUrl}/api/jobs/${jobId}/stages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ toStage: "applied" }),
       });
-      const body1 = await trans1.json();
-      expect(body1.ok).toBe(true);
-      expect(body1.data.toStage).toBe("applied");
-      const eventId = body1.data.id;
-      expect(trackCanonicalActivationEvent).toHaveBeenCalledWith(
-        "application_marked_applied",
-        {
-          source: "system",
-        },
-        expect.objectContaining({
-          occurredAt: body1.data.occurredAt * 1000,
-        }),
-      );
+      expect(appliedShortcut.status).toBe(400);
 
-      // 2. Transition to recruiter_screen with metadata
-      await fetch(`${baseUrl}/api/jobs/${jobId}/stages`, {
+      // 2. Subsequent application tracking remains available.
+      const trans1 = await fetch(`${baseUrl}/api/jobs/${jobId}/stages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1881,15 +1869,34 @@ describe.sequential("Jobs API routes", () => {
           metadata: { note: "Called by recruiter" },
         }),
       });
+      const body1 = await trans1.json();
+      expect(body1.ok).toBe(true);
+      expect(body1.data.toStage).toBe("recruiter_screen");
+      const eventId = body1.data.id;
+      expect(trackCanonicalActivationEvent).toHaveBeenCalledWith(
+        "application_positive_response_detected",
+        expect.objectContaining({ stage: "recruiter_screen" }),
+        expect.objectContaining({ occurredAt: body1.data.occurredAt * 1000 }),
+      );
 
-      // 3. Get events
+      // 3. Transition to a later stage with metadata
+      await fetch(`${baseUrl}/api/jobs/${jobId}/stages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          toStage: "assessment",
+          metadata: { note: "Assessment scheduled" },
+        }),
+      });
+
+      // 4. Get events
       const eventsRes = await fetch(`${baseUrl}/api/jobs/${jobId}/events`);
       const eventsBody = await eventsRes.json();
       expect(eventsBody.ok).toBe(true);
       expect(eventsBody.data).toHaveLength(2);
-      expect(eventsBody.data[0].toStage).toBe("applied");
-      expect(eventsBody.data[1].toStage).toBe("recruiter_screen");
-      expect(eventsBody.data[1].metadata.note).toBe("Called by recruiter");
+      expect(eventsBody.data[0].toStage).toBe("recruiter_screen");
+      expect(eventsBody.data[1].toStage).toBe("assessment");
+      expect(eventsBody.data[1].metadata.note).toBe("Assessment scheduled");
       expect(trackCanonicalActivationEvent).toHaveBeenCalledWith(
         "application_positive_response_detected",
         expect.objectContaining({

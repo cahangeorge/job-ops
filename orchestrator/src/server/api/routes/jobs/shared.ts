@@ -175,7 +175,6 @@ export const updateJobSchema = z.object({
       }
     }),
   selectedProjectIds: z.string().optional(),
-  pdfPath: z.string().optional(),
   tracerLinksEnabled: z.boolean().optional(),
   sponsorMatchScore: z.number().min(0).max(100).optional(),
   sponsorMatchNames: z.string().optional(),

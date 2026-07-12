@@ -13,6 +13,7 @@ import { getDataDir } from "@server/config/dataDir";
 import { db, schema } from "@server/db";
 import { getRequestContext } from "@server/infra/request-context";
 import * as submissionsRepo from "@server/repositories/application-submissions";
+import { getTenantPdfDir } from "@server/services/pdf-storage";
 import { and, eq } from "drizzle-orm";
 import pdfParse from "pdf-parse";
 
@@ -53,6 +54,17 @@ function artifactStoragePath(path: string) {
     .replace(/^/, "data/");
 }
 
+function resolveTenantWorkingPdfPath(tenantId: string, pdfPath: string): string {
+  const root = resolve(getTenantPdfDir(tenantId));
+  const workingPath = resolve(pdfPath);
+  if (!workingPath.startsWith(`${root}/`)) {
+    throw unprocessableEntity(
+      "Working PDF must be stored in the active tenant's PDF workspace.",
+    );
+  }
+  return workingPath;
+}
+
 /** The sole production gateway from a working PDF to an applied job. */
 export class HumanApplicationSubmissionService {
   async submit(input: {
@@ -88,7 +100,7 @@ export class HumanApplicationSubmissionService {
     const dossier = await submissionsRepo.getDossierForJob(input.jobId);
     if (!dossier || revision.dossierId !== dossier.id)
       throw notFound("Application dossier not found");
-    const workingPath = resolve(job.pdfPath);
+    const workingPath = resolveTenantWorkingPdfPath(tenantId, job.pdfPath);
     let bytes: Buffer;
     try {
       bytes = await readFile(workingPath);
