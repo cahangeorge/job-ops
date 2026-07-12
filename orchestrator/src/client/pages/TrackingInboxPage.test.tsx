@@ -76,6 +76,22 @@ beforeEach(() => {
       provider: "gmail",
       accountKey: "default",
       connected: true,
+      capabilities: {
+        provider: "gmail",
+        connectionMode: "oauth2",
+        sync: { supported: true },
+        cursor: { supported: false, storage: "none" },
+        checkpoint: { supported: false, storage: "none" },
+        pagination: { supported: false },
+        actions: { connect: true, status: true, sync: true, disconnect: true },
+      },
+      health: {
+        check: "local_configuration",
+        configured: true,
+        connected: true,
+        classification: "ready",
+        reason: "Gmail is locally configured and connected.",
+      },
       integration: {
         id: "int-1",
         provider: "gmail",

@@ -15,6 +15,7 @@ import {
   startPostApplicationSyncRun,
 } from "@server/repositories/post-application-sync-runs";
 import { transitionStage } from "@server/services/applicationTracking";
+import { normalizeProviderExternalEvents } from "@server/services/post-application/providers/normalization";
 import { resolveStageTransitionForTarget } from "@server/services/post-application/stage-target";
 import type { PostApplicationRouterStageTarget } from "@shared/types";
 import { classifyWithSmartRouter, minifyActiveJobs } from "./email-router";
@@ -235,11 +236,11 @@ export async function runGmailIngestionSync(args: {
       });
     }
 
-    const messageIds = await listMessageIds(
-      accessToken,
-      searchDays,
-      maxMessages,
-    );
+    const { events: messageIds } = normalizeProviderExternalEvents({
+      provider: "gmail",
+      accountKey: args.accountKey,
+      events: await listMessageIds(accessToken, searchDays, maxMessages),
+    });
     const activeJobs = await getAllJobs([
       "applied",
       "in_progress",
@@ -259,7 +260,10 @@ export async function runGmailIngestionSync(args: {
       discovered += 1;
 
       try {
-        const metadata = await getMessageMetadata(accessToken, message.id);
+        const metadata = await getMessageMetadata(
+          accessToken,
+          message.externalId,
+        );
         const from = headerValue(metadata.headers, "From");
         const subject = headerValue(metadata.headers, "Subject");
         const date = headerValue(metadata.headers, "Date");
@@ -320,7 +324,10 @@ export async function runGmailIngestionSync(args: {
           return;
         }
 
-        const fullMessage = await getMessageFull(accessToken, message.id);
+        const fullMessage = await getMessageFull(
+          accessToken,
+          message.externalId,
+        );
         const body = extractBodyText(fullMessage.payload);
         const emailText = buildEmailText({
           from,
@@ -400,7 +407,7 @@ export async function runGmailIngestionSync(args: {
         logger.warn("Failed to ingest Gmail message", {
           provider: "gmail",
           accountKey: args.accountKey,
-          externalMessageId: message.id,
+          externalMessageId: message.externalId,
           syncRunId: syncRun.id,
           error: normalizeErrorMessage(error),
         });

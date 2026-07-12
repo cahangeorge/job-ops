@@ -11,6 +11,24 @@ export const POST_APPLICATION_PROVIDER_ACTIONS = [
 export type PostApplicationProviderAction =
   (typeof POST_APPLICATION_PROVIDER_ACTIONS)[number];
 
+export const POST_APPLICATION_PROVIDER_CAPABILITY_CONNECTION_MODES = [
+  "oauth2",
+  "imap",
+] as const;
+export type PostApplicationProviderCapabilityConnectionMode =
+  (typeof POST_APPLICATION_PROVIDER_CAPABILITY_CONNECTION_MODES)[number];
+
+export const POST_APPLICATION_PROVIDER_HEALTH_CLASSIFICATIONS = [
+  "ready",
+  "not_configured",
+  "disconnected",
+  "missing_credentials",
+  "provider_error",
+  "provider_unavailable",
+] as const;
+export type PostApplicationProviderHealthClassification =
+  (typeof POST_APPLICATION_PROVIDER_HEALTH_CLASSIFICATIONS)[number];
+
 export const POST_APPLICATION_INTEGRATION_STATUSES = [
   "disconnected",
   "connected",
@@ -164,6 +182,26 @@ export interface PostApplicationProviderStatus {
   accountKey: string;
   connected: boolean;
   integration: PostApplicationIntegration | null;
+  capabilities: PostApplicationProviderCapabilities;
+  health: PostApplicationProviderHealth;
+}
+
+export interface PostApplicationProviderCapabilities {
+  provider: PostApplicationProvider;
+  connectionMode: PostApplicationProviderCapabilityConnectionMode;
+  sync: { supported: boolean };
+  cursor: { supported: boolean; storage: "none" };
+  checkpoint: { supported: boolean; storage: "none" };
+  pagination: { supported: boolean };
+  actions: Record<PostApplicationProviderAction, boolean>;
+}
+
+export interface PostApplicationProviderHealth {
+  check: "local_configuration";
+  configured: boolean;
+  connected: boolean;
+  classification: PostApplicationProviderHealthClassification;
+  reason: string;
 }
 
 export interface PostApplicationProviderActionResponse {

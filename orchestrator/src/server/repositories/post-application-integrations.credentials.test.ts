@@ -63,6 +63,52 @@ describe.sequential("post-application integration credential storage", () => {
     });
   });
 
+  it("keeps same-provider account integrations isolated by tenant", async () => {
+    const { runWithRequestContext } = await import("@infra/request-context");
+    await db.insert(schema.tenants).values({
+      id: "tenant_other",
+      name: "Other Tenant",
+      slug: "other-tenant",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+
+    await repo.upsertConnectedPostApplicationIntegration({
+      provider: "gmail",
+      accountKey: "primary",
+      credentials: {
+        refreshToken: "default-tenant-refresh-token",
+        email: "default@example.com",
+      },
+    });
+    await runWithRequestContext(
+      { requestId: "other-tenant-connect", tenantId: "tenant_other" },
+      () =>
+        repo.upsertConnectedPostApplicationIntegration({
+          provider: "gmail",
+          accountKey: "primary",
+          credentials: {
+            refreshToken: "other-tenant-refresh-token",
+            email: "other@example.com",
+          },
+        }),
+    );
+
+    await expect(
+      repo.getPostApplicationIntegration("gmail", "primary"),
+    ).resolves.toMatchObject({
+      credentials: { email: "default@example.com" },
+    });
+    await expect(
+      runWithRequestContext(
+        { requestId: "other-tenant-status", tenantId: "tenant_other" },
+        () => repo.getPostApplicationIntegration("gmail", "primary"),
+      ),
+    ).resolves.toMatchObject({
+      credentials: { email: "other@example.com" },
+    });
+  });
+
   it("decrypts through the previous key and immediately re-encrypts with the primary key", async () => {
     await repo.upsertConnectedPostApplicationIntegration({
       provider: "gmail",

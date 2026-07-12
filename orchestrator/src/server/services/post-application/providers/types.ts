@@ -3,6 +3,7 @@ import type {
   PostApplicationProviderActionConnectRequest,
   PostApplicationProviderActionResponse,
   PostApplicationProviderActionSyncRequest,
+  PostApplicationProviderCapabilities,
   PostApplicationProviderStatus,
 } from "@shared/types";
 
@@ -34,6 +35,7 @@ export type PostApplicationProviderActionResult = {
 
 export interface PostApplicationProviderAdapter {
   readonly key: PostApplicationProvider;
+  readonly capabilities: PostApplicationProviderCapabilities;
 
   connect(
     args: PostApplicationProviderConnectArgs,

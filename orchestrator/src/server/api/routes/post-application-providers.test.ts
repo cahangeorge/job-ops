@@ -47,6 +47,27 @@ describe.sequential("Post-Application Provider actions API", () => {
         accountKey: "primary",
         connected: false,
         integration: null,
+        capabilities: {
+          provider: "gmail",
+          connectionMode: "oauth2",
+          sync: { supported: true },
+          cursor: { supported: false, storage: "none" },
+          checkpoint: { supported: false, storage: "none" },
+          pagination: { supported: false },
+          actions: {
+            connect: true,
+            status: true,
+            sync: true,
+            disconnect: true,
+          },
+        },
+        health: {
+          check: "local_configuration",
+          configured: false,
+          connected: false,
+          classification: "not_configured",
+          reason: "No Gmail integration is configured for this account.",
+        },
       },
       message: "Provider ready",
     });
@@ -76,6 +97,27 @@ describe.sequential("Post-Application Provider actions API", () => {
         accountKey: "primary",
         connected: false,
         integration: null,
+        capabilities: {
+          provider: "gmail",
+          connectionMode: "oauth2",
+          sync: { supported: true },
+          cursor: { supported: false, storage: "none" },
+          checkpoint: { supported: false, storage: "none" },
+          pagination: { supported: false },
+          actions: {
+            connect: true,
+            status: true,
+            sync: true,
+            disconnect: true,
+          },
+        },
+        health: {
+          check: "local_configuration",
+          configured: false,
+          connected: false,
+          classification: "not_configured",
+          reason: "No Gmail integration is configured for this account.",
+        },
       },
       message: "Provider ready",
     });
@@ -103,6 +145,27 @@ describe.sequential("Post-Application Provider actions API", () => {
         accountKey: "default",
         connected: true,
         integration: null,
+        capabilities: {
+          provider: "gmail",
+          connectionMode: "oauth2",
+          sync: { supported: true },
+          cursor: { supported: false, storage: "none" },
+          checkpoint: { supported: false, storage: "none" },
+          pagination: { supported: false },
+          actions: {
+            connect: true,
+            status: true,
+            sync: true,
+            disconnect: true,
+          },
+        },
+        health: {
+          check: "local_configuration",
+          configured: true,
+          connected: true,
+          classification: "ready",
+          reason: "Gmail is locally configured and connected.",
+        },
       },
     });
 

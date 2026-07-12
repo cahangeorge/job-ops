@@ -6,7 +6,10 @@ import {
   upsertConnectedPostApplicationIntegration,
 } from "@server/repositories/post-application-integrations";
 import { runGmailIngestionSync } from "@server/services/post-application/ingestion/gmail-sync";
-import type { PostApplicationIntegration } from "@shared/types";
+import type {
+  PostApplicationIntegration,
+  PostApplicationProviderHealth,
+} from "@shared/types";
 import { providerInvalidRequest, providerUpstreamError } from "./errors";
 import type {
   PostApplicationProviderActionResult,
@@ -73,15 +76,78 @@ function buildStatus(
   message?: string,
 ): PostApplicationProviderActionResult {
   const hasRefreshToken = Boolean(integration?.credentials?.hasRefreshToken);
+  const connected = integration?.status === "connected" && hasRefreshToken;
 
   return {
     status: {
       provider: "gmail",
       accountKey,
-      connected: integration?.status === "connected" && hasRefreshToken,
-      integration,
+      connected,
+      integration: sanitizeIntegration(integration),
+      capabilities: gmailProvider.capabilities,
+      health: buildHealth(integration, hasRefreshToken, connected),
     },
     message,
+  };
+}
+
+function sanitizeIntegration(
+  integration: PostApplicationIntegration | null,
+): PostApplicationIntegration | null {
+  if (!integration) return null;
+  return {
+    ...integration,
+    lastError: integration.lastError ? "Provider reported an error." : null,
+  };
+}
+
+function buildHealth(
+  integration: PostApplicationIntegration | null,
+  hasRefreshToken: boolean,
+  connected: boolean,
+): PostApplicationProviderHealth {
+  if (!integration) {
+    return {
+      check: "local_configuration",
+      configured: false,
+      connected: false,
+      classification: "not_configured",
+      reason: "No Gmail integration is configured for this account.",
+    };
+  }
+  if (connected) {
+    return {
+      check: "local_configuration",
+      configured: true,
+      connected: true,
+      classification: "ready",
+      reason: "Gmail is locally configured and connected.",
+    };
+  }
+  if (integration.status === "error") {
+    return {
+      check: "local_configuration",
+      configured: true,
+      connected: false,
+      classification: "provider_error",
+      reason: "The Gmail integration requires attention.",
+    };
+  }
+  if (!hasRefreshToken) {
+    return {
+      check: "local_configuration",
+      configured: true,
+      connected: false,
+      classification: "missing_credentials",
+      reason: "Gmail credentials are incomplete.",
+    };
+  }
+  return {
+    check: "local_configuration",
+    configured: true,
+    connected: false,
+    classification: "disconnected",
+    reason: "Gmail is disconnected.",
   };
 }
 
@@ -115,6 +181,15 @@ async function revokeGoogleToken(token: string): Promise<void> {
 
 export const gmailProvider: PostApplicationProviderAdapter = {
   key: "gmail",
+  capabilities: {
+    provider: "gmail",
+    connectionMode: "oauth2",
+    sync: { supported: true },
+    cursor: { supported: false, storage: "none" },
+    checkpoint: { supported: false, storage: "none" },
+    pagination: { supported: false },
+    actions: { connect: true, status: true, sync: true, disconnect: true },
+  },
   async connect(
     args: PostApplicationProviderConnectArgs,
   ): Promise<PostApplicationProviderActionResult> {

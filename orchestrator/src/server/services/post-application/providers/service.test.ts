@@ -176,9 +176,77 @@ describe("post-application provider action dispatcher", () => {
         accountKey: "account:gmail:test",
         connected: false,
         integration: null,
+        capabilities: expect.objectContaining({
+          connectionMode: "oauth2",
+          sync: { supported: true },
+        }),
+        health: {
+          check: "local_configuration",
+          configured: false,
+          connected: false,
+          classification: "not_configured",
+          reason: "No Gmail integration is configured for this account.",
+        },
       },
       message: "Gmail provider is not connected.",
     });
+  });
+
+  it("returns deterministic, sanitized health for unavailable IMAP status", async () => {
+    await expect(
+      executePostApplicationProviderAction({
+        provider: "imap",
+        action: "status",
+        accountKey: "account:imap:test",
+      }),
+    ).resolves.toMatchObject({
+      provider: "imap",
+      action: "status",
+      status: {
+        connected: false,
+        capabilities: { connectionMode: "imap", sync: { supported: false } },
+        health: {
+          check: "local_configuration",
+          configured: false,
+          connected: false,
+          classification: "provider_unavailable",
+          reason: "IMAP support is not available.",
+        },
+      },
+    });
+  });
+
+  it("does not expose stored provider errors in Gmail health", async () => {
+    const getIntegrationMock =
+      integrationRepo.getPostApplicationIntegration as Mock;
+    getIntegrationMock.mockResolvedValueOnce({
+      id: "integration-test",
+      provider: "gmail",
+      accountKey: "account:gmail:test",
+      displayName: "Gmail",
+      status: "error",
+      credentials: { hasRefreshToken: true },
+      lastConnectedAt: null,
+      lastSyncedAt: null,
+      lastError: "Authorization: Bearer fixture-access-token",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    const response = await executePostApplicationProviderAction({
+      provider: "gmail",
+      action: "status",
+      accountKey: "account:gmail:test",
+    });
+
+    expect(response.status.health).toEqual({
+      check: "local_configuration",
+      configured: true,
+      connected: false,
+      classification: "provider_error",
+      reason: "The Gmail integration requires attention.",
+    });
+    expect(JSON.stringify(response)).not.toContain("fixture-access-token");
   });
 
   it("disconnects gmail and clears credentials from integration store", async () => {
