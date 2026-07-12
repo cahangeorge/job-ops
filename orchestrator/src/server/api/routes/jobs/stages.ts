@@ -46,6 +46,9 @@ jobsStagesRouter.get("/:id/tasks", async (req: Request, res: Response) => {
 jobsStagesRouter.post("/:id/stages", async (req: Request, res: Response) => {
   try {
     const input = transitionStageSchema.parse(req.body);
+    if (input.toStage === "applied") {
+      return fail(res, badRequest("Applied stage requires human submission."));
+    }
     const event = transitionStage(
       req.params.id,
       input.toStage,
@@ -73,6 +76,12 @@ jobsStagesRouter.patch(
   async (req: Request, res: Response) => {
     try {
       const input = updateStageEventSchema.parse(req.body);
+      if (input.toStage === "applied") {
+        return fail(
+          res,
+          badRequest("Applied stage requires human submission."),
+        );
+      }
       updateStageEvent(req.params.eventId, input);
       ok(res, null);
       queueMicrotask(() => {

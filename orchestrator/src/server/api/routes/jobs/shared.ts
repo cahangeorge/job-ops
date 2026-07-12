@@ -181,6 +181,13 @@ export const updateJobSchema = z.object({
   sponsorMatchNames: z.string().optional(),
 });
 
+export const humanSubmissionSchema = z.object({
+  draftRevisionId: z.string().trim().min(1),
+  policyVersion: z.string().trim().min(1).max(200),
+  confirmed: z.literal(true),
+  expectedWorkingPdfSha256: z.string().regex(/^[0-9a-f]{64}$/),
+});
+
 export function isJobUrlConflictError(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
   return /UNIQUE constraint failed: .*jobs\.job_url/i.test(error.message);

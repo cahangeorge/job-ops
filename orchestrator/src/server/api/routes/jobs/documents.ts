@@ -6,6 +6,7 @@ import { trackServerProductEvent } from "@infra/product-analytics";
 import { isDemoMode } from "@server/config/demo";
 import { resolveRequestOrigin } from "@server/infra/request-origin";
 import { generateFinalPdf, summarizeJob } from "@server/pipeline/index";
+import * as submissionsRepo from "@server/repositories/application-submissions";
 import * as jobDocumentsRepo from "@server/repositories/job-documents";
 import * as jobsRepo from "@server/repositories/jobs";
 import {
@@ -13,6 +14,7 @@ import {
   simulateSummarizeJob,
 } from "@server/services/demo-simulator";
 import { requireCurrentDesignResume } from "@server/services/design-resume";
+import { resolveSubmittedArtifactStoragePath } from "@server/services/human-application-submission";
 import {
   removeStoredJobDocument,
   storeJobDocument,
@@ -221,6 +223,48 @@ jobsDocumentsRouter.post("/:id/pdf", async (req: Request, res: Response) => {
     fail(res, err);
   }
 });
+
+jobsDocumentsRouter.get(
+  "/:id/submitted-artifacts/:artifactId/content",
+  async (req: Request, res: Response) => {
+    try {
+      await requireJob(req.params.id);
+      const artifact = await submissionsRepo.getSubmittedArtifactForJob(
+        req.params.id,
+        req.params.artifactId,
+      );
+      if (!artifact)
+        throw new AppError({
+          status: 404,
+          code: "NOT_FOUND",
+          message: "Submitted artifact not found",
+        });
+      res.setHeader("Cache-Control", "no-store");
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      res.setHeader(
+        "Content-Disposition",
+        "attachment; filename=application.pdf",
+      );
+      res.type("application/pdf");
+      res.sendFile(
+        resolveSubmittedArtifactStoragePath(artifact.storagePath),
+        (error) => {
+          if (error && !res.headersSent)
+            fail(
+              res,
+              new AppError({
+                status: 404,
+                code: "NOT_FOUND",
+                message: "Submitted artifact not found",
+              }),
+            );
+        },
+      );
+    } catch (error) {
+      fail(res, toJobsRouteError(error));
+    }
+  },
+);
 
 jobsDocumentsRouter.get(
   "/:id/documents",

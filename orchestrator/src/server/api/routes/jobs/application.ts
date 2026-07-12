@@ -1,17 +1,19 @@
 import { badRequest, notFound } from "@infra/errors";
 import { fail, ok, okWithMeta } from "@infra/http";
-import { logger } from "@infra/logger";
 import { trackServerProductEvent } from "@infra/product-analytics";
 import { isDemoMode } from "@server/config/demo";
 import { resolveRequestOrigin } from "@server/infra/request-origin";
 import * as jobsRepo from "@server/repositories/jobs";
-import { trackCanonicalActivationEvent } from "@server/services/activation-funnel";
-import { transitionStage } from "@server/services/applicationTracking";
 import { simulateApplyJob } from "@server/services/demo-simulator";
-import { notifyJobCompleteWebhook } from "@server/services/jobs/webhooks";
+import { HumanApplicationSubmissionService } from "@server/services/human-application-submission";
 import * as visaSponsors from "@server/services/visa-sponsors/index";
 import { type Request, type Response, Router } from "express";
-import { hydrateJobPdfFreshness, requireJob, toJobsRouteError } from "./shared";
+import {
+  humanSubmissionSchema,
+  hydrateJobPdfFreshness,
+  requireJob,
+  toJobsRouteError,
+} from "./shared";
 
 export const jobsApplicationRouter = Router();
 
@@ -80,54 +82,32 @@ jobsApplicationRouter.post(
         });
       }
 
-      const job = await requireJob(req.params.id);
-
-      const appliedAtDate = new Date();
-      const appliedAt = appliedAtDate.toISOString();
-
-      transitionStage(
-        job.id,
-        "applied",
-        Math.floor(appliedAtDate.getTime() / 1000),
-        {
-          eventLabel: "Applied",
-          actor: "system",
-        },
-        null,
+      return fail(
+        res,
+        badRequest(
+          "Direct apply is disabled. Use the human submission endpoint.",
+        ),
       );
+    } catch (error) {
+      fail(res, toJobsRouteError(error));
+    }
+  },
+);
 
-      const updatedJob = await jobsRepo.updateJob(job.id, {
-        status: "applied",
-        appliedAt,
+jobsApplicationRouter.post(
+  "/:id/submit",
+  async (req: Request, res: Response) => {
+    try {
+      const input = humanSubmissionSchema.parse(req.body);
+      const result = await new HumanApplicationSubmissionService().submit({
+        jobId: req.params.id,
+        ...input,
       });
-
-      if (updatedJob) {
-        void trackCanonicalActivationEvent(
-          "application_marked_applied",
-          {
-            source: "jobs_apply_route",
-            had_pdf: Boolean(updatedJob.pdfPath),
-            tracer_links_enabled: Boolean(updatedJob.tracerLinksEnabled),
-            sponsor_match_found:
-              typeof updatedJob.sponsorMatchScore === "number" &&
-              updatedJob.sponsorMatchScore >= 50,
-          },
-          {
-            occurredAt: appliedAtDate,
-            requestOrigin: resolveRequestOrigin(req),
-            urlPath: "/jobs",
-          },
-        );
-        notifyJobCompleteWebhook(updatedJob).catch((error) => {
-          logger.warn("Job complete webhook dispatch failed", error);
-        });
-      }
-
-      if (!updatedJob) {
-        return fail(res, notFound("Job not found"));
-      }
-
-      ok(res, await hydrateJobPdfFreshness(updatedJob));
+      const job = await requireJob(req.params.id);
+      ok(res, {
+        ...(await hydrateJobPdfFreshness(job)),
+        submittedArtifactId: result.artifactId,
+      });
     } catch (error) {
       fail(res, toJobsRouteError(error));
     }

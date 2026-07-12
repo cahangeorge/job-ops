@@ -1641,11 +1641,8 @@ describe.sequential("Jobs API routes", () => {
     expect(body.meta.requestId).toBeTruthy();
   });
 
-  it("applies a job", async () => {
-    const { createJob } = await import("@server/repositories/jobs");
-    const { trackCanonicalActivationEvent } = await import(
-      "@server/services/activation-funnel"
-    );
+  it("rejects the legacy direct apply endpoint", async () => {
+    const { createJob, getJobById } = await import("@server/repositories/jobs");
     const job = await createJob({
       source: "manual",
       title: "Test Role",
@@ -1658,18 +1655,10 @@ describe.sequential("Jobs API routes", () => {
       method: "POST",
     });
     const body = await res.json();
-    expect(body.ok).toBe(true);
-    expect(body.data.status).toBe("applied");
-    expect(body.data.appliedAt).toBeTruthy();
-    expect(trackCanonicalActivationEvent).toHaveBeenCalledWith(
-      "application_marked_applied",
-      expect.objectContaining({
-        source: "jobs_apply_route",
-      }),
-      expect.objectContaining({
-        urlPath: "/jobs",
-      }),
-    );
+    expect(res.status).toBe(400);
+    expect(body.ok).toBe(false);
+    expect(body.error.code).toBe("INVALID_REQUEST");
+    expect((await getJobById(job.id))?.status).not.toBe("applied");
   });
 
   it("rescoring a job updates the suitability fields", async () => {

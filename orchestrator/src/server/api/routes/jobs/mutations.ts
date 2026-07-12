@@ -20,6 +20,13 @@ export const jobsMutationsRouter = Router();
 jobsMutationsRouter.patch("/:id", async (req: Request, res: Response) => {
   try {
     const input = updateJobSchema.parse(req.body);
+    if (input.status === "applied") {
+      throw new AppError({
+        status: 400,
+        code: "INVALID_REQUEST",
+        message: "Applied status requires human submission.",
+      });
+    }
     const currentJob = await jobsRepo.getJobById(req.params.id);
 
     if (!currentJob) {

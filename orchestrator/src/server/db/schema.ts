@@ -373,6 +373,8 @@ export const applicationApprovals = sqliteTable(
       .references(() => users.id, { onDelete: "restrict" }),
     policyVersion: text("policy_version").notNull(),
     requestId: text("request_id").notNull(),
+    draftRevisionId: text("draft_revision_id"),
+    submittedArtifactId: text("submitted_artifact_id"),
     reason: text("reason"),
     createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
   },

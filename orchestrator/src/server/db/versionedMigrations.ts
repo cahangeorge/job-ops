@@ -412,6 +412,15 @@ export const VERSIONED_MIGRATIONS: readonly VersionedMigration[] = [
         BEFORE DELETE ON story_usage_events BEGIN SELECT RAISE(ABORT, 'story_usage_events is append-only'); END;
     `,
   },
+  {
+    version: 4,
+    sql: `
+      ALTER TABLE application_approvals ADD COLUMN draft_revision_id TEXT;
+      ALTER TABLE application_approvals ADD COLUMN submitted_artifact_id TEXT;
+      CREATE INDEX idx_application_approvals_tenant_artifact
+        ON application_approvals(tenant_id, submitted_artifact_id);
+    `,
+  },
 ];
 
 function checksum(sql: string): string {

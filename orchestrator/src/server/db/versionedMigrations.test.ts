@@ -89,7 +89,7 @@ describe("versioned SQLite migrations", () => {
 
     expect(
       database.prepare("SELECT count(*) AS count FROM schema_migrations").get(),
-    ).toEqual({ count: 3 });
+    ).toEqual({ count: 4 });
     assertCompositeForeignKey(database);
   });
 
