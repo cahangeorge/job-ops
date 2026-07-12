@@ -159,6 +159,50 @@ describe.sequential("Profile API routes", () => {
   });
 
   describe("career profile overlay", () => {
+    it("blocks overlay writes in the public demo with blocked reason metadata", async () => {
+      const demoServer = await startServer({
+        env: {
+          DEMO_MODE: "true",
+          BASIC_AUTH_USER: "",
+          BASIC_AUTH_PASSWORD: "",
+        },
+      });
+      try {
+        for (const [method, body] of [
+          [
+            "PATCH",
+            {
+              expectedUpdatedAt: null,
+              preferences: { roles: ["Platform Engineer"] },
+            },
+          ],
+          ["DELETE", { expectedUpdatedAt: "2026-01-01T00:00:00.000Z" }],
+        ] as const) {
+          const response = await fetch(
+            `${demoServer.baseUrl}/api/profile/overlay`,
+            {
+              method,
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(body),
+            },
+          );
+          const responseBody = await response.json();
+
+          expect(response.status).toBe(403);
+          expect(responseBody).toMatchObject({
+            ok: false,
+            error: {
+              code: "FORBIDDEN",
+              details: { blockedReason: expect.stringContaining("disabled") },
+            },
+            meta: { blockedReason: expect.stringContaining("disabled") },
+          });
+        }
+      } finally {
+        await stopServer(demoServer);
+      }
+    });
+
     it("keeps the canonical profile unchanged while reading and merging a bounded overlay", async () => {
       const canonicalProfile = { basics: { name: "Canonical User" } };
       vi.mocked(getProfile).mockResolvedValue(canonicalProfile);

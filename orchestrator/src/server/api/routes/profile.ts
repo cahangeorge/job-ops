@@ -1,6 +1,6 @@
 import { toAppError } from "@infra/errors";
 import { fail, ok } from "@infra/http";
-import { isDemoMode } from "@server/config/demo";
+import { isDemoMode, sendDemoBlocked } from "@server/config/demo";
 import { DEMO_PROJECT_CATALOG } from "@server/config/demo-defaults";
 import {
   deleteCareerProfileOverlay,
@@ -128,6 +128,13 @@ profileRouter.get("/overlay", async (_req: Request, res: Response) => {
 
 profileRouter.patch("/overlay", async (req: Request, res: Response) => {
   try {
+    if (isDemoMode()) {
+      return sendDemoBlocked(
+        res,
+        "Saving career preferences is disabled in the public demo.",
+        { route: "PATCH /api/profile/overlay" },
+      );
+    }
     const input = careerProfileOverlayPatchSchema.parse(req.body);
     ok(res, await updateCareerProfileOverlay(input));
   } catch (error) {
@@ -137,6 +144,13 @@ profileRouter.patch("/overlay", async (req: Request, res: Response) => {
 
 profileRouter.delete("/overlay", async (req: Request, res: Response) => {
   try {
+    if (isDemoMode()) {
+      return sendDemoBlocked(
+        res,
+        "Resetting career preferences is disabled in the public demo.",
+        { route: "DELETE /api/profile/overlay" },
+      );
+    }
     const { expectedUpdatedAt } = careerProfileOverlayDeleteSchema.parse(
       req.body,
     );

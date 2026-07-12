@@ -24,6 +24,15 @@ export type UpdateCareerProfileOverlayInput = {
 
 const { careerProfileOverlays } = schema;
 
+function isOverlayAlreadyExistsError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    /unique constraint failed: career_profile_overlays\.tenant_id/i.test(
+      error.message,
+    )
+  );
+}
+
 function parseSection(value: string): CareerProfileOverlaySection {
   try {
     const parsed: unknown = JSON.parse(value);
@@ -77,15 +86,22 @@ export async function updateCareerProfileOverlay(
       throw notFound("Career profile overlay not found");
     }
     const now = new Date().toISOString();
-    await db.insert(careerProfileOverlays).values({
-      tenantId,
-      preferences: JSON.stringify(input.preferences ?? {}),
-      targets: JSON.stringify(input.targets ?? {}),
-      constraints: JSON.stringify(input.constraints ?? {}),
-      provenance: JSON.stringify(input.provenance ?? {}),
-      createdAt: now,
-      updatedAt: now,
-    });
+    try {
+      await db.insert(careerProfileOverlays).values({
+        tenantId,
+        preferences: JSON.stringify(input.preferences ?? {}),
+        targets: JSON.stringify(input.targets ?? {}),
+        constraints: JSON.stringify(input.constraints ?? {}),
+        provenance: JSON.stringify(input.provenance ?? {}),
+        createdAt: now,
+        updatedAt: now,
+      });
+    } catch (error) {
+      if (isOverlayAlreadyExistsError(error)) {
+        throw conflict("Career profile overlay was updated elsewhere");
+      }
+      throw error;
+    }
     const created = await getCareerProfileOverlay();
     if (!created) throw new Error("Failed to create career profile overlay");
     return created;

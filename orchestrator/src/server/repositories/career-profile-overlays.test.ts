@@ -126,4 +126,31 @@ describe.sequential("career profile overlay repository", () => {
       ),
     ).resolves.toMatchObject({ updatedAt: altOverlay.updatedAt });
   });
+
+  it("returns a conflict when concurrent initial creates use null versions", async () => {
+    const { runWithRequestContext } = await import(
+      "@server/infra/request-context"
+    );
+    const repository = await import("./career-profile-overlays");
+
+    const results = await Promise.allSettled(
+      ["Platform Engineer", "Product Engineer"].map((role) =>
+        runWithRequestContext({ tenantId: "tenant_default" }, () =>
+          repository.updateCareerProfileOverlay({
+            expectedUpdatedAt: null,
+            preferences: { roles: [role] },
+          }),
+        ),
+      ),
+    );
+
+    expect(
+      results.filter((result) => result.status === "fulfilled"),
+    ).toHaveLength(1);
+    expect(results.filter((result) => result.status === "rejected")).toEqual([
+      expect.objectContaining({
+        reason: expect.objectContaining({ code: "CONFLICT", status: 409 }),
+      }),
+    ]);
+  });
 });

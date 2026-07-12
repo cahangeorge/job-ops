@@ -98,6 +98,7 @@ export const CareerProfileOverlaySection: React.FC<
 
   const isSaving = saveMutation.isPending || resetMutation.isPending;
   const save = () => {
+    const existingOverlay = overlayQuery.data;
     const parsedMinimumSalary = minimumSalary.trim()
       ? Number(minimumSalary)
       : undefined;
@@ -109,13 +110,18 @@ export const CareerProfileOverlaySection: React.FC<
       return;
     }
     saveMutation.mutate({
-      expectedUpdatedAt: overlayQuery.data?.updatedAt ?? null,
+      expectedUpdatedAt: existingOverlay?.updatedAt ?? null,
       preferences: {
+        ...existingOverlay?.preferences,
         roles: linesToValues(roles),
         locations: linesToValues(locations),
       },
-      targets: { companies: linesToValues(companies) },
+      targets: {
+        ...existingOverlay?.targets,
+        companies: linesToValues(companies),
+      },
       constraints: {
+        ...existingOverlay?.constraints,
         ...(parsedMinimumSalary === undefined
           ? {}
           : { minimumSalary: parsedMinimumSalary }),
@@ -123,7 +129,7 @@ export const CareerProfileOverlaySection: React.FC<
         excludedCompanies: linesToValues(excludedCompanies),
       },
       provenance: {
-        source: "manual",
+        source: existingOverlay?.provenance.source ?? "manual",
         ...(note.trim() ? { note: note.trim() } : {}),
       },
     });
