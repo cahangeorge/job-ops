@@ -6,6 +6,8 @@ import { resolveRequestOrigin } from "@server/infra/request-origin";
 import * as jobsRepo from "@server/repositories/jobs";
 import { simulateApplyJob } from "@server/services/demo-simulator";
 import { HumanApplicationSubmissionService } from "@server/services/human-application-submission";
+import { trackCanonicalActivationEvent } from "@server/services/activation-funnel";
+import { notifyJobCompleteWebhook } from "@server/services/jobs/webhooks";
 import * as visaSponsors from "@server/services/visa-sponsors/index";
 import { type Request, type Response, Router } from "express";
 import {
@@ -104,6 +106,15 @@ jobsApplicationRouter.post(
         ...input,
       });
       const job = await requireJob(req.params.id);
+      void trackCanonicalActivationEvent(
+        "application_marked_applied",
+        { source: "jobs_submit_route" },
+        {
+          requestOrigin: resolveRequestOrigin(req),
+          urlPath: "/jobs",
+        },
+      );
+      void notifyJobCompleteWebhook(job);
       ok(res, {
         ...(await hydrateJobPdfFreshness(job)),
         submittedArtifactId: result.artifactId,
