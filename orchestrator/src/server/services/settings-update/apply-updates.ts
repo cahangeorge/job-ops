@@ -16,9 +16,14 @@ async function runAction(action: SettingsUpdateAction): Promise<void> {
   }
 }
 
-export async function applySettingsUpdates(
+export type PreparedSettingsUpdates = {
+  actions: SettingsUpdateAction[];
+  plan: SettingsUpdatePlan;
+};
+
+export async function prepareSettingsUpdates(
   input: UpdateSettingsInput,
-): Promise<SettingsUpdatePlan> {
+): Promise<PreparedSettingsUpdates> {
   const context: SettingsUpdateContext = { input };
   const actions: SettingsUpdateAction[] = [];
   const deferredSideEffects = new Set<DeferredSideEffect>();
@@ -38,16 +43,27 @@ export async function applySettingsUpdates(
     }
   }
 
-  await Promise.all(actions.map(runAction));
   for (const action of actions) {
     updatedSettingKeys.add(action.settingKey);
   }
 
   return {
-    shouldRefreshBackupScheduler: deferredSideEffects.has(
-      "refreshBackupScheduler",
-    ),
-    shouldClearRxResumeCaches: deferredSideEffects.has("clearRxResumeCaches"),
-    updatedSettingKeys: Array.from(updatedSettingKeys).sort(),
+    actions,
+    plan: {
+      shouldRefreshBackupScheduler: deferredSideEffects.has(
+        "refreshBackupScheduler",
+      ),
+      shouldClearRxResumeCaches: deferredSideEffects.has("clearRxResumeCaches"),
+      updatedSettingKeys: Array.from(updatedSettingKeys).sort(),
+    },
   };
+}
+
+/** Legacy/test-injection path: retain asynchronous repository writes. */
+export async function applySettingsUpdates(
+  input: UpdateSettingsInput,
+): Promise<SettingsUpdatePlan> {
+  const prepared = await prepareSettingsUpdates(input);
+  await Promise.all(prepared.actions.map(runAction));
+  return prepared.plan;
 }

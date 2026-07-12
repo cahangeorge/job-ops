@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { isAutoPdfRegenerationJobPayload } from "./job-queue";
 import { InMemoryJobQueue } from "./job-queue-memory";
 
 describe("InMemoryJobQueue", () => {
@@ -19,7 +20,12 @@ describe("InMemoryJobQueue", () => {
 
     const jobs = queue.getQueuedJobs();
     expect(jobs).toHaveLength(1);
-    expect(jobs[0]?.payload.jobId).toBe("job-1");
+    const payload = jobs[0]?.payload;
+    expect(payload && isAutoPdfRegenerationJobPayload(payload)).toBe(true);
+    if (!payload || !isAutoPdfRegenerationJobPayload(payload)) {
+      throw new Error("Expected an auto PDF regeneration payload");
+    }
+    expect(payload.jobId).toBe("job-1");
   });
 
   it("deduplicates by queue and dedupe key", async () => {
@@ -112,7 +118,12 @@ describe("InMemoryJobQueue", () => {
       vi.advanceTimersByTime(1000);
 
       const reserved = await queue.reserveNext("auto_pdf_regeneration");
-      expect(reserved?.payload.jobId).toBe("job-delayed");
+      const payload = reserved?.payload;
+      expect(payload && isAutoPdfRegenerationJobPayload(payload)).toBe(true);
+      if (!payload || !isAutoPdfRegenerationJobPayload(payload)) {
+        throw new Error("Expected a delayed auto PDF regeneration payload");
+      }
+      expect(payload.jobId).toBe("job-delayed");
     } finally {
       vi.useRealTimers();
     }

@@ -2,7 +2,13 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, stat, unlink, writeFile } from "node:fs/promises";
 import { basename, extname, join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
-import { AppError, badRequest, conflict, notFound } from "@infra/errors";
+import {
+  AppError,
+  badRequest,
+  conflict,
+  notFound,
+  serviceUnavailable,
+} from "@infra/errors";
 import { logger } from "@infra/logger";
 import { sanitizeUnknown } from "@infra/sanitize";
 import { createId } from "@paralleldrive/cuid2";
@@ -605,6 +611,53 @@ async function clearDesignResumeAssetsForDocument(
   );
 }
 
+async function reconcilePostSuccessAutoPdfRoot(input: {
+  document: Pick<DesignResumeDocument, "id" | "revision">;
+  operation: string;
+  requestedBy: "system" | "user";
+}): Promise<void> {
+  const [{ sqlite }, { getJobQueue }, { SqliteJobQueue }, producers] =
+    await Promise.all([
+      import("@server/db"),
+      import("@server/infra/job-queue-registry"),
+      import("@server/infra/job-queue-sqlite"),
+      import("@server/services/auto-pdf-producers"),
+    ]);
+  const queue = getJobQueue();
+  if (!(queue instanceof SqliteJobQueue)) {
+    throw serviceUnavailable("Durable PDF regeneration queue is unavailable.");
+  }
+  try {
+    producers.recordDesignResumeAutoPdfReconciliation({
+      database: sqlite,
+      queue,
+      tenantId: getActiveTenantId(),
+      documentId: input.document.id,
+      revision: input.document.revision,
+      operation: input.operation,
+      requestedBy: input.requestedBy,
+    });
+  } catch (error) {
+    try {
+      producers.reconcileDesignResumeAutoPdfRoots({ database: sqlite, queue });
+    } catch (recoveryError) {
+      logger.warn("Design Resume PDF reconciliation could not be recovered", {
+        documentId: input.document.id,
+        operation: input.operation,
+        error: sanitizeUnknown(recoveryError),
+      });
+      throw serviceUnavailable(
+        "Resume Studio was saved, but PDF regeneration could not be scheduled. Retry the request.",
+      );
+    }
+    logger.warn("Recovered missing Design Resume PDF reconciliation", {
+      documentId: input.document.id,
+      operation: input.operation,
+      error: sanitizeUnknown(error),
+    });
+  }
+}
+
 export async function replaceCurrentDesignResumeDocument(input: {
   importedAt?: string | null;
   resumeJson: DesignResumeJson;
@@ -617,12 +670,20 @@ export async function replaceCurrentDesignResumeDocument(input: {
     id: existingDocument?.id ?? buildTenantScopedDesignResumeDocumentId(),
     title: buildDocumentTitle(input.resumeJson),
     resumeJson: input.resumeJson,
-    revision: 1,
+    revision: (existingDocument?.revision ?? 0) + 1,
     sourceResumeId: input.sourceResumeId,
     sourceMode: input.sourceMode,
     importedAt,
     updatedAt: importedAt,
   });
+
+  if (saved) {
+    await reconcilePostSuccessAutoPdfRoot({
+      document: saved,
+      operation: "import",
+      requestedBy: "user",
+    });
+  }
 
   if (existingDocument?.id) {
     await clearDesignResumeAssetsForDocument(existingDocument.id);
@@ -748,10 +809,13 @@ async function localizeImportedDesignResumePicture(
   } as DesignResumeJson["picture"];
 
   try {
-    return await updateCurrentDesignResume({
-      baseRevision: document.revision,
-      document: nextDocument,
-    });
+    return await updateCurrentDesignResume(
+      {
+        baseRevision: document.revision,
+        document: nextDocument,
+      },
+      { reconcileAutoPdfOperation: "picture_localization" },
+    );
   } catch (error) {
     await designResumeRepo.deleteDesignResumeAsset(assetId);
     await deleteAssetFile(storagePath);
@@ -762,6 +826,11 @@ async function localizeImportedDesignResumePicture(
 export async function updateCurrentDesignResume(
   input: DesignResumePatchRequest & {
     expectedJob?: { id: string; updatedAt: string };
+  },
+  options?: {
+    enqueueAutoPdfRoot?: boolean;
+    reconcileAutoPdfOperation?: string;
+    requestedBy?: "system" | "user";
   },
 ): Promise<DesignResumeDocument> {
   const current = await requireCurrentDesignResume();
@@ -790,21 +859,72 @@ export async function updateCurrentDesignResume(
   }
 
   const now = new Date().toISOString();
-  const saved = await designResumeRepo.updateDesignResumeDocumentIfRevision({
-    id: current.id,
-    expectedRevision: input.baseRevision,
-    title: buildDocumentTitle(nextDocument),
-    resumeJson: nextDocument,
-    revision: current.revision + 1,
-    sourceResumeId: current.sourceResumeId,
-    sourceMode: current.sourceMode,
-    importedAt: current.importedAt,
-    updatedAt: now,
-    expectedJob: input.expectedJob,
-  });
+  const saved = await (options?.enqueueAutoPdfRoot
+    ? await (async () => {
+        if (input.expectedJob) {
+          throw serviceUnavailable(
+            "Atomic PDF regeneration is unavailable for this resume update.",
+          );
+        }
+        const [
+          { sqlite },
+          { getJobQueue },
+          { SqliteJobQueue },
+          { updateDesignResumeDocumentAndEnqueueAutoPdfRegeneration },
+        ] = await Promise.all([
+          import("@server/db"),
+          import("@server/infra/job-queue-registry"),
+          import("@server/infra/job-queue-sqlite"),
+          import("@server/services/auto-pdf-producers"),
+        ]);
+        const queue = getJobQueue();
+        if (!(queue instanceof SqliteJobQueue)) {
+          throw serviceUnavailable(
+            "Durable PDF regeneration queue is unavailable.",
+          );
+        }
+        const committed =
+          updateDesignResumeDocumentAndEnqueueAutoPdfRegeneration({
+            database: sqlite,
+            queue,
+            tenantId: getActiveTenantId(),
+            documentId: current.id,
+            expectedRevision: input.baseRevision,
+            title: buildDocumentTitle(nextDocument),
+            resumeJson: nextDocument,
+            sourceResumeId: current.sourceResumeId,
+            sourceMode: current.sourceMode,
+            importedAt: current.importedAt,
+            updatedAt: now,
+            requestedBy: options.requestedBy ?? "user",
+          });
+        return committed
+          ? designResumeRepo.getDesignResumeDocumentById(current.id)
+          : null;
+      })()
+    : designResumeRepo.updateDesignResumeDocumentIfRevision({
+        id: current.id,
+        expectedRevision: input.baseRevision,
+        title: buildDocumentTitle(nextDocument),
+        resumeJson: nextDocument,
+        revision: current.revision + 1,
+        sourceResumeId: current.sourceResumeId,
+        sourceMode: current.sourceMode,
+        importedAt: current.importedAt,
+        updatedAt: now,
+        expectedJob: input.expectedJob,
+      }));
 
   if (!saved) {
     throw conflict("Resume Studio has changed. Refresh and try again.");
+  }
+
+  if (options?.reconcileAutoPdfOperation) {
+    await reconcilePostSuccessAutoPdfRoot({
+      document: saved,
+      operation: options.reconcileAutoPdfOperation,
+      requestedBy: options.requestedBy ?? "user",
+    });
   }
 
   return (await hydrateDocument(saved)) as DesignResumeDocument;
@@ -816,6 +936,10 @@ export async function uploadDesignResumePicture(input: {
   baseRevision?: number;
   document?: DesignResumeJson;
 }): Promise<DesignResumeDocument> {
+  // File-backed mutations are intentionally not given an auto-PDF root task:
+  // SQLite cannot atomically commit their file promotion. A failed write is
+  // cleaned up locally; a committed file/document change is recovered by a
+  // later explicit document PATCH until a file-outbox reconciler exists.
   const current = await requireCurrentDesignResume();
   const parsed = parseDataUrl(input.dataUrl);
   const existingAsset = await designResumeRepo.findDesignResumeAssetForDocument(
@@ -849,10 +973,13 @@ export async function uploadDesignResumePicture(input: {
 
   let updated: DesignResumeDocument;
   try {
-    updated = await updateCurrentDesignResume({
-      baseRevision: input.baseRevision ?? current.revision,
-      document: nextDocument,
-    });
+    updated = await updateCurrentDesignResume(
+      {
+        baseRevision: input.baseRevision ?? current.revision,
+        document: nextDocument,
+      },
+      { reconcileAutoPdfOperation: "picture_upload" },
+    );
   } catch (error) {
     await designResumeRepo.deleteDesignResumeAsset(assetId);
     await deleteAssetFile(storagePath);
@@ -917,10 +1044,13 @@ export async function uploadDesignResumePictureFile(input: {
 
   let updated: DesignResumeDocument;
   try {
-    updated = await updateCurrentDesignResume({
-      baseRevision: input.baseRevision ?? current.revision,
-      document: nextDocument,
-    });
+    updated = await updateCurrentDesignResume(
+      {
+        baseRevision: input.baseRevision ?? current.revision,
+        document: nextDocument,
+      },
+      { reconcileAutoPdfOperation: "picture_upload" },
+    );
   } catch (error) {
     await designResumeRepo.deleteDesignResumeAsset(assetId);
     await deleteAssetFile(storagePath);
@@ -965,10 +1095,13 @@ export async function deleteDesignResumePicture(input?: {
     url: "",
   } as DesignResumeJson["picture"];
 
-  const updated = await updateCurrentDesignResume({
-    baseRevision: input?.baseRevision ?? current.revision,
-    document: nextDocument,
-  });
+  const updated = await updateCurrentDesignResume(
+    {
+      baseRevision: input?.baseRevision ?? current.revision,
+      document: nextDocument,
+    },
+    { reconcileAutoPdfOperation: "picture_delete" },
+  );
 
   if (asset) {
     try {

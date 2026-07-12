@@ -18,7 +18,7 @@ if (!existsSync(dataDir)) {
   mkdirSync(dataDir, { recursive: true });
 }
 
-const sqlite = new Database(DB_PATH);
+export const sqlite = new Database(DB_PATH);
 sqlite.pragma("foreign_keys = ON");
 sqlite.pragma("journal_mode = WAL");
 let isClosed = false;

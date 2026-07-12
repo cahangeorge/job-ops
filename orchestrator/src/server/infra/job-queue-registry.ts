@@ -1,7 +1,9 @@
+import { sqlite } from "@server/db";
 import type { JobQueue } from "./job-queue";
 import { InMemoryJobQueue } from "./job-queue-memory";
+import { SqliteJobQueue } from "./job-queue-sqlite";
 
-let activeJobQueue: JobQueue = new InMemoryJobQueue();
+let activeJobQueue: JobQueue = new SqliteJobQueue(sqlite);
 
 export function getJobQueue(): JobQueue {
   return activeJobQueue;

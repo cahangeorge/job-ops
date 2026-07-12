@@ -23,6 +23,16 @@ const fsMocks = vi.hoisted(() => ({
   writeFile: vi.fn().mockResolvedValue(undefined),
 }));
 
+const durability = vi.hoisted(() => {
+  class TestSqliteJobQueue {}
+  return {
+    queue: new TestSqliteJobQueue(),
+    TestSqliteJobQueue,
+    record: vi.fn(),
+    reconcile: vi.fn(),
+  };
+});
+
 vi.mock("@server/repositories/design-resume", () => repo);
 vi.mock("@server/config/dataDir", () => ({
   getDataDir: vi.fn(() => "/tmp/job-ops-test"),
@@ -47,6 +57,17 @@ vi.mock("@server/services/tracer-links", () => ({
 }));
 vi.mock("@server/tenancy/context", () => ({
   getActiveTenantId: vi.fn(() => "tenant-test-2"),
+}));
+vi.mock("@server/db", () => ({ sqlite: {} }));
+vi.mock("@server/infra/job-queue-registry", () => ({
+  getJobQueue: vi.fn(() => durability.queue),
+}));
+vi.mock("@server/infra/job-queue-sqlite", () => ({
+  SqliteJobQueue: durability.TestSqliteJobQueue,
+}));
+vi.mock("@server/services/auto-pdf-producers", () => ({
+  recordDesignResumeAutoPdfReconciliation: durability.record,
+  reconcileDesignResumeAutoPdfRoots: durability.reconcile,
 }));
 vi.mock("node:fs", () => ({
   existsSync: vi.fn(() => true),
@@ -113,12 +134,16 @@ describe("design resume service", () => {
     repo.listDesignResumeAssets.mockResolvedValue([]);
     repo.getDesignResumeAssetById.mockResolvedValue(null);
     repo.getDesignResumeAssetByIdAnyTenant.mockResolvedValue(null);
-    repo.upsertDesignResumeDocument.mockImplementation(async (input) =>
-      makeDocumentRow({
+    durability.record.mockReset();
+    durability.reconcile.mockReset();
+    repo.upsertDesignResumeDocument.mockImplementation(async (input) => {
+      const saved = makeDocumentRow({
         ...input,
         createdAt: "2026-04-07T00:00:00.000Z",
-      }),
-    );
+      });
+      repo.getLatestDesignResumeDocument.mockResolvedValue(saved);
+      return saved;
+    });
     repo.updateDesignResumeDocumentIfRevision.mockImplementation(
       async (input) =>
         makeDocumentRow({
@@ -335,6 +360,22 @@ describe("design resume service", () => {
         id: "asset-1",
         kind: "picture",
         mimeType: "image/webp",
+      }),
+    );
+    expect(durability.record).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        documentId: "primary",
+        revision: 2,
+        operation: "import",
+      }),
+    );
+    expect(durability.record).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        documentId: "primary",
+        revision: 3,
+        operation: "picture_localization",
       }),
     );
   });

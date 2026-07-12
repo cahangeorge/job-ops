@@ -16,6 +16,7 @@ export type DeferredSideEffect =
 
 export type SettingsUpdateAction = {
   settingKey: SettingKey;
+  value: string | null;
   persist: () => Promise<void>;
   sideEffect?: () => void | Promise<void>;
 };
@@ -66,6 +67,7 @@ function persistAction(
 ): SettingsUpdateAction {
   return {
     settingKey,
+    value,
     persist: () => settingsRepo.setSetting(settingKey, value),
     sideEffect,
   };

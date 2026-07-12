@@ -23,6 +23,7 @@ import type {
   LocationEvidence,
   LocationEvidenceEntry,
 } from "@shared/types/location";
+import type Database from "better-sqlite3";
 import {
   and,
   desc,
@@ -725,6 +726,116 @@ export async function updateJob(
     .where(and(eq(jobs.tenantId, tenantId), eq(jobs.id, id)));
 
   return getJobById(id);
+}
+
+/** Executes a job update on the caller-owned SQLite transaction. */
+export function updateJobInTransaction(
+  transaction: Database.Database,
+  id: string,
+  input: UpdateJobInput,
+  tenantIdOverride?: string,
+): Job | null {
+  const tenantId = tenantIdOverride ?? getActiveTenantId();
+  const now = new Date().toISOString();
+  const columns: Record<keyof UpdateJobInput, string> = {
+    title: "title",
+    employer: "employer",
+    jobUrl: "job_url",
+    applicationLink: "application_link",
+    location: "location",
+    salary: "salary",
+    deadline: "deadline",
+    status: "status",
+    outcome: "outcome",
+    closedAt: "closed_at",
+    jobDescription: "job_description",
+    locationEvidence: "location_evidence",
+    suitabilityScore: "suitability_score",
+    suitabilityReason: "suitability_reason",
+    jobBrief: "job_brief",
+    tailoredSummary: "tailored_summary",
+    tailoredHeadline: "tailored_headline",
+    tailoredSkills: "tailored_skills",
+    selectedProjectIds: "selected_project_ids",
+    pdfPath: "pdf_path",
+    pdfSource: "pdf_source",
+    pdfRegenerating: "pdf_regenerating",
+    pdfFingerprint: "pdf_fingerprint",
+    pdfGeneratedAt: "pdf_generated_at",
+    tracerLinksEnabled: "tracer_links_enabled",
+    readyAt: "ready_at",
+    appliedAt: "applied_at",
+    sponsorMatchScore: "sponsor_match_score",
+    sponsorMatchNames: "sponsor_match_names",
+    evaluationRoleSummary: "evaluation_role_summary",
+    evaluationCvMatchScore: "evaluation_cv_match_score",
+    evaluationCvMatchReason: "evaluation_cv_match_reason",
+    evaluationLevelStrategy: "evaluation_level_strategy",
+    evaluationCompResearch: "evaluation_comp_research",
+    evaluationPersonalization: "evaluation_personalization",
+    evaluationInterviewPrep: "evaluation_interview_prep",
+    evaluationLegitimacyScore: "evaluation_legitimacy_score",
+    evaluationLegitimacyReason: "evaluation_legitimacy_reason",
+    evaluationOverallGrade: "evaluation_overall_grade",
+    archetype: "archetype",
+    isGhostJob: "is_ghost_job",
+  };
+  const values: unknown[] = [];
+  const assignments: string[] = [];
+  for (const [key, column] of Object.entries(columns) as Array<
+    [keyof UpdateJobInput, string]
+  >) {
+    let value = input[key];
+    if (value === undefined) continue;
+    if (typeof value === "boolean") value = Number(value);
+    if (key === "locationEvidence")
+      value = serializeLocationEvidence(value as JobLocationEvidence | null);
+    if (key === "jobDescription" && input.jobBrief === undefined) {
+      assignments.push("job_brief = NULL");
+    }
+    if (key === "status" && value === "processing") {
+      assignments.push("processed_at = ?");
+      values.push(now);
+    }
+    if (key === "status" && value === "ready" && input.readyAt === undefined) {
+      assignments.push("ready_at = coalesce(ready_at, ?)");
+      values.push(now);
+    }
+    assignments.push(`${column} = ?`);
+    values.push(value);
+  }
+  if (input.status === "applied" && input.appliedAt === undefined) {
+    assignments.push("applied_at = coalesce(applied_at, ?)");
+    values.push(now);
+  }
+  assignments.push("updated_at = ?");
+  values.push(now, tenantId, id);
+  transaction
+    .prepare(
+      `UPDATE jobs SET ${assignments.join(", ")} WHERE tenant_id = ? AND id = ?`,
+    )
+    .run(...values);
+  const row = transaction
+    .prepare("SELECT * FROM jobs WHERE tenant_id = ? AND id = ?")
+    .get(tenantId, id);
+  if (!row) return null;
+  const drizzleShape = Object.fromEntries(
+    Object.entries(row as Record<string, unknown>).map(([key, value]) => [
+      key.replace(/_([a-z])/g, (_match, letter: string) =>
+        letter.toUpperCase(),
+      ),
+      value,
+    ]),
+  ) as typeof jobs.$inferSelect;
+  return mapRowToJob({
+    ...drizzleShape,
+    pdfRegenerating: Boolean(drizzleShape.pdfRegenerating),
+    tracerLinksEnabled: Boolean(drizzleShape.tracerLinksEnabled),
+    isGhostJob:
+      drizzleShape.isGhostJob === null
+        ? null
+        : Boolean(drizzleShape.isGhostJob),
+  });
 }
 
 export async function updateJobLivenessResult(

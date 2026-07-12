@@ -464,6 +464,120 @@ export const VERSIONED_MIGRATIONS: readonly VersionedMigration[] = [
         BEFORE DELETE ON competency_evidence BEGIN SELECT RAISE(ABORT, 'competency_evidence is append-only'); END;
     `,
   },
+  {
+    version: 6,
+    sql: `
+      CREATE TABLE workflow_tasks (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        queue_name TEXT NOT NULL,
+        task_type TEXT NOT NULL,
+        payload_version INTEGER NOT NULL CHECK(payload_version > 0),
+        payload_json TEXT NOT NULL,
+        idempotency_key TEXT,
+        state TEXT NOT NULL CHECK(state IN ('ready', 'leased', 'completed', 'dead_letter')),
+        priority INTEGER NOT NULL DEFAULT 0,
+        available_at TEXT NOT NULL,
+        lease_owner TEXT,
+        lease_expires_at TEXT,
+        heartbeat_at TEXT,
+        attempt_count INTEGER NOT NULL DEFAULT 0 CHECK(attempt_count >= 0),
+        max_attempts INTEGER NOT NULL DEFAULT 3 CHECK(max_attempts > 0),
+        last_error TEXT,
+        request_context_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        completed_at TEXT,
+        FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+        CHECK((state = 'leased') = (lease_owner IS NOT NULL AND lease_expires_at IS NOT NULL)),
+        CHECK(state != 'completed' OR completed_at IS NOT NULL)
+      );
+      CREATE UNIQUE INDEX idx_workflow_tasks_active_idempotency
+        ON workflow_tasks(tenant_id, queue_name, task_type, idempotency_key)
+        WHERE idempotency_key IS NOT NULL AND state IN ('ready', 'leased');
+      CREATE INDEX idx_workflow_tasks_ready_claim
+        ON workflow_tasks(queue_name, state, available_at, priority DESC, created_at, id);
+      CREATE INDEX idx_workflow_tasks_expired_lease
+        ON workflow_tasks(state, lease_expires_at);
+
+      CREATE TABLE workflow_task_attempts (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        task_id TEXT NOT NULL,
+        attempt_number INTEGER NOT NULL CHECK(attempt_number > 0),
+        lease_owner TEXT NOT NULL,
+        started_at TEXT NOT NULL,
+        finished_at TEXT,
+        outcome TEXT CHECK(outcome IN ('completed', 'retry', 'dead_letter', 'recovered')),
+        error_summary TEXT,
+        FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+        FOREIGN KEY (task_id) REFERENCES workflow_tasks(id) ON DELETE CASCADE,
+        UNIQUE(task_id, attempt_number)
+      );
+      CREATE INDEX idx_workflow_task_attempts_tenant_task ON workflow_task_attempts(tenant_id, task_id);
+
+      CREATE TABLE workflow_dead_letters (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        task_id TEXT NOT NULL,
+        queue_name TEXT NOT NULL,
+        task_type TEXT NOT NULL,
+        payload_version INTEGER NOT NULL,
+        payload_json TEXT NOT NULL,
+        request_context_json TEXT NOT NULL,
+        last_error TEXT,
+        dead_lettered_at TEXT NOT NULL,
+        replayed_at TEXT,
+        replay_task_id TEXT,
+        FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+        FOREIGN KEY (task_id) REFERENCES workflow_tasks(id) ON DELETE RESTRICT,
+        UNIQUE(task_id)
+      );
+      CREATE INDEX idx_workflow_dead_letters_tenant_created ON workflow_dead_letters(tenant_id, dead_lettered_at);
+
+      CREATE TABLE workflow_outbox (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        queue_name TEXT NOT NULL,
+        task_type TEXT NOT NULL,
+        payload_version INTEGER NOT NULL,
+        payload_json TEXT NOT NULL,
+        idempotency_key TEXT,
+        priority INTEGER NOT NULL DEFAULT 0,
+        available_at TEXT NOT NULL,
+        request_context_json TEXT NOT NULL DEFAULT '{}',
+        dispatched_at TEXT,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+      );
+      CREATE INDEX idx_workflow_outbox_pending ON workflow_outbox(dispatched_at, available_at, created_at);
+    `,
+  },
+  {
+    version: 7,
+    sql: `
+      CREATE UNIQUE INDEX idx_workflow_outbox_immutable_idempotency
+        ON workflow_outbox(tenant_id, queue_name, task_type, idempotency_key)
+        WHERE idempotency_key IS NOT NULL
+          AND task_type IN (
+            'settings_auto_pdf_root',
+            'design_resume_auto_pdf_root'
+          );
+    `,
+  },
+  {
+    version: 8,
+    sql: `
+      CREATE TABLE design_resume_pdf_reconciliations (
+        tenant_id TEXT NOT NULL,
+        document_id TEXT NOT NULL,
+        revision INTEGER NOT NULL CHECK(revision > 0),
+        operation TEXT NOT NULL CHECK(length(trim(operation)) > 0),
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (tenant_id, document_id, revision, operation)
+      );
+    `,
+  },
 ];
 
 function checksum(sql: string): string {

@@ -89,8 +89,32 @@ describe("versioned SQLite migrations", () => {
 
     expect(
       database.prepare("SELECT count(*) AS count FROM schema_migrations").get(),
-    ).toEqual({ count: 5 });
+    ).toEqual({ count: 8 });
     assertCompositeForeignKey(database);
+  });
+
+  it("adds durable workflow tables with active idempotency and claim indexes", () => {
+    const database = databaseWithJobs();
+    runVersionedMigrations(database);
+
+    const indexes = database
+      .prepare(
+        "SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'workflow_tasks'",
+      )
+      .all() as Array<{ name: string }>;
+    expect(indexes.map((index) => index.name)).toEqual(
+      expect.arrayContaining([
+        "idx_workflow_tasks_active_idempotency",
+        "idx_workflow_tasks_ready_claim",
+      ]),
+    );
+    expect(
+      database
+        .prepare(
+          "SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_workflow_outbox_immutable_idempotency'",
+        )
+        .get(),
+    ).toEqual({ name: "idx_workflow_outbox_immutable_idempotency" });
   });
 
   it("rejects duplicate versions and checksum drift", () => {

@@ -1,16 +1,25 @@
 import { AppError } from "@infra/errors";
 import { fail, ok } from "@infra/http";
 import { logger } from "@infra/logger";
+import { sqlite } from "@server/db";
+import { getJobQueue } from "@server/infra/job-queue-registry";
+import { SqliteJobQueue } from "@server/infra/job-queue-sqlite";
 import { resolveRequestOrigin } from "@server/infra/request-origin";
 import * as jobsRepo from "@server/repositories/jobs";
 import { reconcileActivationMilestonesFromHistorySafely } from "@server/services/activation-funnel";
+import { updateJobAndEnqueueAutoPdfRegeneration } from "@server/services/auto-pdf-producers";
+import {
+  dispatchCommittedAutoPdfOutbox,
+  enqueueAutoPdfRegenerationForJob,
+  shouldEnqueueTailoringAutoPdfRegeneration,
+} from "@server/services/auto-pdf-regeneration";
 import { trackApplicationAcceptedIfNeeded } from "@server/services/jobs/analytics";
 import { getTracerReadiness } from "@server/services/tracer-links";
+import { getActiveTenantId } from "@server/tenancy/context";
 import { type Request, type Response, Router } from "express";
 import {
   hydrateJobPdfFreshness,
   isJobUrlConflictError,
-  queueTailoringAutoPdfRegenerationIfNeeded,
   toJobsRouteError,
   updateJobSchema,
 } from "./shared";
@@ -72,7 +81,20 @@ jobsMutationsRouter.patch("/:id", async (req: Request, res: Response) => {
       }
     }
 
-    const job = await jobsRepo.updateJob(req.params.id, input);
+    const queue = getJobQueue();
+    const job =
+      queue instanceof SqliteJobQueue
+        ? updateJobAndEnqueueAutoPdfRegeneration({
+            database: sqlite,
+            queue,
+            tenantId: getActiveTenantId(),
+            jobId: req.params.id,
+            update: input,
+            requestedBy: "user",
+            shouldEnqueue: (updated) =>
+              shouldEnqueueTailoringAutoPdfRegeneration(currentJob, updated),
+          })
+        : await jobsRepo.updateJob(req.params.id, input);
 
     if (!job) {
       const err = new AppError({
@@ -102,12 +124,19 @@ jobsMutationsRouter.patch("/:id", async (req: Request, res: Response) => {
       requestOrigin: resolveRequestOrigin(req),
       source: "jobs_patch_route",
     });
+    if (
+      queue instanceof SqliteJobQueue &&
+      shouldEnqueueTailoringAutoPdfRegeneration(currentJob, job)
+    ) {
+      await dispatchCommittedAutoPdfOutbox();
+    } else if (shouldEnqueueTailoringAutoPdfRegeneration(currentJob, job)) {
+      await enqueueAutoPdfRegenerationForJob({
+        jobId: job.id,
+        reason: "tailoring_updated",
+        requestedBy: "user",
+      });
+    }
     ok(res, await hydrateJobPdfFreshness(job));
-    queueTailoringAutoPdfRegenerationIfNeeded(
-      currentJob,
-      job,
-      "PATCH /api/jobs/:id",
-    );
     if (Object.hasOwn(input, "closedAt") || Object.hasOwn(input, "outcome")) {
       queueMicrotask(() => {
         void reconcileActivationMilestonesFromHistorySafely({

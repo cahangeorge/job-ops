@@ -12,6 +12,15 @@ import type { AppErrorCode } from "@infra/errors";
 import { logger } from "@infra/logger";
 import { trackServerProductEvent } from "@infra/product-analytics";
 import { runWithRequestContext } from "@infra/request-context";
+import { sqlite } from "@server/db";
+import { getJobQueue } from "@server/infra/job-queue-registry";
+import { SqliteJobQueue } from "@server/infra/job-queue-sqlite";
+import { updateSummarizedJobAndEnqueueAutoPdfRegeneration } from "@server/services/auto-pdf-producers";
+import {
+  dispatchCommittedAutoPdfOutbox,
+  enqueueAutoPdfRegenerationForJob,
+  shouldEnqueueTailoringAutoPdfRegeneration,
+} from "@server/services/auto-pdf-regeneration";
 import { getActiveTenantId } from "@server/tenancy/context";
 import { createLocationIntentFromLegacyInputs } from "@shared/location-domain.js";
 import type {
@@ -688,7 +697,7 @@ export async function summarizeJob(
         }
       }
 
-      await jobsRepo.updateJob(job.id, {
+      const update = {
         ...(shouldUpdateSummary
           ? { tailoredSummary: tailoredSummary ?? undefined }
           : {}),
@@ -701,7 +710,36 @@ export async function summarizeJob(
         ...(shouldUpdateAllTailoring
           ? { selectedProjectIds: selectedProjectIds ?? undefined }
           : {}),
-      });
+      };
+      const queue = getJobQueue();
+      const shouldEnqueue = (nextJob: typeof job) =>
+        shouldEnqueueTailoringAutoPdfRegeneration(job, nextJob);
+
+      if (queue instanceof SqliteJobQueue) {
+        const updatedJob = updateSummarizedJobAndEnqueueAutoPdfRegeneration({
+          database: sqlite,
+          queue,
+          tenantId: getActiveTenantId(),
+          jobId: job.id,
+          update,
+          requestedBy: "user",
+          shouldEnqueue,
+        });
+        if (!updatedJob) return { success: false, error: "Job not found" };
+        if (shouldEnqueue(updatedJob)) {
+          await dispatchCommittedAutoPdfOutbox();
+        }
+      } else {
+        const updatedJob = await jobsRepo.updateJob(job.id, update);
+        if (!updatedJob) return { success: false, error: "Job not found" };
+        if (shouldEnqueue(updatedJob)) {
+          await enqueueAutoPdfRegenerationForJob({
+            jobId: job.id,
+            reason: "tailoring_updated",
+            requestedBy: "user",
+          });
+        }
+      }
 
       return { success: true };
     } catch (error) {

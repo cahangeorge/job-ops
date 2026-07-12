@@ -10,6 +10,7 @@ import { initializeExtractorRegistry } from "./extractors/registry";
 import { deleteExpiredOrRevokedAuthSessions } from "./repositories/auth-sessions";
 import * as settingsRepo from "./repositories/settings";
 import { initializeActivationAnalyticsSafely } from "./services/activation-funnel";
+import { initializeAutoPdfRegenerationWorker } from "./services/auto-pdf-regeneration";
 import {
   getBackupSettings,
   setBackupSettings,
@@ -128,6 +129,14 @@ async function startServer() {
       }
     } catch (error) {
       logger.warn("Failed to initialize backup service", {
+        error: sanitizeUnknown(error),
+      });
+    }
+
+    try {
+      await initializeAutoPdfRegenerationWorker();
+    } catch (error) {
+      logger.warn("Failed to initialize auto PDF regeneration worker", {
         error: sanitizeUnknown(error),
       });
     }

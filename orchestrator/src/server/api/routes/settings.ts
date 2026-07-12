@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   AppError,
   badRequest,
@@ -10,8 +11,15 @@ import { asyncRoute, fail, ok } from "@infra/http";
 import { logger } from "@infra/logger";
 import { getRequestId } from "@infra/request-context";
 import { isDemoMode, sendDemoBlocked } from "@server/config/demo";
+import { sqlite } from "@server/db";
+import { getJobQueue } from "@server/infra/job-queue-registry";
+import { SqliteJobQueue } from "@server/infra/job-queue-sqlite";
 import { getSetting } from "@server/repositories/settings";
-import { enqueueAutoPdfRegenerationForSettingsChanges } from "@server/services/auto-pdf-regeneration";
+import { updateSettingsAndEnqueueAutoPdfRegeneration } from "@server/services/auto-pdf-producers";
+import {
+  dispatchCommittedAutoPdfOutbox,
+  shouldEnqueueAutoPdfRegenerationForSettingsChanges,
+} from "@server/services/auto-pdf-regeneration";
 import { setBackupSettings } from "@server/services/backup/index";
 import { getOriginalEnvValue } from "@server/services/envSettings";
 import {
@@ -33,7 +41,11 @@ import {
   validateCredentials as validateRxResumeCredentials,
 } from "@server/services/rxresume";
 import { getEffectiveSettings } from "@server/services/settings";
-import { applySettingsUpdates } from "@server/services/settings-update";
+import {
+  applySettingsUpdates,
+  prepareSettingsUpdates,
+} from "@server/services/settings-update";
+import { getActiveTenantId } from "@server/tenancy/context";
 import {
   mapGlmProviderAlias,
   settingsRegistry,
@@ -341,7 +353,31 @@ settingsRouter.patch(
       }
     }
 
-    const plan = await applySettingsUpdates(input);
+    const prepared = await prepareSettingsUpdates(input);
+    const queue = getJobQueue();
+    const enqueueRoot =
+      await shouldEnqueueAutoPdfRegenerationForSettingsChanges({
+        updatedSettingKeys: prepared.plan.updatedSettingKeys,
+      });
+    if (queue instanceof SqliteJobQueue) {
+      updateSettingsAndEnqueueAutoPdfRegeneration({
+        database: sqlite,
+        queue,
+        tenantId: getActiveTenantId(),
+        updates: prepared.actions.map(({ settingKey, value }) => ({
+          settingKey,
+          value,
+        })),
+        requestedBy: "user",
+        transactionId: randomUUID(),
+        requestId: getRequestId() ?? null,
+        enqueueRoot,
+      });
+    } else {
+      // Retain the async repository path used by non-SQLite test injection.
+      await applySettingsUpdates(input);
+    }
+    const plan = prepared.plan;
     if (plan.shouldClearRxResumeCaches) {
       clearRxResumeResumeCache();
       clearProfileCache();
@@ -356,23 +392,10 @@ settingsRouter.patch(
         maxCount: data.backupMaxCount.value,
       });
     }
+    if (enqueueRoot) {
+      await dispatchCommittedAutoPdfOutbox();
+    }
     ok(res, data);
-
-    queueMicrotask(() => {
-      void enqueueAutoPdfRegenerationForSettingsChanges({
-        updatedSettingKeys: plan.updatedSettingKeys,
-        requestedBy: "user",
-      }).catch((error) => {
-        logger.warn(
-          "Failed to queue auto PDF regeneration for settings change",
-          {
-            route: "PATCH /api/settings",
-            updatedSettingKeys: plan.updatedSettingKeys,
-            error,
-          },
-        );
-      });
-    });
   }),
 );
 

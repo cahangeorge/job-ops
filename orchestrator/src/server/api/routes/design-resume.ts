@@ -1,7 +1,6 @@
 import { badRequest, conflict, notFound, toAppError } from "@infra/errors";
 import { asyncRoute, fail, ok } from "@infra/http";
-import { logger } from "@infra/logger";
-import { enqueueAutoPdfRegenerationForReadyJobs } from "@server/services/auto-pdf-regeneration";
+import { dispatchCommittedAutoPdfOutbox } from "@server/services/auto-pdf-regeneration";
 import {
   deleteDesignResumePicture,
   exportDesignResume,
@@ -231,24 +230,6 @@ function parseDesignResumeJson(value: unknown): DesignResumeJson {
   return parseV5ResumeData(value) as DesignResumeJson;
 }
 
-function queueDesignResumeAutoPdfRegeneration(route: string): void {
-  queueMicrotask(() => {
-    void enqueueAutoPdfRegenerationForReadyJobs({
-      reason: "design_resume_updated",
-      requestedBy: "user",
-    }).catch((error) => {
-      logger.warn(
-        "Failed to queue auto PDF regeneration for design resume update",
-        {
-          route,
-          reason: "design_resume_updated",
-          error,
-        },
-      );
-    });
-  });
-}
-
 designResumeRouter.get(
   "/",
   asyncRoute(async (_req: Request, res: Response) => {
@@ -273,10 +254,8 @@ designResumeRouter.post(
   asyncRoute(async (_req: Request, res: Response) => {
     const document = await importDesignResumeFromReactiveResume();
     clearProfileCache();
+    await dispatchCommittedAutoPdfOutbox();
     ok(res, document, 201);
-    queueDesignResumeAutoPdfRegeneration(
-      "POST /api/design-resume/import/rxresume",
-    );
   }),
 );
 
@@ -286,8 +265,8 @@ designResumeRouter.post(
     const input = importFileSchema.parse(req.body);
     const document = await importDesignResumeFromFile(input);
     clearProfileCache();
+    await dispatchCommittedAutoPdfOutbox();
     ok(res, document, 201);
-    queueDesignResumeAutoPdfRegeneration("POST /api/design-resume/import/file");
   }),
 );
 
@@ -313,10 +292,13 @@ designResumeRouter.patch(
     const input = designResumePatchSchema.parse(
       req.body,
     ) as DesignResumePatchRequest;
-    const document = await updateCurrentDesignResume(input);
+    const document = await updateCurrentDesignResume(input, {
+      enqueueAutoPdfRoot: true,
+      requestedBy: "user",
+    });
     clearProfileCache();
+    await dispatchCommittedAutoPdfOutbox();
     ok(res, document);
-    queueDesignResumeAutoPdfRegeneration("PATCH /api/design-resume");
   }),
 );
 
@@ -337,8 +319,8 @@ designResumeRouter.post(
         baseRevision: input.baseRevision,
       });
       clearProfileCache();
+      await dispatchCommittedAutoPdfOutbox();
       ok(res, document, 201);
-      queueDesignResumeAutoPdfRegeneration("POST /api/design-resume/assets");
       return;
     }
 
@@ -350,8 +332,8 @@ designResumeRouter.post(
       document: asDesignResumeJson(input.document),
     });
     clearProfileCache();
+    await dispatchCommittedAutoPdfOutbox();
     ok(res, document, 201);
-    queueDesignResumeAutoPdfRegeneration("POST /api/design-resume/assets");
   }),
 );
 
@@ -364,10 +346,8 @@ designResumeRouter.delete(
       document: asDesignResumeJson(input.document),
     });
     clearProfileCache();
+    await dispatchCommittedAutoPdfOutbox();
     ok(res, document);
-    queueDesignResumeAutoPdfRegeneration(
-      "DELETE /api/design-resume/assets/picture",
-    );
   }),
 );
 

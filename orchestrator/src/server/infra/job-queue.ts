@@ -16,12 +16,44 @@ export interface AutoPdfRegenerationJobPayload {
   requestedBy: "system" | "user";
 }
 
+/** A durable fan-out request created atomically with a settings change. */
+export interface SettingsAutoPdfRootJobPayload {
+  taskType: "settings_auto_pdf_root";
+  tenantId: string;
+  updatedSettingKeys: string[];
+  requestedAt: string;
+  requestedBy: "system" | "user";
+  transactionId: string;
+  requestId: string | null;
+}
+
+/** A durable fan-out request created atomically with a Design Resume revision. */
+export interface DesignResumeAutoPdfRootJobPayload {
+  taskType: "design_resume_auto_pdf_root";
+  tenantId: string;
+  documentId: string;
+  revision: number;
+  requestedAt: string;
+  requestedBy: "system" | "user";
+}
+
 export interface JobQueuePayloadByName {
-  auto_pdf_regeneration: AutoPdfRegenerationJobPayload;
+  auto_pdf_regeneration:
+    | AutoPdfRegenerationJobPayload
+    | SettingsAutoPdfRootJobPayload
+    | DesignResumeAutoPdfRootJobPayload;
+}
+
+export function isAutoPdfRegenerationJobPayload(
+  payload: JobQueuePayloadByName["auto_pdf_regeneration"],
+): payload is AutoPdfRegenerationJobPayload {
+  return "jobId" in payload && "reason" in payload;
 }
 
 export interface EnqueueJobOptions {
   dedupeKey?: string;
+  /** Distinguishes idempotency domains when a queue carries multiple task kinds. */
+  taskType?: string;
   delayMs?: number;
   priority?: number;
 }
@@ -34,12 +66,22 @@ export interface EnqueueJobResult {
   dedupeKey?: string;
 }
 
+/** The only correlation fields that may cross the durable queue boundary. */
+export interface QueueRequestContext {
+  requestId?: string;
+  pipelineRunId?: string;
+  jobId?: string;
+}
+
 export interface QueueJobRecord<K extends JobQueueName = JobQueueName> {
   id: string;
   queue: K;
   payload: JobQueuePayloadByName[K];
   acceptedAt: string;
   options?: EnqueueJobOptions;
+  requestContext?: QueueRequestContext;
+  /** Present for durable queue claims and required to settle that exact lease. */
+  leaseOwner?: string;
 }
 
 export interface JobQueue {

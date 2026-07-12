@@ -1,4 +1,9 @@
+import {
+  runVersionedMigrations,
+  VERSIONED_MIGRATIONS,
+} from "@server/db/versionedMigrations";
 import { createJob } from "@shared/testing/factories";
+import Database from "better-sqlite3";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -7,6 +12,8 @@ const mocks = vi.hoisted(() => ({
   acknowledge: vi.fn(),
   reject: vi.fn(),
   getReadyJobsWithGeneratedPdfs: vi.fn(),
+  getJobById: vi.fn(),
+  generateFinalPdf: vi.fn(),
 }));
 
 vi.mock("@server/infra/job-queue-registry", () => ({
@@ -20,7 +27,11 @@ vi.mock("@server/infra/job-queue-registry", () => ({
 
 vi.mock("@server/repositories/jobs", () => ({
   getReadyJobsWithGeneratedPdfs: mocks.getReadyJobsWithGeneratedPdfs,
-  getJobById: vi.fn(),
+  getJobById: mocks.getJobById,
+}));
+
+vi.mock("../pipeline", () => ({
+  generateFinalPdf: mocks.generateFinalPdf,
 }));
 
 vi.mock("@server/tenancy/context", () => ({
@@ -42,15 +53,29 @@ vi.mock("./pdf-fingerprint", () => ({
   ),
 }));
 
+import { getJobQueue } from "@server/infra/job-queue-registry";
+import { SqliteJobQueue } from "@server/infra/job-queue-sqlite";
 import {
+  enqueueAutoPdfRegenerationForJob,
   enqueueAutoPdfRegenerationForSettingsChanges,
+  initializeAutoPdfRegenerationWorker,
   shouldEnqueueTailoringAutoPdfRegeneration,
 } from "./auto-pdf-regeneration";
 import { resolvePdfFingerprintContext } from "./pdf-fingerprint";
 
 describe("auto PDF regeneration", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    const { sqlite } = await import("@server/db");
+    sqlite.exec(
+      "CREATE TABLE IF NOT EXISTS design_resume_documents (tenant_id TEXT NOT NULL, id TEXT NOT NULL, revision INTEGER NOT NULL, PRIMARY KEY (tenant_id, id))",
+    );
     vi.clearAllMocks();
+    vi.mocked(getJobQueue).mockReturnValue({
+      enqueue: mocks.enqueue,
+      reserveNext: mocks.reserveNext,
+      acknowledge: mocks.acknowledge,
+      reject: mocks.reject,
+    });
     mocks.enqueue.mockResolvedValue({
       id: "queue-job-1",
       queue: "auto_pdf_regeneration",
@@ -61,6 +86,8 @@ describe("auto PDF regeneration", () => {
     mocks.acknowledge.mockResolvedValue(undefined);
     mocks.reject.mockResolvedValue(undefined);
     mocks.getReadyJobsWithGeneratedPdfs.mockResolvedValue([]);
+    mocks.getJobById.mockResolvedValue(null);
+    mocks.generateFinalPdf.mockResolvedValue({ success: true });
     vi.mocked(resolvePdfFingerprintContext).mockResolvedValue({
       version: "v1",
       designResumeDocumentId: null,
@@ -70,6 +97,303 @@ describe("auto PDF regeneration", () => {
       typstTheme: "classic",
       rxresumeBaseResumeId: null,
     });
+  });
+
+  it("installs only persisted correlation ids while executing a claimed task", async () => {
+    const { getRequestContext } = await import("@infra/request-context");
+    let observedContext: ReturnType<typeof getRequestContext>;
+    mocks.reserveNext
+      .mockResolvedValueOnce({
+        id: "job-context-1",
+        queue: "auto_pdf_regeneration",
+        acceptedAt: "2026-05-04T10:00:00.000Z",
+        requestContext: {
+          requestId: "request-1",
+          pipelineRunId: "pipeline-1",
+          jobId: "job-context",
+        },
+        payload: {
+          tenantId: "tenant-test",
+          jobId: "job-context",
+          reason: "manual_refresh",
+          requestedAt: "2026-05-04T10:00:00.000Z",
+          requestedBy: "user",
+        },
+      })
+      .mockResolvedValue(null);
+    mocks.getJobById.mockImplementation(async () => {
+      observedContext = getRequestContext();
+      return null;
+    });
+
+    await initializeAutoPdfRegenerationWorker();
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(observedContext).toMatchObject({
+      requestId: "request-1",
+      pipelineRunId: "pipeline-1",
+      jobId: "job-context",
+      tenantId: "tenant-test",
+    });
+  });
+
+  it("wakes a live durable worker for a failed task retry without another producer or restart", async () => {
+    vi.useFakeTimers({ now: new Date("2026-05-04T10:00:00.000Z") });
+    const database = new Database(":memory:");
+    database.pragma("foreign_keys = ON");
+    database.exec("CREATE TABLE tenants (id TEXT PRIMARY KEY)");
+    database.exec("INSERT INTO tenants(id) VALUES ('tenant-test')");
+    runVersionedMigrations(
+      database,
+      VERSIONED_MIGRATIONS.filter(({ version }) => version >= 6),
+    );
+    const queue = new SqliteJobQueue(database, {
+      now: () => new Date(Date.now()),
+      random: () => 0,
+    });
+    vi.mocked(getJobQueue).mockReturnValue(queue);
+    mocks.getJobById.mockResolvedValue(
+      createJob({
+        id: "retry-job",
+        status: "ready",
+        pdfSource: "generated",
+        pdfFingerprint: "stale",
+      }),
+    );
+    mocks.generateFinalPdf
+      .mockRejectedValueOnce(new Error("temporary renderer failure"))
+      .mockResolvedValueOnce({ success: true });
+    try {
+      await enqueueAutoPdfRegenerationForJob({
+        jobId: "retry-job",
+        reason: "manual_refresh",
+        requestedBy: "system",
+      });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(mocks.generateFinalPdf).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(mocks.generateFinalPdf).toHaveBeenCalledTimes(2);
+      expect(await queue.getDeadLetters("tenant-test")).toEqual([]);
+    } finally {
+      database.close();
+      vi.useRealTimers();
+    }
+  });
+
+  it("schedules future outbox work at startup and processes it when due without another producer", async () => {
+    vi.useFakeTimers({ now: new Date("2026-05-04T10:00:00.000Z") });
+    const database = new Database(":memory:");
+    database.pragma("foreign_keys = ON");
+    database.exec("CREATE TABLE tenants (id TEXT PRIMARY KEY)");
+    database.exec("INSERT INTO tenants(id) VALUES ('tenant-test')");
+    runVersionedMigrations(
+      database,
+      VERSIONED_MIGRATIONS.filter(({ version }) => version >= 6),
+    );
+    const queue = new SqliteJobQueue(database, {
+      now: () => new Date(Date.now()),
+      random: () => 0,
+    });
+    vi.mocked(getJobQueue).mockReturnValue(queue);
+    mocks.getJobById.mockResolvedValue(
+      createJob({
+        id: "future-job",
+        status: "ready",
+        pdfSource: "generated",
+        pdfFingerprint: "stale",
+      }),
+    );
+    try {
+      await queue.enqueueOutbox(
+        "auto_pdf_regeneration",
+        {
+          tenantId: "tenant-test",
+          jobId: "future-job",
+          reason: "manual_refresh",
+          requestedAt: new Date(Date.now()).toISOString(),
+          requestedBy: "system",
+        },
+        { delayMs: 1000 },
+      );
+
+      await initializeAutoPdfRegenerationWorker();
+      await vi.advanceTimersByTimeAsync(999);
+      expect(mocks.generateFinalPdf).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(1);
+      expect(mocks.generateFinalPdf).toHaveBeenCalledTimes(1);
+    } finally {
+      database.close();
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps a future wake after an immediate task arrives", async () => {
+    vi.useFakeTimers({ now: new Date("2026-05-04T10:00:00.000Z") });
+    const database = new Database(":memory:");
+    database.pragma("foreign_keys = ON");
+    database.exec("CREATE TABLE tenants (id TEXT PRIMARY KEY)");
+    database.exec("INSERT INTO tenants(id) VALUES ('tenant-test')");
+    runVersionedMigrations(
+      database,
+      VERSIONED_MIGRATIONS.filter(({ version }) => version >= 6),
+    );
+    const queue = new SqliteJobQueue(database, {
+      now: () => new Date(Date.now()),
+      random: () => 0,
+    });
+    vi.mocked(getJobQueue).mockReturnValue(queue);
+    mocks.getJobById.mockImplementation(async (jobId: string) =>
+      createJob({
+        id: jobId,
+        status: "ready",
+        pdfSource: "generated",
+        pdfFingerprint: "stale",
+      }),
+    );
+    try {
+      await queue.enqueueOutbox(
+        "auto_pdf_regeneration",
+        {
+          tenantId: "tenant-test",
+          jobId: "future-job",
+          reason: "manual_refresh",
+          requestedAt: new Date(Date.now()).toISOString(),
+          requestedBy: "system",
+        },
+        { delayMs: 1000 },
+      );
+      await initializeAutoPdfRegenerationWorker();
+
+      await enqueueAutoPdfRegenerationForJob({
+        jobId: "immediate-job",
+        reason: "manual_refresh",
+        requestedBy: "system",
+      });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(mocks.generateFinalPdf).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(mocks.generateFinalPdf).toHaveBeenCalledTimes(2);
+    } finally {
+      database.close();
+      vi.useRealTimers();
+    }
+  });
+
+  it("recovers an expired lease at its durable wake after an immediate drain", async () => {
+    vi.useFakeTimers({ now: new Date("2026-05-04T10:00:00.000Z") });
+    const database = new Database(":memory:");
+    database.pragma("foreign_keys = ON");
+    database.exec("CREATE TABLE tenants (id TEXT PRIMARY KEY)");
+    database.exec("INSERT INTO tenants(id) VALUES ('tenant-test')");
+    runVersionedMigrations(
+      database,
+      VERSIONED_MIGRATIONS.filter(({ version }) => version >= 6),
+    );
+    const queue = new SqliteJobQueue(database, {
+      now: () => new Date(Date.now()),
+      random: () => 0,
+    });
+    vi.mocked(getJobQueue).mockReturnValue(queue);
+    mocks.getJobById.mockImplementation(async (jobId: string) =>
+      createJob({
+        id: jobId,
+        status: "ready",
+        pdfSource: "generated",
+        pdfFingerprint: "stale",
+      }),
+    );
+    try {
+      await queue.enqueue("auto_pdf_regeneration", {
+        tenantId: "tenant-test",
+        jobId: "expired-lease-job",
+        reason: "manual_refresh",
+        requestedAt: new Date(Date.now()).toISOString(),
+        requestedBy: "system",
+      });
+      const abandoned = await queue.claimNext(
+        "auto_pdf_regeneration",
+        "worker-a",
+        { leaseMs: 1_000 },
+      );
+      if (!abandoned) throw new Error("Expected initial lease");
+
+      await initializeAutoPdfRegenerationWorker();
+      await enqueueAutoPdfRegenerationForJob({
+        jobId: "immediate-job",
+        reason: "manual_refresh",
+        requestedBy: "system",
+      });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(mocks.generateFinalPdf).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(mocks.generateFinalPdf).toHaveBeenCalledTimes(2);
+    } finally {
+      database.close();
+      vi.useRealTimers();
+    }
+  });
+
+  it("schedules a future retry after restart and lets it reach the DLQ", async () => {
+    vi.useFakeTimers({ now: new Date("2026-05-04T10:00:00.000Z") });
+    const database = new Database(":memory:");
+    database.pragma("foreign_keys = ON");
+    database.exec("CREATE TABLE tenants (id TEXT PRIMARY KEY)");
+    database.exec("INSERT INTO tenants(id) VALUES ('tenant-test')");
+    runVersionedMigrations(
+      database,
+      VERSIONED_MIGRATIONS.filter(({ version }) => version >= 6),
+    );
+    const queue = new SqliteJobQueue(database, {
+      now: () => new Date(Date.now()),
+      random: () => 0,
+    });
+    vi.mocked(getJobQueue).mockReturnValue(queue);
+    mocks.getJobById.mockResolvedValue(
+      createJob({
+        id: "retry-after-restart",
+        status: "ready",
+        pdfSource: "generated",
+        pdfFingerprint: "stale",
+      }),
+    );
+    mocks.generateFinalPdf.mockRejectedValue(new Error("renderer unavailable"));
+    try {
+      await queue.enqueue(
+        "auto_pdf_regeneration",
+        {
+          tenantId: "tenant-test",
+          jobId: "retry-after-restart",
+          reason: "manual_refresh",
+          requestedAt: new Date(Date.now()).toISOString(),
+          requestedBy: "system",
+        },
+        { maxAttempts: 2 },
+      );
+      const first = await queue.claimNext(
+        "auto_pdf_regeneration",
+        "old-worker",
+      );
+      if (!first) throw new Error("Expected initial task claim");
+      await queue.fail(first.id, {
+        tenantId: "tenant-test",
+        leaseOwner: first.leaseOwner,
+        message: "restart before retry",
+        retryable: true,
+      });
+
+      await initializeAutoPdfRegenerationWorker();
+      await vi.advanceTimersByTimeAsync(1000);
+
+      expect(mocks.generateFinalPdf).toHaveBeenCalledTimes(1);
+      expect(await queue.getDeadLetters("tenant-test")).toHaveLength(1);
+    } finally {
+      database.close();
+      vi.useRealTimers();
+    }
   });
 
   it("skips enqueue for non-PDF-impacting setting changes", async () => {
@@ -130,6 +454,87 @@ describe("auto PDF regeneration", () => {
         requestedBy: "user",
       }),
       { dedupeKey: "tenant-test:job-2" },
+    );
+  });
+
+  it("fans out a dispatched settings root task into deduplicated stale-job tasks", async () => {
+    mocks.reserveNext
+      .mockResolvedValueOnce({
+        id: "settings-root-1",
+        queue: "auto_pdf_regeneration",
+        acceptedAt: "2026-05-04T10:00:00.000Z",
+        payload: {
+          taskType: "settings_auto_pdf_root",
+          tenantId: "tenant-test",
+          updatedSettingKeys: ["pdfRenderer"],
+          requestedAt: "2026-05-04T10:00:00.000Z",
+          requestedBy: "user",
+          transactionId: "settings-revision-1",
+          requestId: "request-1",
+        },
+      })
+      .mockResolvedValue(null);
+    mocks.getReadyJobsWithGeneratedPdfs.mockResolvedValue([
+      createJob({
+        id: "job-stale",
+        status: "ready",
+        pdfPath: "data/pdfs/job-stale.pdf",
+        pdfSource: "generated",
+        pdfFingerprint: "stale",
+      }),
+    ]);
+
+    await initializeAutoPdfRegenerationWorker();
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(mocks.enqueue).toHaveBeenCalledWith(
+      "auto_pdf_regeneration",
+      expect.objectContaining({
+        tenantId: "tenant-test",
+        jobId: "job-stale",
+        reason: "settings_changed",
+      }),
+      { dedupeKey: "tenant-test:job-stale" },
+    );
+  });
+
+  it("fans out a claimed Design Resume revision root only after it is dispatched", async () => {
+    mocks.reserveNext
+      .mockResolvedValueOnce({
+        id: "design-resume-root-1",
+        queue: "auto_pdf_regeneration",
+        acceptedAt: "2026-05-04T10:00:00.000Z",
+        payload: {
+          taskType: "design_resume_auto_pdf_root",
+          tenantId: "tenant-test",
+          documentId: "primary_tenant-test",
+          revision: 8,
+          requestedAt: "2026-05-04T10:00:00.000Z",
+          requestedBy: "user",
+        },
+      })
+      .mockResolvedValue(null);
+    mocks.getReadyJobsWithGeneratedPdfs.mockResolvedValue([
+      createJob({
+        id: "job-stale-from-resume",
+        status: "ready",
+        pdfPath: "data/pdfs/job-stale-from-resume.pdf",
+        pdfSource: "generated",
+        pdfFingerprint: "stale",
+      }),
+    ]);
+
+    await initializeAutoPdfRegenerationWorker();
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(mocks.enqueue).toHaveBeenCalledWith(
+      "auto_pdf_regeneration",
+      expect.objectContaining({
+        tenantId: "tenant-test",
+        jobId: "job-stale-from-resume",
+        reason: "design_resume_updated",
+      }),
+      { dedupeKey: "tenant-test:job-stale-from-resume" },
     );
   });
 

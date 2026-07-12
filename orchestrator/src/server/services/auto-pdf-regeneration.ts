@@ -1,7 +1,15 @@
 import { logger } from "@infra/logger";
 import { runWithRequestContext } from "@infra/request-context";
-import type { AutoPdfRegenerationReason } from "@server/infra/job-queue";
+import type {
+  AutoPdfRegenerationJobPayload,
+  AutoPdfRegenerationReason,
+  DesignResumeAutoPdfRootJobPayload,
+  JobQueuePayloadByName,
+  SettingsAutoPdfRootJobPayload,
+} from "@server/infra/job-queue";
+import { isAutoPdfRegenerationJobPayload } from "@server/infra/job-queue";
 import { getJobQueue } from "@server/infra/job-queue-registry";
+import { SqliteJobQueue } from "@server/infra/job-queue-sqlite";
 import * as jobsRepo from "@server/repositories/jobs";
 import type { SettingKey } from "@server/repositories/settings";
 import { getActiveTenantId } from "@server/tenancy/context";
@@ -40,37 +48,53 @@ let workerRequested = false;
 let workerTimer: ReturnType<typeof setTimeout> | null = null;
 let workerTimerDueAt = 0;
 
-function scheduleWorker(delayMs = 0): void {
+function isSettingsAutoPdfRoot(
+  payload: JobQueuePayloadByName["auto_pdf_regeneration"],
+): payload is SettingsAutoPdfRootJobPayload {
+  return "taskType" in payload && payload.taskType === "settings_auto_pdf_root";
+}
+
+function isDesignResumeAutoPdfRoot(
+  payload: JobQueuePayloadByName["auto_pdf_regeneration"],
+): payload is DesignResumeAutoPdfRootJobPayload {
+  return (
+    "taskType" in payload && payload.taskType === "design_resume_auto_pdf_root"
+  );
+}
+
+function scheduleWorker(): void {
   workerRequested = true;
-  const normalizedDelayMs = Math.max(0, delayMs);
-
-  if (normalizedDelayMs > 0) {
-    const dueAt = Date.now() + normalizedDelayMs;
-    if (!workerTimer || dueAt < workerTimerDueAt) {
-      if (workerTimer) clearTimeout(workerTimer);
-      workerTimerDueAt = dueAt;
-      workerTimer = setTimeout(() => {
-        workerTimer = null;
-        workerTimerDueAt = 0;
-        scheduleWorker();
-      }, normalizedDelayMs);
-    }
-    return;
-  }
-
-  if (workerTimer) {
-    clearTimeout(workerTimer);
-    workerTimer = null;
-    workerTimerDueAt = 0;
-  }
-
   if (workerPromise) return;
   workerPromise = runWorker().finally(() => {
     workerPromise = null;
+    void scheduleEarliestDurableWork();
     if (workerRequested) {
       scheduleWorker();
     }
   });
+}
+
+async function scheduleEarliestDurableWork(): Promise<void> {
+  const queue = getJobQueue();
+  if (!(queue instanceof SqliteJobQueue)) return;
+
+  const dueAt = await queue.getEarliestDueAt();
+  if (!dueAt) return;
+  const now = queue.getCurrentTime();
+  const dueAtMs = dueAt.getTime();
+  const delayMs = dueAtMs - now.getTime();
+  if (delayMs <= 0) {
+    scheduleWorker();
+    return;
+  }
+  if (workerTimer && workerTimerDueAt <= dueAtMs) return;
+  if (workerTimer) clearTimeout(workerTimer);
+  workerTimerDueAt = dueAtMs;
+  workerTimer = setTimeout(() => {
+    workerTimer = null;
+    workerTimerDueAt = 0;
+    scheduleWorker();
+  }, delayMs);
 }
 
 async function runWorker(): Promise<void> {
@@ -83,43 +107,103 @@ async function runWorker(): Promise<void> {
 async function drainQueue(): Promise<void> {
   const queue = getJobQueue();
 
-  while (true) {
-    const queuedJob = await queue.reserveNext("auto_pdf_regeneration");
-    if (!queuedJob) return;
+  try {
+    while (true) {
+      const queuedJob = await queue.reserveNext("auto_pdf_regeneration");
+      if (!queuedJob) return;
+      const leaseOwner = queuedJob.leaseOwner;
 
-    try {
-      const result = await processQueuedAutoPdfRegeneration(queuedJob.payload);
-      await queue.acknowledge(queuedJob.id);
-      if (result === "retry_later") {
-        await enqueueAutoPdfRegenerationPayload(queuedJob.payload, {
-          delayMs: AUTO_PDF_REGEN_RETRY_DELAY_MS,
-        });
-        continue;
-      }
-      if (shouldTopUpReadyPdfRegeneration(queuedJob.payload.reason)) {
-        await runWithRequestContext(
+      try {
+        const outcome = await runWithRequestContext(
           {
+            ...queuedJob.requestContext,
             tenantId: queuedJob.payload.tenantId,
-            jobId: queuedJob.payload.jobId,
           },
           async () => {
-            await enqueueAutoPdfRegenerationForReadyJobs({
-              reason: queuedJob.payload.reason,
-              requestedBy: queuedJob.payload.requestedBy,
-            });
+            if (isSettingsAutoPdfRoot(queuedJob.payload)) {
+              return {
+                taskType: "settings_auto_pdf_root",
+                result: await processSettingsAutoPdfRoot(queuedJob.payload),
+              } as const;
+            }
+            if (isDesignResumeAutoPdfRoot(queuedJob.payload)) {
+              return {
+                taskType: "design_resume_auto_pdf_root",
+                result: await processDesignResumeAutoPdfRoot(queuedJob.payload),
+              } as const;
+            }
+            if (isAutoPdfRegenerationJobPayload(queuedJob.payload)) {
+              return {
+                taskType: "auto_pdf_regeneration",
+                payload: queuedJob.payload,
+                result: await processQueuedAutoPdfRegeneration(
+                  queuedJob.payload,
+                ),
+              } as const;
+            }
+            throw new Error("Unsupported auto PDF regeneration payload");
           },
         );
+        if (queue instanceof SqliteJobQueue) {
+          if (!leaseOwner) {
+            throw new Error("Durable queue claim is missing its lease token");
+          }
+          await queue.complete(queuedJob.id, {
+            tenantId: queuedJob.payload.tenantId,
+            leaseOwner,
+          });
+        } else {
+          await queue.acknowledge(queuedJob.id);
+        }
+        if (outcome.taskType !== "auto_pdf_regeneration") continue;
+        if (outcome.result === "retry_later") {
+          await enqueueAutoPdfRegenerationPayload(outcome.payload, {
+            delayMs: AUTO_PDF_REGEN_RETRY_DELAY_MS,
+          });
+          continue;
+        }
+        if (shouldTopUpReadyPdfRegeneration(outcome.payload.reason)) {
+          await runWithRequestContext(
+            {
+              tenantId: outcome.payload.tenantId,
+              jobId: outcome.payload.jobId,
+            },
+            async () => {
+              await enqueueAutoPdfRegenerationForReadyJobs({
+                reason: outcome.payload.reason,
+                requestedBy: outcome.payload.requestedBy,
+              });
+            },
+          );
+        }
+      } catch (error) {
+        logger.warn("Auto PDF regeneration job failed", {
+          queue: "auto_pdf_regeneration",
+          tenantId: queuedJob.payload.tenantId,
+          jobId: "jobId" in queuedJob.payload ? queuedJob.payload.jobId : null,
+          reason:
+            "reason" in queuedJob.payload ? queuedJob.payload.reason : null,
+          error,
+        });
+        if (queue instanceof SqliteJobQueue) {
+          if (leaseOwner) {
+            await queue.fail(queuedJob.id, {
+              tenantId: queuedJob.payload.tenantId,
+              leaseOwner,
+              message:
+                error instanceof Error
+                  ? error.message
+                  : "Auto PDF regeneration failed",
+              retryable: true,
+            });
+          }
+        } else {
+          await queue.reject(queuedJob.id);
+        }
       }
-    } catch (error) {
-      logger.warn("Auto PDF regeneration job failed", {
-        queue: "auto_pdf_regeneration",
-        tenantId: queuedJob.payload.tenantId,
-        jobId: queuedJob.payload.jobId,
-        reason: queuedJob.payload.reason,
-        error,
-      });
-      await queue.reject(queuedJob.id);
     }
+  } finally {
+    await scheduleEarliestDurableWork();
   }
 }
 
@@ -152,13 +236,9 @@ async function getStaleReadyGeneratedPdfJobs(limit: number): Promise<Job[]> {
   return staleJobs;
 }
 
-async function processQueuedAutoPdfRegeneration(input: {
-  tenantId: string;
-  jobId: string;
-  reason: AutoPdfRegenerationReason;
-  requestedAt: string;
-  requestedBy: "system" | "user";
-}): Promise<"processed" | "retry_later"> {
+async function processQueuedAutoPdfRegeneration(
+  input: AutoPdfRegenerationJobPayload,
+): Promise<"processed" | "retry_later"> {
   return runWithRequestContext(
     {
       tenantId: input.tenantId,
@@ -208,6 +288,35 @@ async function processQueuedAutoPdfRegeneration(input: {
   );
 }
 
+/** Fan-out happens only after the committed durable settings root task is claimed. */
+async function processSettingsAutoPdfRoot(
+  input: SettingsAutoPdfRootJobPayload,
+): Promise<"processed"> {
+  return runWithRequestContext(
+    { tenantId: input.tenantId, requestId: input.requestId ?? undefined },
+    async () => {
+      await enqueueAutoPdfRegenerationForReadyJobs({
+        reason: "settings_changed",
+        requestedBy: input.requestedBy,
+      });
+      return "processed" as const;
+    },
+  );
+}
+
+/** Fan-out happens only after the committed Design Resume revision root is claimed. */
+async function processDesignResumeAutoPdfRoot(
+  input: DesignResumeAutoPdfRootJobPayload,
+): Promise<"processed"> {
+  return runWithRequestContext({ tenantId: input.tenantId }, async () => {
+    await enqueueAutoPdfRegenerationForReadyJobs({
+      reason: "design_resume_updated",
+      requestedBy: input.requestedBy,
+    });
+    return "processed" as const;
+  });
+}
+
 async function enqueueAutoPdfRegenerationPayload(
   payload: {
     tenantId: string;
@@ -218,11 +327,19 @@ async function enqueueAutoPdfRegenerationPayload(
   },
   options?: { delayMs?: number },
 ): Promise<void> {
-  await getJobQueue().enqueue("auto_pdf_regeneration", payload, {
+  const queue = getJobQueue();
+  const enqueueOptions = {
     dedupeKey: `${payload.tenantId}:${payload.jobId}`,
     delayMs: options?.delayMs,
-  });
-  scheduleWorker(options?.delayMs);
+  };
+  if (queue instanceof SqliteJobQueue) {
+    await queue.enqueueOutbox("auto_pdf_regeneration", payload, enqueueOptions);
+    await queue.dispatchOutbox();
+    await scheduleEarliestDurableWork();
+  } else {
+    await queue.enqueue("auto_pdf_regeneration", payload, enqueueOptions);
+  }
+  if (!options?.delayMs) scheduleWorker();
 }
 
 export async function enqueueAutoPdfRegenerationForJob(input: {
@@ -238,6 +355,15 @@ export async function enqueueAutoPdfRegenerationForJob(input: {
     requestedAt: new Date().toISOString(),
     requestedBy: input.requestedBy,
   });
+}
+
+/** Dispatches records only after their source transaction has committed. */
+export async function dispatchCommittedAutoPdfOutbox(): Promise<void> {
+  const queue = getJobQueue();
+  if (!(queue instanceof SqliteJobQueue)) return;
+  await queue.dispatchOutbox();
+  await scheduleEarliestDurableWork();
+  scheduleWorker();
 }
 
 export async function enqueueAutoPdfRegenerationForReadyJobs(input: {
@@ -265,20 +391,27 @@ export async function enqueueAutoPdfRegenerationForSettingsChanges(input: {
   updatedSettingKeys: ReadonlyArray<SettingKey>;
   requestedBy: "system" | "user";
 }): Promise<number> {
-  const shouldRegenerate = input.updatedSettingKeys.some((key) =>
-    SETTINGS_INVALIDATION_KEYS.has(key),
-  );
-  if (!shouldRegenerate) return 0;
-
-  if (onlyInvalidatesTypstTheme(input.updatedSettingKeys)) {
-    const fingerprintContext = await resolvePdfFingerprintContext();
-    if (fingerprintContext.pdfRenderer !== "typst") return 0;
+  if (!(await shouldEnqueueAutoPdfRegenerationForSettingsChanges(input))) {
+    return 0;
   }
 
   return enqueueAutoPdfRegenerationForReadyJobs({
     reason: "settings_changed",
     requestedBy: input.requestedBy,
   });
+}
+
+export async function shouldEnqueueAutoPdfRegenerationForSettingsChanges(input: {
+  updatedSettingKeys: ReadonlyArray<SettingKey>;
+}): Promise<boolean> {
+  if (
+    !input.updatedSettingKeys.some((key) => SETTINGS_INVALIDATION_KEYS.has(key))
+  ) {
+    return false;
+  }
+  if (!onlyInvalidatesTypstTheme(input.updatedSettingKeys)) return true;
+  const fingerprintContext = await resolvePdfFingerprintContext();
+  return fingerprintContext.pdfRenderer === "typst";
 }
 
 export function shouldEnqueueTailoringAutoPdfRegeneration(
@@ -297,4 +430,17 @@ export function shouldEnqueueTailoringAutoPdfRegeneration(
     previousJob.tracerLinksEnabled !== nextJob.tracerLinksEnabled ||
     previousJob.employer !== nextJob.employer
   );
+}
+
+export async function initializeAutoPdfRegenerationWorker(): Promise<void> {
+  const queue = getJobQueue();
+  if (queue instanceof SqliteJobQueue) {
+    const [{ sqlite }, { reconcileDesignResumeAutoPdfRoots }] =
+      await Promise.all([import("@server/db"), import("./auto-pdf-producers")]);
+    await queue.recoverExpiredLeases();
+    reconcileDesignResumeAutoPdfRoots({ database: sqlite, queue });
+    await queue.dispatchOutbox();
+    await scheduleEarliestDurableWork();
+  }
+  scheduleWorker();
 }
