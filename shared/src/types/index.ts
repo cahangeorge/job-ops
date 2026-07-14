@@ -13,5 +13,6 @@ export * from "./jobs";
 export * from "./pipeline";
 export * from "./post-application";
 export * from "./post-application-capabilities";
+export * from "./runtime-capabilities";
 export * from "./settings";
 export * from "./visa-sponsors";

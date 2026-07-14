@@ -12,6 +12,7 @@ import type {
   ProfileStatusResponse,
   ResumeProfile,
   ResumeProjectCatalogItem,
+  RuntimeCapabilityHealthResponse,
   SearchTermsSuggestionResponse,
   ValidationResult,
 } from "@shared/types";
@@ -62,6 +63,10 @@ export async function getSettings(): Promise<AppSettings> {
   });
 
   return settingsPromise;
+}
+
+export async function getRuntimeCapabilities(): Promise<RuntimeCapabilityHealthResponse> {
+  return fetchApi<RuntimeCapabilityHealthResponse>("/runtime-capabilities");
 }
 
 export async function getProfileProjects(): Promise<

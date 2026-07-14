@@ -9,6 +9,8 @@ export const queryKeys = {
   settings: {
     all: ["settings"] as const,
     current: () => [...queryKeys.settings.all, "current"] as const,
+    runtimeCapabilities: () =>
+      [...queryKeys.settings.all, "runtime-capabilities"] as const,
   },
   careerOps: {
     all: ["career-ops"] as const,

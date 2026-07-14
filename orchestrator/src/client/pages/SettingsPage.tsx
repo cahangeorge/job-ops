@@ -27,6 +27,7 @@ import { EnvironmentSettingsSection } from "@client/pages/settings/components/En
 import { ModelSettingsSection } from "@client/pages/settings/components/ModelSettingsSection";
 import { PromptTemplatesSection } from "@client/pages/settings/components/PromptTemplatesSection";
 import { ReactiveResumeSection } from "@client/pages/settings/components/ReactiveResumeSection";
+import { RuntimeCapabilityHealth } from "@client/pages/settings/components/RuntimeCapabilityHealth";
 import { ScoringSettingsSection } from "@client/pages/settings/components/ScoringSettingsSection";
 import { TracerLinksSettingsSection } from "@client/pages/settings/components/TracerLinksSettingsSection";
 import { WebhooksSection } from "@client/pages/settings/components/WebhooksSection";
@@ -140,6 +141,7 @@ type SettingsSectionId =
   | "environment"
   | "display"
   | "backup"
+  | "runtime-health"
   | "danger-zone";
 
 type SettingsGroupId =
@@ -241,6 +243,12 @@ const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         description: "Public URL readiness and verification state.",
         searchTerms: ["public url", "verify", "readiness", "health"],
       },
+      {
+        id: "runtime-health",
+        label: "Runtime Health",
+        description: "Read-only readiness for workspace runtime capabilities.",
+        searchTerms: ["health", "queue", "extractors", "pdf", "providers"],
+      },
     ],
   },
   {
@@ -339,6 +347,7 @@ const SECTION_FIELD_MAP: Record<
   ],
   webhooks: ["pipelineWebhookUrl", "jobCompleteWebhookUrl", "webhookSecret"],
   "tracer-links": [],
+  "runtime-health": [],
   environment: [
     "ukvisajobsEmail",
     "ukvisajobsPassword",
@@ -814,6 +823,15 @@ export const SettingsPage: React.FC = () => {
     isChecking: isTracerReadinessChecking,
     refreshReadiness,
   } = useTracerReadiness();
+  const {
+    data: runtimeHealth = null,
+    isLoading: isRuntimeHealthLoading,
+    isFetching: isRuntimeHealthFetching,
+    refetch: refetchRuntimeHealth,
+  } = useQuery({
+    queryKey: queryKeys.settings.runtimeCapabilities(),
+    queryFn: api.getRuntimeCapabilities,
+  });
 
   const methods = useForm<UpdateSettingsInput>({
     resolver: zodResolver(
@@ -1516,6 +1534,14 @@ export const SettingsPage: React.FC = () => {
           : tracerReadiness
             ? { label: "Check required", variant: "secondary" as const }
             : { label: "Not configured", variant: "secondary" as const };
+      case "runtime-health":
+        return runtimeHealth &&
+          runtimeHealth.capabilities.length > 0 &&
+          runtimeHealth.capabilities.every(
+            (capability) => capability.state === "healthy",
+          )
+          ? { label: "Healthy", variant: "outline" as const }
+          : { label: "Check required", variant: "secondary" as const };
       case "environment":
         return envSettings.readable.ukvisajobsEmail ||
           envSettings.readable.adzunaAppId
@@ -1624,6 +1650,18 @@ export const SettingsPage: React.FC = () => {
           isLoading={isLoading || isTracerReadinessLoading}
           isChecking={isTracerReadinessChecking}
           onVerifyNow={handleVerifyTracerReadiness}
+          layoutMode="panel"
+        />
+      );
+      break;
+    case "runtime-health":
+      activeSectionContent = (
+        <RuntimeCapabilityHealth
+          health={runtimeHealth}
+          isLoading={isRuntimeHealthLoading || isRuntimeHealthFetching}
+          onRefresh={() => {
+            void refetchRuntimeHealth();
+          }}
           layoutMode="panel"
         />
       );

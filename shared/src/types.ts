@@ -15,5 +15,6 @@ export * from "./types/jobs";
 export * from "./types/location";
 export * from "./types/pipeline";
 export * from "./types/post-application";
+export * from "./types/runtime-capabilities";
 export * from "./types/settings";
 export * from "./types/visa-sponsors";
