@@ -489,6 +489,182 @@ describe("SqliteJobQueue", () => {
     expect(JSON.stringify(claim)).not.toContain("must-not-persist");
   });
 
+  it("returns a bounded tenant-scoped health DTO without durable payloads or errors", async () => {
+    const jobs = queue();
+    await jobs.enqueue("auto_pdf_regeneration", payload("tenant-a", "ready"), {
+      priority: 1,
+    });
+    await jobs.enqueue("auto_pdf_regeneration", payload("tenant-b", "foreign"));
+    const claimed = await jobs.claimNext("auto_pdf_regeneration", "worker-a");
+    if (!claimed) throw new Error("Expected task claim");
+    await jobs.fail(claimed.id, {
+      tenantId: "tenant-a",
+      leaseOwner: claimed.leaseOwner,
+      message: "password=never-return-this-error",
+      retryable: false,
+    });
+    await jobs.enqueue(
+      "auto_pdf_regeneration",
+      payload("tenant-a", "ready-after-dead-letter"),
+    );
+    await jobs.enqueueOutbox(
+      "auto_pdf_regeneration",
+      payload("tenant-a", "outbox"),
+      { delayMs: 1000 },
+    );
+
+    const health = await jobs.getHealthSummary("tenant-a", {
+      deadLetterLimit: 1,
+    });
+
+    expect(health).toMatchObject({
+      states: { ready: 1, leased: 0, completed: 0, deadLetter: 1 },
+      pendingOutbox: 1,
+      deadLetters: [
+        expect.objectContaining({
+          taskId: claimed.id,
+          taskType: "auto_pdf_regeneration",
+        }),
+      ],
+    });
+    expect(health.earliestDueAt).toBe(now.toISOString());
+    expect(health.oldestReadyAgeMs).toBe(0);
+    expect(JSON.stringify(health)).not.toMatch(
+      /payload|requestContext|password|error|tenant-b|foreign/i,
+    );
+  });
+
+  it("replays one terminal tenant DLQ task while preserving immutable task, attempt, and DLQ history", async () => {
+    const jobs = queue();
+    await jobs.enqueue("auto_pdf_regeneration", payload("tenant-a", "replay"));
+    const claim = await jobs.claimNext("auto_pdf_regeneration", "worker-a");
+    if (!claim) throw new Error("Expected task claim");
+    await jobs.fail(claim.id, {
+      tenantId: "tenant-a",
+      leaseOwner: claim.leaseOwner,
+      message: "sensitive failure text",
+      retryable: false,
+    });
+    const database = (jobs as unknown as { database: Database.Database })
+      .database;
+    const deadLetterBeforeReplay = database
+      .prepare("SELECT * FROM workflow_dead_letters WHERE task_id = ?")
+      .get(claim.id);
+
+    const replay = await jobs.replayDeadLetter({
+      tenantId: "tenant-a",
+      taskId: claim.id,
+      operatorId: "operator-a",
+      requestId: "request-a",
+    });
+    expect(replay).toMatchObject({ replayed: true });
+    if (!replay.replayed) throw new Error("Expected dead-letter replay");
+    expect(replay.replayTaskId).not.toBe(claim.id);
+    expect(
+      database
+        .prepare("SELECT state, attempt_count FROM workflow_tasks WHERE id = ?")
+        .get(claim.id),
+    ).toEqual({ state: "dead_letter", attempt_count: 1 });
+    expect(
+      database
+        .prepare(
+          "SELECT count(*) AS count FROM workflow_task_attempts WHERE task_id = ?",
+        )
+        .get(claim.id),
+    ).toEqual({ count: 1 });
+    const originalDeadLetter = database
+      .prepare("SELECT * FROM workflow_dead_letters WHERE task_id = ?")
+      .get(claim.id);
+    expect(originalDeadLetter).toEqual(deadLetterBeforeReplay);
+    expect(() =>
+      database
+        .prepare("UPDATE workflow_dead_letters SET last_error = 'changed'")
+        .run(),
+    ).toThrow(/immutable/);
+    expect(() =>
+      database.prepare("DELETE FROM workflow_dead_letters").run(),
+    ).toThrow(/immutable/);
+    expect(
+      database
+        .prepare(
+          "SELECT operator_id, request_id FROM workflow_dead_letter_replays WHERE original_task_id = ?",
+        )
+        .get(claim.id),
+    ).toEqual({ operator_id: "operator-a", request_id: "request-a" });
+    expect(() =>
+      database
+        .prepare(
+          "UPDATE workflow_dead_letter_replays SET request_id = 'changed'",
+        )
+        .run(),
+    ).toThrow(/append-only/);
+    expect(() =>
+      database.prepare("DELETE FROM workflow_dead_letter_replays").run(),
+    ).toThrow(/append-only/);
+    expect(
+      database
+        .prepare(
+          "SELECT state, attempt_count, payload_json FROM workflow_tasks WHERE id = ?",
+        )
+        .get(replay.replayTaskId),
+    ).toEqual({
+      state: "ready",
+      attempt_count: 0,
+      payload_json: JSON.stringify(payload("tenant-a", "replay")),
+    });
+  });
+
+  it("rejects malformed or unsupported stored replay payloads without creating a replay", async () => {
+    const jobs = queue();
+    await jobs.enqueue("auto_pdf_regeneration", payload("tenant-a", "replay"));
+    const database = (jobs as unknown as { database: Database.Database })
+      .database;
+    database
+      .prepare(
+        "UPDATE workflow_tasks SET payload_json = ?, payload_version = ? WHERE tenant_id = ?",
+      )
+      .run('{"arbitrary":true}', 99, "tenant-a");
+    const claim = await jobs.claimNext("auto_pdf_regeneration", "worker-a");
+    if (!claim) throw new Error("Expected task claim");
+    await jobs.fail(claim.id, {
+      tenantId: "tenant-a",
+      leaseOwner: claim.leaseOwner,
+      message: "failed",
+      retryable: false,
+    });
+    await expect(
+      jobs.replayDeadLetter({ tenantId: "tenant-a", taskId: claim.id }),
+    ).resolves.toEqual({ replayed: false, reason: "invalid_payload" });
+    expect(
+      database
+        .prepare("SELECT count(*) AS count FROM workflow_dead_letter_replays")
+        .get(),
+    ).toEqual({ count: 0 });
+  });
+
+  it("does not replay a cross-tenant or already replayed dead letter", async () => {
+    const jobs = queue();
+    await jobs.enqueue("auto_pdf_regeneration", payload("tenant-a", "replay"));
+    const claim = await jobs.claimNext("auto_pdf_regeneration", "worker-a");
+    if (!claim) throw new Error("Expected task claim");
+    await jobs.fail(claim.id, {
+      tenantId: "tenant-a",
+      leaseOwner: claim.leaseOwner,
+      message: "failed",
+      retryable: false,
+    });
+
+    await expect(
+      jobs.replayDeadLetter({ tenantId: "tenant-b", taskId: claim.id }),
+    ).resolves.toEqual({ replayed: false, reason: "not_found" });
+    await expect(
+      jobs.replayDeadLetter({ tenantId: "tenant-a", taskId: claim.id }),
+    ).resolves.toMatchObject({ replayed: true });
+    await expect(
+      jobs.replayDeadLetter({ tenantId: "tenant-a", taskId: claim.id }),
+    ).resolves.toEqual({ replayed: false, reason: "already_replayed" });
+  });
+
   it("dispatches an outbox record once when two dispatchers race", async () => {
     const jobs = queue();
     await jobs.enqueueOutbox(

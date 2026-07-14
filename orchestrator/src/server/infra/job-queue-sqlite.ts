@@ -6,7 +6,9 @@ import type {
   JobQueue,
   JobQueueName,
   QueueJobRecord,
+  ReserveNextOptions,
 } from "./job-queue";
+import { isKnownAutoPdfRegenerationPayload } from "./job-queue";
 import { getRequestContext } from "./request-context";
 import { redactString } from "./sanitize";
 
@@ -39,6 +41,18 @@ type Claim = QueueJobRecord & {
   leaseExpiresAt: string;
   attempt: number;
 };
+type HealthState = "ready" | "leased" | "completed" | "dead_letter";
+type DeadLetterForReplay = {
+  id: string;
+  task_id: string;
+  queue_name: JobQueueName;
+  task_type: string;
+  payload_version: number;
+  payload_json: string;
+  max_attempts: number;
+};
+const MAX_HEALTH_DEAD_LETTERS = 50;
+const MAX_AUDIT_VALUE_LENGTH = 200;
 const iso = (date: Date) => date.toISOString();
 const errorSummary = (message: string) =>
   redactString(
@@ -305,11 +319,15 @@ export class SqliteJobQueue implements JobQueue {
       } as Claim;
     })();
   }
-  async reserveNext<K extends JobQueueName>(queue: K) {
+  async reserveNext<K extends JobQueueName>(
+    queue: K,
+    options: ReserveNextOptions = {},
+  ) {
     // A live durable worker can be the only process awake when a delayed
     // outbox record becomes due, so reconcile it before every drain attempt.
     await this.recoverExpiredLeases();
     await this.dispatchOutbox();
+    if (options.shouldClaim && !options.shouldClaim()) return null;
     return this.claimNext(
       queue,
       "legacy-worker",
@@ -501,5 +519,194 @@ export class SqliteJobQueue implements JobQueue {
         "SELECT task_id AS taskId, last_error AS lastError FROM workflow_dead_letters WHERE tenant_id = ? ORDER BY dead_lettered_at",
       )
       .all(tenantId) as Array<{ taskId: string; lastError: string | null }>;
+  }
+
+  async getHealthSummary(
+    tenantId: string,
+    options: { deadLetterLimit?: number } = {},
+  ): Promise<{
+    states: {
+      ready: number;
+      leased: number;
+      completed: number;
+      deadLetter: number;
+    };
+    pendingOutbox: number;
+    earliestDueAt: string | null;
+    oldestReadyAgeMs: number | null;
+    deadLetters: Array<{
+      taskId: string;
+      queue: JobQueueName;
+      taskType: string;
+      deadLetteredAt: string;
+      replayedAt: string | null;
+    }>;
+  }> {
+    const now = this.now();
+    const deadLetterLimit = Math.max(
+      1,
+      Math.min(MAX_HEALTH_DEAD_LETTERS, options.deadLetterLimit ?? 20),
+    );
+    const stateRows = this.database
+      .prepare(
+        "SELECT state, count(*) AS count FROM workflow_tasks WHERE tenant_id = ? GROUP BY state",
+      )
+      .all(tenantId) as Array<{ state: HealthState; count: number }>;
+    const counts = new Map(stateRows.map((row) => [row.state, row.count]));
+    const pendingOutbox = this.database
+      .prepare(
+        "SELECT count(*) AS count FROM workflow_outbox WHERE tenant_id = ? AND dispatched_at IS NULL",
+      )
+      .get(tenantId) as { count: number };
+    const earliestDue = this.database
+      .prepare(
+        `SELECT MIN(available_at) AS due_at FROM (
+          SELECT available_at FROM workflow_outbox WHERE tenant_id = ? AND dispatched_at IS NULL
+          UNION ALL
+          SELECT available_at FROM workflow_tasks WHERE tenant_id = ? AND state = 'ready'
+        )`,
+      )
+      .get(tenantId, tenantId) as { due_at: string | null };
+    const oldestReady = this.database
+      .prepare(
+        "SELECT MIN(created_at) AS created_at FROM workflow_tasks WHERE tenant_id = ? AND state = 'ready'",
+      )
+      .get(tenantId) as { created_at: string | null };
+    const deadLetters = this.database
+      .prepare(
+        `SELECT task_id AS taskId, queue_name AS queue, task_type AS taskType,
+          d.dead_lettered_at AS deadLetteredAt, r.replayed_at AS replayedAt
+         FROM workflow_dead_letters d
+         LEFT JOIN workflow_dead_letter_replays r ON r.dead_letter_id = d.id
+         WHERE d.tenant_id = ?
+         ORDER BY dead_lettered_at DESC, task_id DESC LIMIT ?`,
+      )
+      .all(tenantId, deadLetterLimit) as Array<{
+      taskId: string;
+      queue: JobQueueName;
+      taskType: string;
+      deadLetteredAt: string;
+      replayedAt: string | null;
+    }>;
+    return {
+      states: {
+        ready: counts.get("ready") ?? 0,
+        leased: counts.get("leased") ?? 0,
+        completed: counts.get("completed") ?? 0,
+        deadLetter: counts.get("dead_letter") ?? 0,
+      },
+      pendingOutbox: pendingOutbox.count,
+      earliestDueAt: earliestDue.due_at,
+      oldestReadyAgeMs: oldestReady.created_at
+        ? Math.max(
+            0,
+            now.getTime() - new Date(oldestReady.created_at).getTime(),
+          )
+        : null,
+      deadLetters,
+    };
+  }
+
+  async replayDeadLetter(input: {
+    tenantId: string;
+    taskId: string;
+    operatorId?: string;
+    requestId?: string;
+  }): Promise<
+    | { replayed: true; replayTaskId: string }
+    | {
+        replayed: false;
+        reason: "not_found" | "already_replayed" | "invalid_payload";
+      }
+  > {
+    const now = iso(this.now());
+    const safeAuditValue = (value: string | undefined) =>
+      value?.trim().slice(0, MAX_AUDIT_VALUE_LENGTH) || null;
+    try {
+      return this.database.transaction(() => {
+        const deadLetter = this.database
+          .prepare(
+            `SELECT d.id, d.task_id, d.queue_name, d.task_type, d.payload_version, d.payload_json,
+             t.max_attempts
+           FROM workflow_dead_letters d
+           JOIN workflow_tasks t ON t.id = d.task_id AND t.tenant_id = d.tenant_id
+           WHERE d.tenant_id = ? AND d.task_id = ? AND t.state = 'dead_letter'`,
+          )
+          .get(input.tenantId, input.taskId) as DeadLetterForReplay | undefined;
+        if (!deadLetter)
+          return { replayed: false, reason: "not_found" } as const;
+        const alreadyReplayed = this.database
+          .prepare(
+            "SELECT 1 FROM workflow_dead_letter_replays WHERE dead_letter_id = ?",
+          )
+          .get(deadLetter.id);
+        if (alreadyReplayed)
+          return { replayed: false, reason: "already_replayed" } as const;
+
+        let storedPayload: unknown;
+        try {
+          storedPayload = JSON.parse(deadLetter.payload_json);
+        } catch {
+          return { replayed: false, reason: "invalid_payload" } as const;
+        }
+        if (
+          deadLetter.payload_version !== 1 ||
+          deadLetter.queue_name !== "auto_pdf_regeneration" ||
+          !isKnownAutoPdfRegenerationPayload(storedPayload) ||
+          storedPayload.tenantId !== input.tenantId
+        ) {
+          return { replayed: false, reason: "invalid_payload" } as const;
+        }
+
+        const replayTaskId = randomUUID();
+        this.database
+          .prepare(
+            `INSERT INTO workflow_tasks (id, tenant_id, queue_name, task_type, payload_version,
+             payload_json, state, priority, available_at, attempt_count, max_attempts,
+             request_context_json, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, 'ready', 0, ?, 0, ?, ?, ?, ?)`,
+          )
+          .run(
+            replayTaskId,
+            input.tenantId,
+            deadLetter.queue_name,
+            deadLetter.task_type,
+            deadLetter.payload_version,
+            deadLetter.payload_json,
+            now,
+            deadLetter.max_attempts,
+            JSON.stringify({
+              requestId: safeAuditValue(input.requestId) ?? undefined,
+            }),
+            now,
+            now,
+          );
+        this.database
+          .prepare(
+            `INSERT INTO workflow_dead_letter_replays(id, tenant_id, dead_letter_id, original_task_id,
+            replay_task_id, operator_id, request_id, replayed_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          )
+          .run(
+            randomUUID(),
+            input.tenantId,
+            deadLetter.id,
+            deadLetter.task_id,
+            replayTaskId,
+            safeAuditValue(input.operatorId),
+            safeAuditValue(input.requestId),
+            now,
+          );
+        return { replayed: true, replayTaskId } as const;
+      })();
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        /UNIQUE constraint failed/.test(error.message)
+      ) {
+        return { replayed: false, reason: "already_replayed" } as const;
+      }
+      throw error;
+    }
   }
 }

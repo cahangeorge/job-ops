@@ -7,10 +7,14 @@ import { logger } from "@infra/logger";
 import { sanitizeUnknown } from "@infra/sanitize";
 import { createApp } from "./app";
 import { initializeExtractorRegistry } from "./extractors/registry";
+import { closeHttpServer, createServerLifecycle } from "./lifecycle";
 import { deleteExpiredOrRevokedAuthSessions } from "./repositories/auth-sessions";
 import * as settingsRepo from "./repositories/settings";
 import { initializeActivationAnalyticsSafely } from "./services/activation-funnel";
-import { initializeAutoPdfRegenerationWorker } from "./services/auto-pdf-regeneration";
+import {
+  initializeAutoPdfRegenerationWorker,
+  stopAutoPdfRegenerationWorker,
+} from "./services/auto-pdf-regeneration";
 import {
   getBackupSettings,
   setBackupSettings,
@@ -134,7 +138,12 @@ async function startServer() {
     }
 
     try {
-      await initializeAutoPdfRegenerationWorker();
+      const workerInitialization = await initializeAutoPdfRegenerationWorker();
+      if (!workerInitialization.started) {
+        logger.warn("Auto PDF regeneration worker initialization deferred", {
+          reason: workerInitialization.reason,
+        });
+      }
     } catch (error) {
       logger.warn("Failed to initialize auto PDF regeneration worker", {
         error: sanitizeUnknown(error),
@@ -163,6 +172,14 @@ async function startServer() {
     void initializeHistoricalServerEventReplaySafely();
     void initializeActivationAnalyticsSafely();
   });
+  createServerLifecycle({
+    stopWorker: stopAutoPdfRegenerationWorker,
+    closeServer: () => closeHttpServer(server),
+    on: (signal, listener) => process.once(signal, listener),
+    reportError: ({ signal, error }) => {
+      logger.error("Server shutdown failed", { signal, error });
+    },
+  }).register();
   attachChallengeViewerUpgradeProxy(server);
 }
 

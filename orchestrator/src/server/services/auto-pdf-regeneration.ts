@@ -22,6 +22,7 @@ import {
 
 const AUTO_PDF_REGEN_BATCH_LIMIT = 25;
 const AUTO_PDF_REGEN_RETRY_DELAY_MS = 5000;
+const PREVIOUS_DRAIN_WAIT_MS = 1_000;
 
 const SETTINGS_INVALIDATION_KEYS = new Set<SettingKey>([
   "pdfRenderer",
@@ -45,6 +46,7 @@ function onlyInvalidatesTypstTheme(
 
 let workerPromise: Promise<void> | null = null;
 let workerRequested = false;
+let workerQuiescing = false;
 let workerTimer: ReturnType<typeof setTimeout> | null = null;
 let workerTimerDueAt = 0;
 
@@ -63,10 +65,12 @@ function isDesignResumeAutoPdfRoot(
 }
 
 function scheduleWorker(): void {
+  if (workerQuiescing) return;
   workerRequested = true;
   if (workerPromise) return;
   workerPromise = runWorker().finally(() => {
     workerPromise = null;
+    if (workerQuiescing) return;
     void scheduleEarliestDurableWork();
     if (workerRequested) {
       scheduleWorker();
@@ -75,6 +79,7 @@ function scheduleWorker(): void {
 }
 
 async function scheduleEarliestDurableWork(): Promise<void> {
+  if (workerQuiescing) return;
   const queue = getJobQueue();
   if (!(queue instanceof SqliteJobQueue)) return;
 
@@ -93,7 +98,7 @@ async function scheduleEarliestDurableWork(): Promise<void> {
   workerTimer = setTimeout(() => {
     workerTimer = null;
     workerTimerDueAt = 0;
-    scheduleWorker();
+    if (!workerQuiescing) scheduleWorker();
   }, delayMs);
 }
 
@@ -108,8 +113,13 @@ async function drainQueue(): Promise<void> {
   const queue = getJobQueue();
 
   try {
-    while (true) {
-      const queuedJob = await queue.reserveNext("auto_pdf_regeneration");
+    // Check the lifecycle gate before every claim. A stop can arrive while an
+    // earlier claim is processing; completing that claim must not let this
+    // drain acquire new work.
+    while (!workerQuiescing) {
+      const queuedJob = await queue.reserveNext("auto_pdf_regeneration", {
+        shouldClaim: () => !workerQuiescing,
+      });
       if (!queuedJob) return;
       const leaseOwner = queuedJob.leaseOwner;
 
@@ -432,7 +442,39 @@ export function shouldEnqueueTailoringAutoPdfRegeneration(
   );
 }
 
-export async function initializeAutoPdfRegenerationWorker(): Promise<void> {
+export async function initializeAutoPdfRegenerationWorker(
+  options: { previousDrainTimeoutMs?: number } = {},
+): Promise<
+  { started: true } | { started: false; reason: "previous_drain_active" }
+> {
+  // A previous stop may have timed out while its active claim was still
+  // settling. Do not recover leases or claim new work alongside that drain.
+  const previousWorker = workerPromise;
+  if (previousWorker) {
+    const timeoutMs = Math.max(
+      0,
+      Math.min(
+        30_000,
+        options.previousDrainTimeoutMs ?? PREVIOUS_DRAIN_WAIT_MS,
+      ),
+    );
+    let timedOut = false;
+    let timeout: ReturnType<typeof setTimeout> | null = null;
+    await Promise.race([
+      previousWorker,
+      new Promise<void>((resolve) => {
+        timeout = setTimeout(() => {
+          timedOut = true;
+          resolve();
+        }, timeoutMs);
+      }),
+    ]);
+    if (timeout) clearTimeout(timeout);
+    if (timedOut && workerPromise) {
+      return { started: false, reason: "previous_drain_active" };
+    }
+  }
+  workerQuiescing = false;
   const queue = getJobQueue();
   if (queue instanceof SqliteJobQueue) {
     const [{ sqlite }, { reconcileDesignResumeAutoPdfRoots }] =
@@ -443,4 +485,34 @@ export async function initializeAutoPdfRegenerationWorker(): Promise<void> {
     await scheduleEarliestDurableWork();
   }
   scheduleWorker();
+  return { started: true };
+}
+
+/** Wakes the singleton durable worker after a committed external producer, such as DLQ replay. */
+export async function wakeAutoPdfRegenerationWorker(): Promise<void> {
+  if (workerQuiescing) return;
+  await scheduleEarliestDurableWork();
+  scheduleWorker();
+}
+
+/** Stops future scheduling and gives an in-flight durable claim a bounded chance to settle. */
+export async function stopAutoPdfRegenerationWorker(
+  options: { timeoutMs?: number } = {},
+): Promise<void> {
+  workerQuiescing = true;
+  workerRequested = false;
+  if (workerTimer) clearTimeout(workerTimer);
+  workerTimer = null;
+  workerTimerDueAt = 0;
+  const activeWorker = workerPromise;
+  if (!activeWorker) return;
+  const timeoutMs = Math.max(0, Math.min(30_000, options.timeoutMs ?? 10_000));
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+  await Promise.race([
+    activeWorker,
+    new Promise<void>((resolve) => {
+      timeout = setTimeout(resolve, timeoutMs);
+    }),
+  ]);
+  if (timeout) clearTimeout(timeout);
 }

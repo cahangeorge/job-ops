@@ -45,9 +45,55 @@ export interface JobQueuePayloadByName {
 }
 
 export function isAutoPdfRegenerationJobPayload(
-  payload: JobQueuePayloadByName["auto_pdf_regeneration"],
+  payload: unknown,
 ): payload is AutoPdfRegenerationJobPayload {
-  return "jobId" in payload && "reason" in payload;
+  if (!isRecord(payload)) return false;
+  return (
+    isBoundedString(payload.tenantId) &&
+    isBoundedString(payload.jobId) &&
+    typeof payload.requestedAt === "string" &&
+    (payload.requestedBy === "system" || payload.requestedBy === "user") &&
+    (payload.reason === "design_resume_updated" ||
+      payload.reason === "tailoring_updated" ||
+      payload.reason === "settings_changed" ||
+      payload.reason === "manual_refresh")
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isBoundedString(value: unknown): value is string {
+  return (
+    typeof value === "string" && value.trim().length > 0 && value.length <= 200
+  );
+}
+
+export function isKnownAutoPdfRegenerationPayload(
+  payload: unknown,
+): payload is JobQueuePayloadByName["auto_pdf_regeneration"] {
+  if (isAutoPdfRegenerationJobPayload(payload)) return true;
+  if (!isRecord(payload) || !isBoundedString(payload.tenantId)) return false;
+  if (payload.taskType === "settings_auto_pdf_root") {
+    return (
+      Array.isArray(payload.updatedSettingKeys) &&
+      payload.updatedSettingKeys.every(isBoundedString) &&
+      typeof payload.requestedAt === "string" &&
+      (payload.requestedBy === "system" || payload.requestedBy === "user") &&
+      isBoundedString(payload.transactionId) &&
+      (payload.requestId === null || isBoundedString(payload.requestId))
+    );
+  }
+  return (
+    payload.taskType === "design_resume_auto_pdf_root" &&
+    isBoundedString(payload.documentId) &&
+    typeof payload.revision === "number" &&
+    Number.isSafeInteger(payload.revision) &&
+    payload.revision > 0 &&
+    typeof payload.requestedAt === "string" &&
+    (payload.requestedBy === "system" || payload.requestedBy === "user")
+  );
 }
 
 export interface EnqueueJobOptions {
@@ -84,6 +130,11 @@ export interface QueueJobRecord<K extends JobQueueName = JobQueueName> {
   leaseOwner?: string;
 }
 
+export interface ReserveNextOptions {
+  /** Synchronously prevents a reservation immediately before it is claimed. */
+  shouldClaim?: () => boolean;
+}
+
 export interface JobQueue {
   enqueue<K extends JobQueueName>(
     queue: K,
@@ -93,6 +144,7 @@ export interface JobQueue {
 
   reserveNext<K extends JobQueueName>(
     queue: K,
+    options?: ReserveNextOptions,
   ): Promise<QueueJobRecord<K> | null>;
 
   acknowledge(jobId: string): Promise<void>;

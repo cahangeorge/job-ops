@@ -578,6 +578,46 @@ export const VERSIONED_MIGRATIONS: readonly VersionedMigration[] = [
       );
     `,
   },
+  {
+    version: 9,
+    sql: `
+      CREATE INDEX idx_workflow_tasks_tenant_state_available
+        ON workflow_tasks(tenant_id, state, available_at, created_at);
+      CREATE INDEX idx_workflow_outbox_tenant_pending
+        ON workflow_outbox(tenant_id, dispatched_at, available_at, created_at);
+      CREATE TABLE workflow_dead_letter_replays (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        dead_letter_id TEXT NOT NULL,
+        original_task_id TEXT NOT NULL,
+        replay_task_id TEXT NOT NULL,
+        operator_id TEXT,
+        request_id TEXT,
+        replayed_at TEXT NOT NULL,
+        FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+        FOREIGN KEY (dead_letter_id) REFERENCES workflow_dead_letters(id) ON DELETE RESTRICT,
+        FOREIGN KEY (original_task_id) REFERENCES workflow_tasks(id) ON DELETE RESTRICT,
+        FOREIGN KEY (replay_task_id) REFERENCES workflow_tasks(id) ON DELETE RESTRICT,
+        UNIQUE(dead_letter_id),
+        UNIQUE(replay_task_id)
+      );
+      CREATE INDEX idx_workflow_dead_letter_replays_tenant_created
+        ON workflow_dead_letter_replays(tenant_id, replayed_at, original_task_id);
+    `,
+  },
+  {
+    version: 10,
+    sql: `
+      CREATE TRIGGER workflow_dead_letters_no_update
+        BEFORE UPDATE ON workflow_dead_letters BEGIN SELECT RAISE(ABORT, 'workflow_dead_letters are immutable'); END;
+      CREATE TRIGGER workflow_dead_letters_no_delete
+        BEFORE DELETE ON workflow_dead_letters BEGIN SELECT RAISE(ABORT, 'workflow_dead_letters are immutable'); END;
+      CREATE TRIGGER workflow_dead_letter_replays_no_update
+        BEFORE UPDATE ON workflow_dead_letter_replays BEGIN SELECT RAISE(ABORT, 'workflow_dead_letter_replays are append-only'); END;
+      CREATE TRIGGER workflow_dead_letter_replays_no_delete
+        BEFORE DELETE ON workflow_dead_letter_replays BEGIN SELECT RAISE(ABORT, 'workflow_dead_letter_replays are append-only'); END;
+    `,
+  },
 ];
 
 function checksum(sql: string): string {

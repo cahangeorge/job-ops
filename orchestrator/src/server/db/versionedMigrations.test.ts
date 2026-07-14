@@ -89,7 +89,7 @@ describe("versioned SQLite migrations", () => {
 
     expect(
       database.prepare("SELECT count(*) AS count FROM schema_migrations").get(),
-    ).toEqual({ count: 8 });
+    ).toEqual({ count: 10 });
     assertCompositeForeignKey(database);
   });
 
@@ -115,6 +115,25 @@ describe("versioned SQLite migrations", () => {
         )
         .get(),
     ).toEqual({ name: "idx_workflow_outbox_immutable_idempotency" });
+    expect(
+      database
+        .prepare(
+          "SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_workflow_dead_letter_replays_tenant_created'",
+        )
+        .get(),
+    ).toEqual({ name: "idx_workflow_dead_letter_replays_tenant_created" });
+    for (const trigger of [
+      "workflow_dead_letter_replays_no_update",
+      "workflow_dead_letter_replays_no_delete",
+    ]) {
+      expect(
+        database
+          .prepare(
+            "SELECT name FROM sqlite_master WHERE type = 'trigger' AND name = ?",
+          )
+          .get(trigger),
+      ).toEqual({ name: trigger });
+    }
   });
 
   it("rejects duplicate versions and checksum drift", () => {

@@ -35,6 +35,7 @@ import { visaSponsorsRouter } from "./routes/visa-sponsors";
 import { watchlistRouter } from "./routes/watchlist";
 import { webhookRouter } from "./routes/webhook";
 import { workdayRouter } from "./routes/workday";
+import { workflowQueueRouter } from "./routes/workflow-queue";
 import { workspacesRouter } from "./routes/workspaces";
 
 export const apiRouter = Router();
@@ -58,6 +59,7 @@ apiRouter.use("/backups", backupRouter);
 apiRouter.use("/batch", batchRouter);
 apiRouter.use("/tracer-links", tracerLinksRouter);
 apiRouter.use("/workspaces", workspacesRouter);
+apiRouter.use("/workflow-queue", workflowQueueRouter);
 apiRouter.use("/auth", authRouter);
 apiRouter.use("/workday", workdayRouter);
 apiRouter.use("/watchlist", watchlistRouter);
