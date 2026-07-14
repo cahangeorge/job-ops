@@ -31,6 +31,8 @@ const sidebars: SidebarsConfig = {
         "features/keyboard-shortcuts",
         "features/multi-select-and-bulk-actions",
         "features/orchestrator",
+        "features/deep-application",
+        "features/outcome-learning",
         "features/settings",
         "features/reactive-resume",
         "features/in-progress-board",
@@ -78,7 +80,13 @@ const sidebars: SidebarsConfig = {
     {
       type: "category",
       label: "Reference / FAQ",
-      items: ["reference/faq", "reference/documentation-style-guide"],
+      items: [
+        "reference/faq",
+        "reference/documentation-style-guide",
+        "reference/durable-workflows",
+        "reference/runtime-capability-health",
+        "reference/data-provenance-and-retention",
+      ],
     },
   ],
 };
