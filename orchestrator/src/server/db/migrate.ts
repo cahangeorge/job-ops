@@ -42,6 +42,13 @@ function tableExists(tableName: string): boolean {
   return Boolean(row);
 }
 
+function tableSqlIncludes(tableName: string, fragment: string): boolean {
+  const row = sqlite
+    .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?")
+    .get(tableName) as { sql?: string | null } | undefined;
+  return row?.sql?.toLowerCase().includes(fragment.toLowerCase()) ?? false;
+}
+
 function addTenantColumn(tableName: string): void {
   if (!tableExists(tableName) || tableHasColumn(tableName, "tenant_id")) {
     return;
@@ -69,6 +76,7 @@ const pipelineRunsHasConfigSnapshot = tableHasColumn(
 const pipelineRunsHasTenantId = tableHasColumn("pipeline_runs", "tenant_id");
 const jobsHasPdfRegenerating = tableHasColumn("jobs", "pdf_regenerating");
 const jobsHasJobBrief = tableHasColumn("jobs", "job_brief");
+const jobsSupportsInProgress = tableSqlIncludes("jobs", "'in_progress'");
 const watchlistJobStatesHasUserId = tableHasColumn(
   "watchlist_job_states",
   "user_id",
@@ -747,7 +755,9 @@ const migrations = [
   `ALTER TABLE pipeline_runs_new RENAME TO pipeline_runs`,
 
   // Ensure jobs status supports "in_progress" for existing databases.
-  `CREATE TABLE IF NOT EXISTS jobs_new (
+  jobsSupportsInProgress
+    ? "SELECT 1"
+    : `CREATE TABLE IF NOT EXISTS jobs_new (
     id TEXT PRIMARY KEY,
     tenant_id TEXT NOT NULL DEFAULT 'tenant_default',
     source TEXT NOT NULL DEFAULT 'gradcracker',
@@ -817,7 +827,9 @@ const migrations = [
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
   )`,
-  `INSERT OR REPLACE INTO jobs_new (
+  jobsSupportsInProgress
+    ? "SELECT 1"
+    : `INSERT OR REPLACE INTO jobs_new (
     id, tenant_id, source, source_job_id, job_url_direct, date_posted, job_type, salary_source, salary_interval,
     salary_min_amount, salary_max_amount, salary_currency, is_remote, job_level, job_function, listing_type,
     emails, company_industry, company_logo, company_url_direct, company_addresses, company_num_employees,
@@ -841,8 +853,8 @@ const migrations = [
     ready_at,
     applied_at, created_at, updated_at
   FROM jobs`,
-  `DROP TABLE IF EXISTS jobs`,
-  `ALTER TABLE jobs_new RENAME TO jobs`,
+  jobsSupportsInProgress ? "SELECT 1" : `DROP TABLE IF EXISTS jobs`,
+  jobsSupportsInProgress ? "SELECT 1" : `ALTER TABLE jobs_new RENAME TO jobs`,
   `DROP TABLE IF EXISTS watchlist_job_states_new`,
   `CREATE TABLE watchlist_job_states_new (
     id TEXT PRIMARY KEY,

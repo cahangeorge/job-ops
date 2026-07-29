@@ -477,10 +477,11 @@ export async function initializeAutoPdfRegenerationWorker(
   workerQuiescing = false;
   const queue = getJobQueue();
   if (queue instanceof SqliteJobQueue) {
-    const [{ sqlite }, { reconcileDesignResumeAutoPdfRoots }] =
-      await Promise.all([import("@server/db"), import("./auto-pdf-producers")]);
+    const { reconcileDesignResumeAutoPdfRoots } = await import(
+      "./auto-pdf-producers"
+    );
     await queue.recoverExpiredLeases();
-    reconcileDesignResumeAutoPdfRoots({ database: sqlite, queue });
+    reconcileDesignResumeAutoPdfRoots({ database: queue.getDatabase(), queue });
     await queue.dispatchOutbox();
     await scheduleEarliestDurableWork();
   }

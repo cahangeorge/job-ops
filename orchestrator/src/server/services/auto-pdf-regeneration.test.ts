@@ -76,14 +76,30 @@ async function waitForCondition(
   throw new Error(`Timed out waiting for ${description}`);
 }
 
+function durableQueueDatabase(): Database.Database {
+  const database = new Database(":memory:");
+  database.pragma("foreign_keys = ON");
+  database.exec(`
+    CREATE TABLE tenants (id TEXT PRIMARY KEY);
+    INSERT INTO tenants(id) VALUES ('tenant-test');
+    CREATE TABLE design_resume_documents (
+      tenant_id TEXT NOT NULL,
+      id TEXT NOT NULL,
+      revision INTEGER NOT NULL,
+      PRIMARY KEY (tenant_id, id)
+    );
+  `);
+  runVersionedMigrations(
+    database,
+    VERSIONED_MIGRATIONS.filter(({ version }) => version >= 6),
+  );
+  return database;
+}
+
 describe("auto PDF regeneration", () => {
   beforeEach(async () => {
     vi.useRealTimers();
     await stopAutoPdfRegenerationWorker({ timeoutMs: 0 });
-    const { sqlite } = await import("@server/db");
-    sqlite.exec(
-      "CREATE TABLE IF NOT EXISTS design_resume_documents (tenant_id TEXT NOT NULL, id TEXT NOT NULL, revision INTEGER NOT NULL, PRIMARY KEY (tenant_id, id))",
-    );
     vi.clearAllMocks();
     vi.mocked(getJobQueue).mockReturnValue({
       enqueue: mocks.enqueue,
@@ -162,14 +178,7 @@ describe("auto PDF regeneration", () => {
 
   it("wakes a live durable worker for a failed task retry without another producer or restart", async () => {
     vi.useFakeTimers({ now: new Date("2026-05-04T10:00:00.000Z") });
-    const database = new Database(":memory:");
-    database.pragma("foreign_keys = ON");
-    database.exec("CREATE TABLE tenants (id TEXT PRIMARY KEY)");
-    database.exec("INSERT INTO tenants(id) VALUES ('tenant-test')");
-    runVersionedMigrations(
-      database,
-      VERSIONED_MIGRATIONS.filter(({ version }) => version >= 6),
-    );
+    const database = durableQueueDatabase();
     const queue = new SqliteJobQueue(database, {
       now: () => new Date(Date.now()),
       random: () => 0,
@@ -208,14 +217,7 @@ describe("auto PDF regeneration", () => {
 
   it("schedules future outbox work at startup and processes it when due without another producer", async () => {
     vi.useFakeTimers({ now: new Date("2026-05-04T10:00:00.000Z") });
-    const database = new Database(":memory:");
-    database.pragma("foreign_keys = ON");
-    database.exec("CREATE TABLE tenants (id TEXT PRIMARY KEY)");
-    database.exec("INSERT INTO tenants(id) VALUES ('tenant-test')");
-    runVersionedMigrations(
-      database,
-      VERSIONED_MIGRATIONS.filter(({ version }) => version >= 6),
-    );
+    const database = durableQueueDatabase();
     const queue = new SqliteJobQueue(database, {
       now: () => new Date(Date.now()),
       random: () => 0,
@@ -256,14 +258,7 @@ describe("auto PDF regeneration", () => {
 
   it("keeps a future wake after an immediate task arrives", async () => {
     vi.useFakeTimers({ now: new Date("2026-05-04T10:00:00.000Z") });
-    const database = new Database(":memory:");
-    database.pragma("foreign_keys = ON");
-    database.exec("CREATE TABLE tenants (id TEXT PRIMARY KEY)");
-    database.exec("INSERT INTO tenants(id) VALUES ('tenant-test')");
-    runVersionedMigrations(
-      database,
-      VERSIONED_MIGRATIONS.filter(({ version }) => version >= 6),
-    );
+    const database = durableQueueDatabase();
     const queue = new SqliteJobQueue(database, {
       now: () => new Date(Date.now()),
       random: () => 0,
@@ -309,14 +304,7 @@ describe("auto PDF regeneration", () => {
 
   it("recovers an expired lease at its durable wake after an immediate drain", async () => {
     vi.useFakeTimers({ now: new Date("2026-05-04T10:00:00.000Z") });
-    const database = new Database(":memory:");
-    database.pragma("foreign_keys = ON");
-    database.exec("CREATE TABLE tenants (id TEXT PRIMARY KEY)");
-    database.exec("INSERT INTO tenants(id) VALUES ('tenant-test')");
-    runVersionedMigrations(
-      database,
-      VERSIONED_MIGRATIONS.filter(({ version }) => version >= 6),
-    );
+    const database = durableQueueDatabase();
     const queue = new SqliteJobQueue(database, {
       now: () => new Date(Date.now()),
       random: () => 0,
@@ -364,14 +352,7 @@ describe("auto PDF regeneration", () => {
 
   it("quiesces without claiming another task and lets startup recover the timed-out active lease", async () => {
     let current = new Date("2026-05-04T10:00:00.000Z");
-    const database = new Database(":memory:");
-    database.pragma("foreign_keys = ON");
-    database.exec("CREATE TABLE tenants (id TEXT PRIMARY KEY)");
-    database.exec("INSERT INTO tenants(id) VALUES ('tenant-test')");
-    runVersionedMigrations(
-      database,
-      VERSIONED_MIGRATIONS.filter(({ version }) => version >= 6),
-    );
+    const database = durableQueueDatabase();
     const queue = new SqliteJobQueue(database, { now: () => current });
     vi.mocked(getJobQueue).mockReturnValue(queue);
     let releaseActive!: () => void;
@@ -458,14 +439,7 @@ describe("auto PDF regeneration", () => {
   });
 
   it("does not claim work when the reserve gate is closed before the SQL claim", async () => {
-    const database = new Database(":memory:");
-    database.pragma("foreign_keys = ON");
-    database.exec("CREATE TABLE tenants (id TEXT PRIMARY KEY)");
-    database.exec("INSERT INTO tenants(id) VALUES ('tenant-test')");
-    runVersionedMigrations(
-      database,
-      VERSIONED_MIGRATIONS.filter(({ version }) => version >= 6),
-    );
+    const database = durableQueueDatabase();
     const queue = new SqliteJobQueue(database);
     await queue.enqueue("auto_pdf_regeneration", {
       tenantId: "tenant-test",
@@ -515,14 +489,7 @@ describe("auto PDF regeneration", () => {
   });
 
   it("wakes a live durable worker to claim and process a replayed task", async () => {
-    const database = new Database(":memory:");
-    database.pragma("foreign_keys = ON");
-    database.exec("CREATE TABLE tenants (id TEXT PRIMARY KEY)");
-    database.exec("INSERT INTO tenants(id) VALUES ('tenant-test')");
-    runVersionedMigrations(
-      database,
-      VERSIONED_MIGRATIONS.filter(({ version }) => version >= 6),
-    );
+    const database = durableQueueDatabase();
     const queue = new SqliteJobQueue(database);
     vi.mocked(getJobQueue).mockReturnValue(queue);
     mocks.getJobById.mockResolvedValue(null);
@@ -553,14 +520,7 @@ describe("auto PDF regeneration", () => {
 
   it("schedules a future retry after restart and lets it reach the DLQ", async () => {
     vi.useFakeTimers({ now: new Date("2026-05-04T10:00:00.000Z") });
-    const database = new Database(":memory:");
-    database.pragma("foreign_keys = ON");
-    database.exec("CREATE TABLE tenants (id TEXT PRIMARY KEY)");
-    database.exec("INSERT INTO tenants(id) VALUES ('tenant-test')");
-    runVersionedMigrations(
-      database,
-      VERSIONED_MIGRATIONS.filter(({ version }) => version >= 6),
-    );
+    const database = durableQueueDatabase();
     const queue = new SqliteJobQueue(database, {
       now: () => new Date(Date.now()),
       random: () => 0,

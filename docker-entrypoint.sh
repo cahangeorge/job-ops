@@ -7,4 +7,4 @@
 
 # Run the app
 cd /app/orchestrator
-exec sh -c "npx tsx src/server/db/migrate.ts && npm run start"
+exec npm run start

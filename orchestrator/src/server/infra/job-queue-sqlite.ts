@@ -133,6 +133,11 @@ export class SqliteJobQueue implements JobQueue {
     private readonly database: Database.Database,
     private readonly clock: Clock = {},
   ) {}
+
+  getDatabase(): Database.Database {
+    return this.database;
+  }
+
   private now() {
     return this.clock.now?.() ?? new Date();
   }
