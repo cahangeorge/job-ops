@@ -109,7 +109,20 @@ describe.sequential("Tenant isolation", () => {
       `${baseUrl}/api/jobs/${adminJob.id}/tailored-cv-candidate`,
       {
         method: "POST",
-        headers: { Authorization: `Bearer ${adamToken}` },
+        headers: authHeaders(adamToken),
+        body: JSON.stringify({
+          storyIds: [],
+          template: {
+            id: "design-resume-v5",
+            version: "5",
+            variables: [
+              "basics.headline",
+              "summary.content",
+              "sections.skills.items",
+              "sections.projects.items",
+            ],
+          },
+        }),
       },
     );
     expect(crossTenantTailoredCv.status).toBe(404);

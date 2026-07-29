@@ -51,6 +51,10 @@ vi.mock("../api", () => ({
   clearDatabase: vi.fn(),
   deleteJobsByStatus: vi.fn(),
   getTracerReadiness: vi.fn(),
+  getRuntimeCapabilities: vi.fn().mockResolvedValue({
+    checkedAt: "2026-07-29T00:00:00.000Z",
+    capabilities: [],
+  }),
   getBackups: vi.fn().mockResolvedValue({ backups: [], nextScheduled: null }),
   createManualBackup: vi.fn(),
   deleteBackup: vi.fn(),
