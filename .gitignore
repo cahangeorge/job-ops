@@ -16,6 +16,9 @@ data/
 # Crawlee / extractor runtime storage at repo root
 storage/
 
+# Orchestrator runtime/debug storage (may contain browser session cookies)
+orchestrator/storage/
+
 # Extractor storage outputs and cached auth
 extractors/ukvisajobs/storage/
 
@@ -25,6 +28,13 @@ Thumbs.db
 
 # local temp artifacts
 tmp/
+
+# Local agent planning and research material
+.hermes/plans/
+.hermes/research/
+
+# Local linked worktrees
+.worktrees/
 
 # Virtual environment for Python
 .venv

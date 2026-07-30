@@ -10,6 +10,16 @@
 # Data (mounted as volume)
 data/
 
+# Orchestrator runtime/debug storage (may contain browser session cookies)
+orchestrator/storage/
+
+# Local agent planning and research material
+.hermes/plans/
+.hermes/research/
+
+# Local linked worktrees
+.worktrees/
+
 # Environment files (passed via docker-compose)
 .env
 **/.env
@@ -43,6 +53,8 @@ npm-debug.log*
 # Documentation
 *.md
 !README.md
+!docs-site/**/*.md
+!docs-site/**/*.mdx
 
 # CI/CD
 .github
