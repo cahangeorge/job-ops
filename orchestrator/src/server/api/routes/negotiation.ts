@@ -2,11 +2,14 @@
  * Negotiation API Routes
  */
 
-import { Router } from "express";
 import { badRequest } from "@infra/errors";
 import { ok } from "@infra/http";
-import { generateNegotiationScripts, type NegotiationInput } from "../../services/negotiation";
+import {
+  generateNegotiationScripts,
+  type NegotiationInput,
+} from "@server/services/negotiation";
 import type { Request, Response } from "express";
+import { Router } from "express";
 
 export const negotiationRouter = Router();
 

@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import { createJob } from "@shared/testing/factories.js";
+import { describe, expect, it } from "vitest";
 import {
   derivePortalOrgSlug,
   inferPortalFromJob,

@@ -37,7 +37,9 @@ describe("CareerOpsCoveragePanel", () => {
   it("does not render missing features as active action buttons", () => {
     render(<CareerOpsCoveragePanel features={features} />);
 
-    const interviewPrep = screen.getByTestId("careerops-feature-interview-prep");
+    const interviewPrep = screen.getByTestId(
+      "careerops-feature-interview-prep",
+    );
     expect(
       within(interviewPrep).queryByRole("button", { name: /run/i }),
     ).not.toBeInTheDocument();

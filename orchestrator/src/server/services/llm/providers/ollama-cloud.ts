@@ -1,6 +1,6 @@
 import { buildHeaders, joinUrl } from "../utils/http";
-import { createProviderStrategy } from "./factory";
 import { getNestedValue } from "../utils/object";
+import { createProviderStrategy } from "./factory";
 
 /**
  * Native Ollama API strategy.
@@ -23,7 +23,7 @@ export const ollamaCloudStrategy = createProviderStrategy({
     const cleaned = baseUrl.replace(/\/api\/?$/i, "");
     return ["/api/tags"].map((path) => joinUrl(cleaned, path));
   },
-  buildRequest: ({ mode, baseUrl, apiKey, model, messages, jsonSchema }) => {
+  buildRequest: ({ baseUrl, apiKey, model, messages }) => {
     return {
       url: joinUrl(baseUrl.replace(/\/api\/?$/i, ""), "/api/chat"),
       headers: buildHeaders({ apiKey, provider: "ollama_cloud" }),
@@ -35,9 +35,7 @@ export const ollamaCloudStrategy = createProviderStrategy({
             typeof m.content === "string"
               ? m.content
               : m.content
-                  .map((part) =>
-                    part.type === "text" ? part.text : "[image]",
-                  )
+                  .map((part) => (part.type === "text" ? part.text : "[image]"))
                   .join("\n"),
         })),
         stream: false,

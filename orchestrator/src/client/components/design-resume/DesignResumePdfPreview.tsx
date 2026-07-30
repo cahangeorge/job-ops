@@ -289,7 +289,10 @@ export function DesignResumePdfPreview({
 
       window.setTimeout(() => {
         if (cancelled) return;
-        restoreScrollSnapshot(viewerRef.current, pendingScrollRestoreRef.current);
+        restoreScrollSnapshot(
+          viewerRef.current,
+          pendingScrollRestoreRef.current,
+        );
         pendingScrollRestoreRef.current = null;
       }, 0);
       setIsRenderingPages(false);
@@ -307,7 +310,9 @@ export function DesignResumePdfPreview({
 
     return () => {
       cancelled = true;
-      activeRenderTasks.forEach((task) => task.cancel?.());
+      activeRenderTasks.forEach((task) => {
+        task.cancel?.();
+      });
     };
   }, [pageCount, pdfDocument, renderWidth]);
 

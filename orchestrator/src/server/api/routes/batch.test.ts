@@ -1,12 +1,14 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
 import { toAppError } from "@server/infra/errors";
 import { fail } from "@server/infra/http";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { batchRouter } from "./batch";
 
-const { batchGenerateCoverLettersMock, batchScoreJobsMock } = vi.hoisted(() => ({
-  batchGenerateCoverLettersMock: vi.fn(),
-  batchScoreJobsMock: vi.fn(),
-}));
+const { batchGenerateCoverLettersMock, batchScoreJobsMock } = vi.hoisted(
+  () => ({
+    batchGenerateCoverLettersMock: vi.fn(),
+    batchScoreJobsMock: vi.fn(),
+  }),
+);
 
 vi.mock("@server/services/batch", () => ({
   batchGenerateCoverLetters: batchGenerateCoverLettersMock,
@@ -59,7 +61,9 @@ async function invokeRoute(args: {
   );
 
   if (!layer?.route?.stack[0]?.handle) {
-    throw new Error(`Route not found for ${args.method.toUpperCase()} ${args.path}`);
+    throw new Error(
+      `Route not found for ${args.method.toUpperCase()} ${args.path}`,
+    );
   }
 
   const req = { body: args.body ?? {} };
@@ -78,10 +82,20 @@ describe("Batch API routes", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     batchScoreJobsMock.mockResolvedValue([
-      { jobId: "job-1", title: "Role", employer: "Acme", score: 91, reason: "Strong fit" },
+      {
+        jobId: "job-1",
+        title: "Role",
+        employer: "Acme",
+        score: 91,
+        reason: "Strong fit",
+      },
     ]);
     batchGenerateCoverLettersMock.mockResolvedValue([
-      { jobId: "job-1", coverLetter: "Dear Hiring Manager", keywordsMirrored: ["reliability"] },
+      {
+        jobId: "job-1",
+        coverLetter: "Dear Hiring Manager",
+        keywordsMirrored: ["reliability"],
+      },
     ]);
   });
 
@@ -97,7 +111,9 @@ describe("Batch API routes", () => {
     });
     expect(res.body).toMatchObject({
       ok: true,
-      data: { results: [expect.objectContaining({ jobId: "job-1", score: 91 })] },
+      data: {
+        results: [expect.objectContaining({ jobId: "job-1", score: 91 })],
+      },
     });
   });
 
@@ -125,7 +141,11 @@ describe("Batch API routes", () => {
   });
 
   it("rejects invalid batch payloads", async () => {
-    const scoreRes = await invokeRoute({ method: "post", path: "/score", body: { jobIds: [] } });
+    const scoreRes = await invokeRoute({
+      method: "post",
+      path: "/score",
+      body: { jobIds: [] },
+    });
     expect(scoreRes.statusCode).toBe(400);
 
     const coverLetterRes = await invokeRoute({

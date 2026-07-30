@@ -9,10 +9,22 @@ describe("RuntimeCapabilityHealth", () => {
       checkedAt: "2026-07-14T10:00:00.000Z",
       capabilities: [
         { id: "llm", label: "LLM", state: "healthy", reason: "Configured." },
-        { id: "pdf", label: "PDF rendering and QA", state: "misconfigured", reason: "Configuration needed." },
+        {
+          id: "pdf",
+          label: "PDF rendering and QA",
+          state: "misconfigured",
+          reason: "Configuration needed.",
+        },
       ],
     };
-    render(<RuntimeCapabilityHealth health={health} isLoading={false} onRefresh={() => undefined} layoutMode="panel" />);
+    render(
+      <RuntimeCapabilityHealth
+        health={health}
+        isLoading={false}
+        onRefresh={() => undefined}
+        layoutMode="panel"
+      />,
+    );
     expect(screen.getByText("Runtime health")).toBeInTheDocument();
     expect(screen.getByText("Healthy")).toBeInTheDocument();
     expect(screen.getByText("Misconfigured")).toBeInTheDocument();

@@ -4,21 +4,25 @@ import { getExtractorRegistry } from "@server/extractors/registry";
 import { getJobQueue } from "@server/infra/job-queue-registry";
 import { SqliteJobQueue } from "@server/infra/job-queue-sqlite";
 import * as settingsRepo from "@server/repositories/settings";
+import { getOriginalEnvValue } from "@server/services/envSettings";
 import {
   listPostApplicationProviders,
   resolvePostApplicationProvider,
 } from "@server/services/post-application/providers";
-import { getOriginalEnvValue } from "@server/services/envSettings";
 import { getTypstTemplatePath } from "@server/services/resume-renderer/typst";
 import { PIPELINE_EXTRACTOR_SOURCE_IDS } from "@shared/extractors";
+import { settingsRegistry } from "@shared/settings-registry";
 import type {
   RuntimeCapabilityHealth,
   RuntimeCapabilityHealthResponse,
 } from "@shared/types";
-import { settingsRegistry } from "@shared/settings-registry";
 
 type RuntimeSettings = Partial<Record<settingsRepo.SettingKey, string>>;
-type QueueHealth = { durable: boolean; worker: "running" | "stopped"; pending: number };
+type QueueHealth = {
+  durable: boolean;
+  worker: "running" | "stopped";
+  pending: number;
+};
 type ProviderStatus = {
   provider: string;
   classification:
@@ -89,28 +93,75 @@ function hasValue(value: string | undefined): boolean {
 function getLlmCapability(settings: RuntimeSettings): RuntimeCapabilityHealth {
   const provider = settingsRegistry.llmProvider.parse(settings.llmProvider);
   if (!provider) {
-    return { id: "llm", label: "LLM", state: "misconfigured", reason: "No LLM provider is configured." };
+    return {
+      id: "llm",
+      label: "LLM",
+      state: "misconfigured",
+      reason: "No LLM provider is configured.",
+    };
   }
-  const hasCredential = hasValue(settings.llmApiKey) || hasValue(getOriginalEnvValue("LLM_API_KEY"));
+  const hasCredential =
+    hasValue(settings.llmApiKey) ||
+    hasValue(getOriginalEnvValue("LLM_API_KEY"));
   if (!hasCredential && provider !== "codex" && provider !== "gemini_cli") {
-    return { id: "llm", label: "LLM", state: "misconfigured", reason: "The selected LLM provider has no configured credential." };
+    return {
+      id: "llm",
+      label: "LLM",
+      state: "misconfigured",
+      reason: "The selected LLM provider has no configured credential.",
+    };
   }
-  return { id: "llm", label: "LLM", state: "healthy", reason: "An LLM provider is configured." };
+  return {
+    id: "llm",
+    label: "LLM",
+    state: "healthy",
+    reason: "An LLM provider is configured.",
+  };
 }
 
-function getPdfCapability(settings: RuntimeSettings, qaAvailable: boolean): RuntimeCapabilityHealth {
-  const renderer = settingsRegistry.pdfRenderer.parse(settings.pdfRenderer) ?? settingsRegistry.pdfRenderer.default();
-  if (!qaAvailable) return { id: "pdf", label: "PDF rendering and QA", state: "degraded", reason: "PDF text QA dependency is unavailable." };
+function getPdfCapability(
+  settings: RuntimeSettings,
+  qaAvailable: boolean,
+): RuntimeCapabilityHealth {
+  const renderer =
+    settingsRegistry.pdfRenderer.parse(settings.pdfRenderer) ??
+    settingsRegistry.pdfRenderer.default();
+  if (!qaAvailable)
+    return {
+      id: "pdf",
+      label: "PDF rendering and QA",
+      state: "degraded",
+      reason: "PDF text QA dependency is unavailable.",
+    };
   if (renderer === "rxresume") {
-    const configured = hasValue(settings.rxresumeBaseResumeId) &&
-      (hasValue(settings.rxresumeApiKey) || hasValue(getOriginalEnvValue("RXRESUME_API_KEY"))) &&
-      (hasValue(settings.rxresumeUrl) || hasValue(getOriginalEnvValue("RXRESUME_URL")));
+    const configured =
+      hasValue(settings.rxresumeBaseResumeId) &&
+      (hasValue(settings.rxresumeApiKey) ||
+        hasValue(getOriginalEnvValue("RXRESUME_API_KEY"))) &&
+      (hasValue(settings.rxresumeUrl) ||
+        hasValue(getOriginalEnvValue("RXRESUME_URL")));
     return configured
-      ? { id: "pdf", label: "PDF rendering and QA", state: "healthy", reason: "PDF renderer and QA dependencies are configured." }
-      : { id: "pdf", label: "PDF rendering and QA", state: "misconfigured", reason: "The selected PDF renderer is missing required local configuration." };
+      ? {
+          id: "pdf",
+          label: "PDF rendering and QA",
+          state: "healthy",
+          reason: "PDF renderer and QA dependencies are configured.",
+        }
+      : {
+          id: "pdf",
+          label: "PDF rendering and QA",
+          state: "misconfigured",
+          reason:
+            "The selected PDF renderer is missing required local configuration.",
+        };
   }
   if (renderer === "typst") getTypstTemplatePath();
-  return { id: "pdf", label: "PDF rendering and QA", state: "healthy", reason: "PDF renderer and QA dependencies are available." };
+  return {
+    id: "pdf",
+    label: "PDF rendering and QA",
+    state: "healthy",
+    reason: "PDF renderer and QA dependencies are available.",
+  };
 }
 
 function getQueueCapability(health: QueueHealth): RuntimeCapabilityHealth {
@@ -133,17 +184,68 @@ function getQueueCapability(health: QueueHealth): RuntimeCapabilityHealth {
   };
 }
 
-function getProviderCapability(statuses: ProviderStatus[]): RuntimeCapabilityHealth {
-  if (statuses.length === 0) return { id: "providers", label: "Provider connectors", state: "unavailable", reason: "No provider connectors are available." };
-  if (statuses.every(({ classification }) => classification === "ready")) return { id: "providers", label: "Provider connectors", state: "healthy", reason: "All provider connectors are ready." };
-  if (statuses.every(({ classification }) => classification === "not_configured" || classification === "disconnected")) return { id: "providers", label: "Provider connectors", state: "misconfigured", reason: "No provider connector is connected." };
-  return { id: "providers", label: "Provider connectors", state: "degraded", reason: "One or more provider connectors require attention." };
+function getProviderCapability(
+  statuses: ProviderStatus[],
+): RuntimeCapabilityHealth {
+  if (statuses.length === 0)
+    return {
+      id: "providers",
+      label: "Provider connectors",
+      state: "unavailable",
+      reason: "No provider connectors are available.",
+    };
+  if (statuses.every(({ classification }) => classification === "ready"))
+    return {
+      id: "providers",
+      label: "Provider connectors",
+      state: "healthy",
+      reason: "All provider connectors are ready.",
+    };
+  if (
+    statuses.every(
+      ({ classification }) =>
+        classification === "not_configured" ||
+        classification === "disconnected",
+    )
+  )
+    return {
+      id: "providers",
+      label: "Provider connectors",
+      state: "misconfigured",
+      reason: "No provider connector is connected.",
+    };
+  return {
+    id: "providers",
+    label: "Provider connectors",
+    state: "degraded",
+    reason: "One or more provider connectors require attention.",
+  };
 }
 
-function getExtractorCapability(extractors: { available: number; expected: number }): RuntimeCapabilityHealth {
-  if (extractors.available === 0) return { id: "extractors", label: "Extractors", state: "unavailable", reason: "No extractor manifests are available at runtime." };
-  if (extractors.available < extractors.expected) return { id: "extractors", label: "Extractors", state: "degraded", reason: "Some extractor manifests are unavailable at runtime." };
-  return { id: "extractors", label: "Extractors", state: "healthy", reason: "All expected extractor manifests are available." };
+function getExtractorCapability(extractors: {
+  available: number;
+  expected: number;
+}): RuntimeCapabilityHealth {
+  if (extractors.available === 0)
+    return {
+      id: "extractors",
+      label: "Extractors",
+      state: "unavailable",
+      reason: "No extractor manifests are available at runtime.",
+    };
+  if (extractors.available < extractors.expected)
+    return {
+      id: "extractors",
+      label: "Extractors",
+      state: "degraded",
+      reason: "Some extractor manifests are unavailable at runtime.",
+    };
+  return {
+    id: "extractors",
+    label: "Extractors",
+    state: "healthy",
+    reason: "All expected extractor manifests are available.",
+  };
 }
 
 async function boundedCapability<T>(args: {
@@ -159,7 +261,21 @@ async function boundedCapability<T>(args: {
       capability: args.id,
       tenantId: args.tenantId,
     });
-    return { id: args.id, label: args.id === "pdf" ? "PDF rendering and QA" : args.id === "llm" ? "LLM" : args.id === "queue" ? "Durable queue" : args.id === "providers" ? "Provider connectors" : "Extractors", state: "unavailable", reason: "This capability could not be checked safely." };
+    return {
+      id: args.id,
+      label:
+        args.id === "pdf"
+          ? "PDF rendering and QA"
+          : args.id === "llm"
+            ? "LLM"
+            : args.id === "queue"
+              ? "Durable queue"
+              : args.id === "providers"
+                ? "Provider connectors"
+                : "Extractors",
+      state: "unavailable",
+      reason: "This capability could not be checked safely.",
+    };
   }
 }
 
@@ -169,16 +285,50 @@ export async function collectRuntimeCapabilities(
 ): Promise<RuntimeCapabilityHealthResponse> {
   return await runWithRequestContext({ tenantId }, async () => {
     const [llm, pdf, queue, providers, extractors] = await Promise.all([
-      boundedCapability({ id: "llm", tenantId, check: dependencies.getSettings, map: getLlmCapability }),
-      boundedCapability({ id: "pdf", tenantId, check: async () => ({ settings: await dependencies.getSettings(), qaAvailable: await dependencies.checkPdfQa() }), map: ({ settings, qaAvailable }) => getPdfCapability(settings, qaAvailable) }),
-      boundedCapability({ id: "queue", tenantId, check: () => dependencies.getQueueHealth(tenantId), map: getQueueCapability }),
-      boundedCapability({ id: "providers", tenantId, check: dependencies.getProviderStatuses, map: getProviderCapability }),
-      boundedCapability({ id: "extractors", tenantId, check: dependencies.getExtractors, map: getExtractorCapability }),
+      boundedCapability({
+        id: "llm",
+        tenantId,
+        check: dependencies.getSettings,
+        map: getLlmCapability,
+      }),
+      boundedCapability({
+        id: "pdf",
+        tenantId,
+        check: async () => ({
+          settings: await dependencies.getSettings(),
+          qaAvailable: await dependencies.checkPdfQa(),
+        }),
+        map: ({ settings, qaAvailable }) =>
+          getPdfCapability(settings, qaAvailable),
+      }),
+      boundedCapability({
+        id: "queue",
+        tenantId,
+        check: () => dependencies.getQueueHealth(tenantId),
+        map: getQueueCapability,
+      }),
+      boundedCapability({
+        id: "providers",
+        tenantId,
+        check: dependencies.getProviderStatuses,
+        map: getProviderCapability,
+      }),
+      boundedCapability({
+        id: "extractors",
+        tenantId,
+        check: dependencies.getExtractors,
+        map: getExtractorCapability,
+      }),
     ]);
-    return { checkedAt: new Date().toISOString(), capabilities: [pdf, queue, llm, providers, extractors] };
+    return {
+      checkedAt: new Date().toISOString(),
+      capabilities: [pdf, queue, llm, providers, extractors],
+    };
   });
 }
 
-export async function getRuntimeCapabilities(tenantId: string): Promise<RuntimeCapabilityHealthResponse> {
+export async function getRuntimeCapabilities(
+  tenantId: string,
+): Promise<RuntimeCapabilityHealthResponse> {
   return await collectRuntimeCapabilities(tenantId);
 }

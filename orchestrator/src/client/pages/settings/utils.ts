@@ -83,11 +83,13 @@ const PROVIDER_HINTS: Record<LlmProviderId, string> = {
     "OpenRouter uses your API key and supports model routing across providers.",
   lmstudio: "LM Studio runs locally via its OpenAI-compatible server.",
   ollama: "Ollama typically runs locally and does not require an API key.",
-  ollama_cloud: "Ollama Cloud uses the native Ollama API. Base URL: https://ollama.com (not /v1). Requires API key.",
+  ollama_cloud:
+    "Ollama Cloud uses the native Ollama API. Base URL: https://ollama.com (not /v1). Requires API key.",
   openai: "OpenAI uses the Responses API with structured outputs.",
   openai_compatible:
     "Use a bearer token with any chat-completions-compatible endpoint.",
-  opencode_go: "OpenCode Go uses an OpenAI-compatible endpoint with your API key.",
+  opencode_go:
+    "OpenCode Go uses an OpenAI-compatible endpoint with your API key.",
   glm: "GLM uses the Z.AI chat completions API (OpenAI-compatible) with your API key.",
   gemini: "Gemini uses the native AI Studio API and requires a key.",
   gemini_cli:

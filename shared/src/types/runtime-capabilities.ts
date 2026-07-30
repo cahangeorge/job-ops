@@ -5,8 +5,7 @@ export const RUNTIME_CAPABILITY_STATES = [
   "misconfigured",
 ] as const;
 
-export type RuntimeCapabilityState =
-  (typeof RUNTIME_CAPABILITY_STATES)[number];
+export type RuntimeCapabilityState = (typeof RUNTIME_CAPABILITY_STATES)[number];
 
 export interface RuntimeCapabilityHealth {
   id: "pdf" | "queue" | "llm" | "providers" | "extractors";

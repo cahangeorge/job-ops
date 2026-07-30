@@ -34,7 +34,9 @@ describe("runtime capability health", () => {
         expect.objectContaining({ id: "providers", state: "degraded" }),
       ]),
     );
-    expect(JSON.stringify(result)).not.toMatch(/secret|resume-123|example\.test/i);
+    expect(JSON.stringify(result)).not.toMatch(
+      /secret|resume-123|example\.test/i,
+    );
   });
 
   it("reports an idle durable queue as healthy", async () => {

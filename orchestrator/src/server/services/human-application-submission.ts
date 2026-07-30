@@ -54,7 +54,10 @@ function artifactStoragePath(path: string) {
     .replace(/^/, "data/");
 }
 
-function resolveTenantWorkingPdfPath(tenantId: string, pdfPath: string): string {
+function resolveTenantWorkingPdfPath(
+  tenantId: string,
+  pdfPath: string,
+): string {
   const root = resolve(getTenantPdfDir(tenantId));
   const workingPath = resolve(pdfPath);
   if (!workingPath.startsWith(`${root}/`)) {

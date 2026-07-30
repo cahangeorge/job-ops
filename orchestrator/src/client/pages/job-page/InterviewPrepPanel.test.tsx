@@ -90,7 +90,9 @@ describe("InterviewPrepPanel", () => {
       screen.getByDisplayValue(/distributed systems, incident response/i),
     ).toBeInTheDocument();
     expect(await screen.findByText("Scale incident")).toBeInTheDocument();
-    expect(screen.getByText(/Traffic spiked during launch/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Traffic spiked during launch/),
+    ).toBeInTheDocument();
   });
 
   it("loads Story Bank stories without passing TanStack Query context as a filter", async () => {
@@ -149,7 +151,9 @@ describe("InterviewPrepPanel", () => {
     expect(vi.mocked(api.createJobNote).mock.calls[0]?.[1]).toEqual(
       expect.objectContaining({
         title: "Interview prep — Acme Labs",
-        content: expect.stringContaining("Tell me about a production incident."),
+        content: expect.stringContaining(
+          "Tell me about a production incident.",
+        ),
       }),
     );
     expect(vi.mocked(api.createJobNote).mock.calls[0]?.[1]?.content).toContain(
@@ -184,7 +188,9 @@ describe("InterviewPrepPanel", () => {
     renderPanel();
 
     await screen.findByText("Scale incident");
-    fireEvent.click(screen.getByRole("button", { name: "Generate prep with AI" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Generate prep with AI" }),
+    );
 
     await waitFor(() => expect(api.generateInterviewPrep).toHaveBeenCalled());
     expect(vi.mocked(api.generateInterviewPrep).mock.calls[0]?.[0]).toEqual(

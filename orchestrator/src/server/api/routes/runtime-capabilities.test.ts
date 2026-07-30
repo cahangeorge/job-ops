@@ -16,9 +16,12 @@ describe("runtime capabilities API", () => {
 
   afterEach(async () => {
     await Promise.all(
-      servers.splice(0).map(
-        (server) => new Promise<void>((resolve) => server.close(() => resolve())),
-      ),
+      servers
+        .splice(0)
+        .map(
+          (server) =>
+            new Promise<void>((resolve) => server.close(() => resolve())),
+        ),
     );
     vi.clearAllMocks();
   });
@@ -34,7 +37,8 @@ describe("runtime capabilities API", () => {
     });
     servers.push(server);
     const address = server.address();
-    if (!address || typeof address === "string") throw new Error("Expected TCP");
+    if (!address || typeof address === "string")
+      throw new Error("Expected TCP");
     return `http://127.0.0.1:${address.port}`;
   }
 
@@ -48,7 +52,15 @@ describe("runtime capabilities API", () => {
   it("uses the request tenant and returns a sanitized standard DTO", async () => {
     getRuntimeCapabilities.mockResolvedValue({
       checkedAt: "2026-07-14T10:00:00.000Z",
-      capabilities: [{ id: "llm", label: "LLM", state: "healthy", reason: "Configured", apiKey: "secret-api-key" }],
+      capabilities: [
+        {
+          id: "llm",
+          label: "LLM",
+          state: "healthy",
+          reason: "Configured",
+          apiKey: "secret-api-key",
+        },
+      ],
     });
     const baseUrl = await setup("tenant-b");
     const res = await fetch(`${baseUrl}/api/runtime-capabilities`, {

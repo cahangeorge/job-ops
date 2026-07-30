@@ -36,7 +36,9 @@ function fail(message) {
 }
 
 if (!fs.existsSync(submodulePath)) {
-  fail("vendor/career-ops is missing. Run git submodule update --init --recursive.");
+  fail(
+    "vendor/career-ops is missing. Run git submodule update --init --recursive.",
+  );
   process.exit();
 }
 

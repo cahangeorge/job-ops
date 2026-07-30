@@ -2,11 +2,14 @@
  * Batch Processing API Routes
  */
 
-import { Router } from "express";
 import { badRequest } from "@infra/errors";
 import { ok } from "@infra/http";
-import { batchScoreJobs, batchGenerateCoverLetters } from "../../services/batch";
+import {
+  batchGenerateCoverLetters,
+  batchScoreJobs,
+} from "@server/services/batch";
 import type { Request, Response } from "express";
+import { Router } from "express";
 
 export const batchRouter = Router();
 

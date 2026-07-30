@@ -1487,7 +1487,11 @@ async function extractResumeFromProvider(args: {
       );
     }
     return extractWithTextChatCompletions({
-      provider: args.provider as "openai_compatible" | "glm" | "ollama" | "lmstudio",
+      provider: args.provider as
+        | "openai_compatible"
+        | "glm"
+        | "ollama"
+        | "lmstudio",
       apiKey: args.apiKey || null,
       baseUrl: args.baseUrl,
       model: args.model,

@@ -325,7 +325,9 @@ describe("JobListPanel", () => {
     );
 
     expect(screen.getAllByText("Ghost job")).toHaveLength(2);
-    expect(screen.getByTitle("Previously Applied")).toHaveClass("bg-yellow-400");
+    expect(screen.getByTitle("Previously Applied")).toHaveClass(
+      "bg-yellow-400",
+    );
   });
 
   it("explains legitimacy and ghost-job badges with tooltips", async () => {

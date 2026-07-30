@@ -112,7 +112,9 @@ export async function generateInterviewPrep(
       storyIds: normalizeStoryIds(outline.storyIds),
     })),
     recommendedStoryIds: normalizeStoryIds(result.data.recommendedStoryIds),
-    interviewerQuestions: normalizeStringArray(result.data.interviewerQuestions),
+    interviewerQuestions: normalizeStringArray(
+      result.data.interviewerQuestions,
+    ),
   };
 }
 
@@ -128,7 +130,8 @@ function buildInterviewPrepPrompt(input: InterviewPrepInput): string {
   const stories = (input.stories ?? [])
     .slice(0, 20)
     .map(
-      (story) => `- ID: ${story.id}\n  Title: ${story.title}\n  Situation: ${story.situation}\n  Task: ${story.task}\n  Action: ${story.action}\n  Result: ${story.result}\n  Reflection: ${story.reflection ?? ""}\n  Skills: ${story.skills ?? ""}\n  Tags: ${story.tags ?? ""}\n  Master story: ${story.isMasterStory ? "yes" : "no"}`,
+      (story) =>
+        `- ID: ${story.id}\n  Title: ${story.title}\n  Situation: ${story.situation}\n  Task: ${story.task}\n  Action: ${story.action}\n  Result: ${story.result}\n  Reflection: ${story.reflection ?? ""}\n  Skills: ${story.skills ?? ""}\n  Tags: ${story.tags ?? ""}\n  Master story: ${story.isMasterStory ? "yes" : "no"}`,
     )
     .join("\n");
 

@@ -99,10 +99,8 @@ export const CareerProfileOverlaySection: React.FC<
   const isSaving = saveMutation.isPending || resetMutation.isPending;
   const save = () => {
     const existingOverlay = overlayQuery.data;
-    const {
-      minimumSalary: _existingMinimumSalary,
-      ...existingConstraints
-    } = existingOverlay?.constraints ?? {};
+    const { minimumSalary: _existingMinimumSalary, ...existingConstraints } =
+      existingOverlay?.constraints ?? {};
     const parsedMinimumSalary = minimumSalary.trim()
       ? Number(minimumSalary)
       : undefined;

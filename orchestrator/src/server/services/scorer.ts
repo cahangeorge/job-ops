@@ -74,19 +74,23 @@ const SCORING_SCHEMA: JsonSchemaDefinition = {
       },
       compResearch: {
         type: "string",
-        description: "Salary/ compensation analysis for this role type and location",
+        description:
+          "Salary/ compensation analysis for this role type and location",
       },
       personalization: {
         type: "string",
-        description: "Key angles to personalize application: company-specific problems you could solve",
+        description:
+          "Key angles to personalize application: company-specific problems you could solve",
       },
       interviewPrep: {
         type: "string",
-        description: "2-3 likely interview questions with suggested STAR story angles",
+        description:
+          "2-3 likely interview questions with suggested STAR story angles",
       },
       legitimacyScore: {
         type: "integer",
-        description: "Likelihood this is a real active role, 0-100. Check for red flags: vague description, no company info, unrealistic requirements, stock photos, missing salary, too-good-to-be-true promises",
+        description:
+          "Likelihood this is a real active role, 0-100. Check for red flags: vague description, no company info, unrealistic requirements, stock photos, missing salary, too-good-to-be-true promises",
       },
       legitimacyReason: {
         type: "string",
@@ -94,18 +98,36 @@ const SCORING_SCHEMA: JsonSchemaDefinition = {
       },
       overallGrade: {
         type: "string",
-        description: "Letter grade A-F based on overall fit. A=strong match, B=good match, C=decent, D=weak match, F=avoid",
+        description:
+          "Letter grade A-F based on overall fit. A=strong match, B=good match, C=decent, D=weak match, F=avoid",
       },
       archetype: {
         type: "string",
-        description: "Role archetype: LLMOps, Agentic, FullStack, Backend, Frontend, DevOps, PM, Data, Research, General",
+        description:
+          "Role archetype: LLMOps, Agentic, FullStack, Backend, Frontend, DevOps, PM, Data, Research, General",
       },
       isGhostJob: {
         type: "boolean",
-        description: "True if this appears to be a stale, expired, or fake posting",
+        description:
+          "True if this appears to be a stale, expired, or fake posting",
       },
     },
-    required: ["score", "reason", "roleSummary", "cvMatchScore", "cvMatchReason", "levelStrategy", "compResearch", "personalization", "interviewPrep", "legitimacyScore", "legitimacyReason", "overallGrade", "archetype", "isGhostJob"],
+    required: [
+      "score",
+      "reason",
+      "roleSummary",
+      "cvMatchScore",
+      "cvMatchReason",
+      "levelStrategy",
+      "compResearch",
+      "personalization",
+      "interviewPrep",
+      "legitimacyScore",
+      "legitimacyReason",
+      "overallGrade",
+      "archetype",
+      "isGhostJob",
+    ],
     additionalProperties: false,
   },
 };
@@ -537,22 +559,24 @@ export async function scoreAndRankJobs(
   jobs: Job[],
   profile: Record<string, unknown>,
 ): Promise<
-  Array<Job & { 
-    suitabilityScore: number | null; 
-    suitabilityReason: string;
-    evaluationRoleSummary: string | null;
-    evaluationCvMatchScore: number | null;
-    evaluationCvMatchReason: string | null;
-    evaluationLevelStrategy: string | null;
-    evaluationCompResearch: string | null;
-    evaluationPersonalization: string | null;
-    evaluationInterviewPrep: string | null;
-    evaluationLegitimacyScore: number | null;
-    evaluationLegitimacyReason: string | null;
-    evaluationOverallGrade: string | null;
-    archetype: string | null;
-    isGhostJob: boolean | null;
-  }>
+  Array<
+    Job & {
+      suitabilityScore: number | null;
+      suitabilityReason: string;
+      evaluationRoleSummary: string | null;
+      evaluationCvMatchScore: number | null;
+      evaluationCvMatchReason: string | null;
+      evaluationLevelStrategy: string | null;
+      evaluationCompResearch: string | null;
+      evaluationPersonalization: string | null;
+      evaluationInterviewPrep: string | null;
+      evaluationLegitimacyScore: number | null;
+      evaluationLegitimacyReason: string | null;
+      evaluationOverallGrade: string | null;
+      archetype: string | null;
+      isGhostJob: boolean | null;
+    }
+  >
 > {
   const scoredJobs = await Promise.all(
     jobs.map(async (job) => {

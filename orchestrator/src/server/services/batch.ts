@@ -4,10 +4,7 @@
  */
 
 import * as jobsRepo from "../repositories/jobs";
-import {
-  generateCoverLetter,
-  type CoverLetterInput,
-} from "./cover-letter";
+import { type CoverLetterInput, generateCoverLetter } from "./cover-letter";
 import { scoreJobSuitability } from "./scorer";
 
 export interface BatchScoreResult {
@@ -38,7 +35,14 @@ export async function batchScoreJobs(
       try {
         const job = await jobsRepo.getJobById(jobId);
         if (!job) {
-          return { jobId, title: "", employer: "", score: null, reason: null, error: "Job not found" };
+          return {
+            jobId,
+            title: "",
+            employer: "",
+            score: null,
+            reason: null,
+            error: "Job not found",
+          };
         }
         const result = await scoreJobSuitability(job, profile);
         return {

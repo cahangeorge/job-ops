@@ -44,7 +44,9 @@ describe.sequential("human submission guards", () => {
   }
 
   async function writeTenantWorkingPdf(jobId: string): Promise<string> {
-    const { getTenantJobPdfPath } = await import("@server/services/pdf-storage");
+    const { getTenantJobPdfPath } = await import(
+      "@server/services/pdf-storage"
+    );
     const workingPdfPath = getTenantJobPdfPath(jobId);
     await mkdir(dirname(workingPdfPath), { recursive: true });
     await writeFile(workingPdfPath, submissionTextPdf);
@@ -145,7 +147,12 @@ describe.sequential("human submission guards", () => {
     const [artifact] = await db
       .select()
       .from(schema.submittedApplicationArtifacts)
-      .where(eq(schema.submittedApplicationArtifacts.id, body.data.submittedArtifactId));
+      .where(
+        eq(
+          schema.submittedApplicationArtifacts.id,
+          body.data.submittedArtifactId,
+        ),
+      );
     const approvals = await db
       .select()
       .from(schema.applicationApprovals)

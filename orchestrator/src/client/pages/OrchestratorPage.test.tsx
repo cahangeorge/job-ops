@@ -217,8 +217,6 @@ vi.mock("./orchestrator/OrchestratorFilters", () => ({
     onOpenCommandBar,
     onSourceFilterChange,
     onSponsorFilterChange,
-    onLegitimacyFilterChange,
-    onGhostJobFilterChange,
     onSalaryFilterChange,
     onDateFilterChange,
     onResetFilters,

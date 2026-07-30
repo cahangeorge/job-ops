@@ -1853,11 +1853,14 @@ describe.sequential("Jobs API routes", () => {
         "@server/services/activation-funnel"
       );
       // 1. Applied is a protected terminal transition, so direct tracker writes reject it.
-      const appliedShortcut = await fetch(`${baseUrl}/api/jobs/${jobId}/stages`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ toStage: "applied" }),
-      });
+      const appliedShortcut = await fetch(
+        `${baseUrl}/api/jobs/${jobId}/stages`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ toStage: "applied" }),
+        },
+      );
       expect(appliedShortcut.status).toBe(400);
 
       // 2. Subsequent application tracking remains available.

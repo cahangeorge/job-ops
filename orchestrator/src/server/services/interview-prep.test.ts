@@ -31,11 +31,14 @@ describe("generateInterviewPrep", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resolveLlmModelMock.mockResolvedValue("gpt-4.1-mini");
-    createConfiguredLlmServiceMock.mockResolvedValue({ callJson: callJsonMock });
+    createConfiguredLlmServiceMock.mockResolvedValue({
+      callJson: callJsonMock,
+    });
     callJsonMock.mockResolvedValue({
       success: true,
       data: {
-        prepGuidance: "Focus on incident leadership and distributed systems tradeoffs.",
+        prepGuidance:
+          "Focus on incident leadership and distributed systems tradeoffs.",
         targetQuestions: [
           "Tell me about a production incident.",
           "How do you scale queue workers safely?",

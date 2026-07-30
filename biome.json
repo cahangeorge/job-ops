@@ -11,6 +11,7 @@
       "!!**/dist",
       "!!docs-site/.docusaurus",
       "!!docs-site/build",
+      "!!vendor/career-ops",
       "!!**/.venv",
       "!!.claude",
       "!!data",

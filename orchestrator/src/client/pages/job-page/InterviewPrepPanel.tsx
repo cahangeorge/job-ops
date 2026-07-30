@@ -115,7 +115,9 @@ type InterviewPrepPanelProps = {
   job: Job;
 };
 
-export const InterviewPrepPanel: React.FC<InterviewPrepPanelProps> = ({ job }) => {
+export const InterviewPrepPanel: React.FC<InterviewPrepPanelProps> = ({
+  job,
+}) => {
   const queryClient = useQueryClient();
   const [selectedStoryIds, setSelectedStoryIds] = useState<Set<string>>(
     () => new Set(),
@@ -124,7 +126,9 @@ export const InterviewPrepPanel: React.FC<InterviewPrepPanelProps> = ({ job }) =
     job.evaluationInterviewPrep?.trim() ||
       "Review the job description, company context, and saved proof points before the interview.",
   );
-  const [targetQuestions, setTargetQuestions] = useState(DEFAULT_TARGET_QUESTIONS);
+  const [targetQuestions, setTargetQuestions] = useState(
+    DEFAULT_TARGET_QUESTIONS,
+  );
   const [generatedPrep, setGeneratedPrep] =
     useState<GenerateInterviewPrepResult | null>(null);
 
@@ -239,11 +243,14 @@ export const InterviewPrepPanel: React.FC<InterviewPrepPanelProps> = ({ job }) =
                 Interview Prep
               </CardTitle>
               <CardDescription>
-                Build a job-specific interview plan from CareerOps evaluation data and reusable Story Bank proof points.
+                Build a job-specific interview plan from CareerOps evaluation
+                data and reusable Story Bank proof points.
               </CardDescription>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="secondary">{selectedStories.length} stories selected</Badge>
+              <Badge variant="secondary">
+                {selectedStories.length} stories selected
+              </Badge>
               <Button
                 type="button"
                 size="sm"
@@ -263,7 +270,10 @@ export const InterviewPrepPanel: React.FC<InterviewPrepPanelProps> = ({ job }) =
         </CardHeader>
         <CardContent className="space-y-5">
           <div className="space-y-2">
-            <label htmlFor="interview-prep-guidance" className="text-sm font-medium">
+            <label
+              htmlFor="interview-prep-guidance"
+              className="text-sm font-medium"
+            >
               Role-specific guidance
             </label>
             <Textarea
@@ -275,7 +285,10 @@ export const InterviewPrepPanel: React.FC<InterviewPrepPanelProps> = ({ job }) =
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="interview-target-questions" className="text-sm font-medium">
+            <label
+              htmlFor="interview-target-questions"
+              className="text-sm font-medium"
+            >
               Target questions
             </label>
             <Textarea
@@ -289,7 +302,9 @@ export const InterviewPrepPanel: React.FC<InterviewPrepPanelProps> = ({ job }) =
           {generatedPrep && (
             <div className="grid gap-3 md:grid-cols-2">
               <div className="rounded-xl border border-border/60 bg-background/30 p-4">
-                <h3 className="text-sm font-semibold">Generated answer outlines</h3>
+                <h3 className="text-sm font-semibold">
+                  Generated answer outlines
+                </h3>
                 <div className="mt-3 space-y-3 text-sm text-muted-foreground">
                   {generatedPrep.answerOutlines.map((outline) => (
                     <div key={outline.question} className="space-y-1">
@@ -298,7 +313,9 @@ export const InterviewPrepPanel: React.FC<InterviewPrepPanelProps> = ({ job }) =
                       </div>
                       <p>{outline.outline}</p>
                       {outline.storyIds.length > 0 && (
-                        <p className="text-xs">Stories: {outline.storyIds.join(", ")}</p>
+                        <p className="text-xs">
+                          Stories: {outline.storyIds.join(", ")}
+                        </p>
                       )}
                     </div>
                   ))}
@@ -317,7 +334,9 @@ export const InterviewPrepPanel: React.FC<InterviewPrepPanelProps> = ({ job }) =
 
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-3">
-              <h3 className="text-sm font-semibold">Reusable Story Bank entries</h3>
+              <h3 className="text-sm font-semibold">
+                Reusable Story Bank entries
+              </h3>
               <Button variant="outline" size="sm" asChild>
                 <a href="/story-bank">
                   <FileText className="mr-1.5 h-3.5 w-3.5" />
@@ -332,7 +351,8 @@ export const InterviewPrepPanel: React.FC<InterviewPrepPanelProps> = ({ job }) =
               </div>
             ) : stories.length === 0 ? (
               <div className="rounded-lg border border-dashed border-border/60 p-4 text-sm text-muted-foreground">
-                No Story Bank entries yet. Add STAR+R stories before the interview to reuse them here.
+                No Story Bank entries yet. Add STAR+R stories before the
+                interview to reuse them here.
               </div>
             ) : (
               <div className="grid gap-3 md:grid-cols-2">
@@ -356,11 +376,15 @@ export const InterviewPrepPanel: React.FC<InterviewPrepPanelProps> = ({ job }) =
                           {story.situation}
                         </span>
                         <span className="flex flex-wrap gap-2">
-                          {story.isMasterStory ? <Badge>Master story</Badge> : null}
+                          {story.isMasterStory ? (
+                            <Badge>Master story</Badge>
+                          ) : null}
                           {story.skills ? (
                             <Badge variant="secondary">{story.skills}</Badge>
                           ) : null}
-                          {story.tags ? <Badge variant="outline">{story.tags}</Badge> : null}
+                          {story.tags ? (
+                            <Badge variant="outline">{story.tags}</Badge>
+                          ) : null}
                         </span>
                       </span>
                     </label>
@@ -372,7 +396,8 @@ export const InterviewPrepPanel: React.FC<InterviewPrepPanelProps> = ({ job }) =
 
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/50 bg-muted/10 p-3">
             <p className="text-sm text-muted-foreground">
-              Saves a markdown interview prep note with selected stories and a checklist.
+              Saves a markdown interview prep note with selected stories and a
+              checklist.
             </p>
             <Button
               type="button"

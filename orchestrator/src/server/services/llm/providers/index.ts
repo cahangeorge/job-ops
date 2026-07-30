@@ -8,8 +8,8 @@ import { ollamaStrategy } from "./ollama";
 import { ollamaCloudStrategy } from "./ollama-cloud";
 import { openAiStrategy } from "./openai";
 import { openAiCompatibleStrategy } from "./openai-compatible";
-import { openRouterStrategy } from "./openrouter";
 import { opencodeGoStrategy } from "./opencode-go";
+import { openRouterStrategy } from "./openrouter";
 
 export const strategies: Record<LlmProvider, ProviderStrategy> = {
   openrouter: openRouterStrategy,
