@@ -34,6 +34,7 @@ type OutboxRow = {
   payload_json: string;
   idempotency_key: string | null;
   priority: number;
+  enqueue_sequence: number;
   request_context_json: string;
 };
 type Claim = QueueJobRecord & {
@@ -71,6 +72,16 @@ function requestContextJson(): string {
   });
 }
 
+function nextEnqueueSequence(database: Database.Database): number {
+  const row = database
+    .prepare(
+      "UPDATE workflow_enqueue_sequence SET last_value = last_value + 1 WHERE singleton = 1 RETURNING last_value",
+    )
+    .get() as { last_value: number } | undefined;
+  if (!row) throw new Error("Workflow enqueue sequence is unavailable");
+  return row.last_value;
+}
+
 function parseRequestContext(value: string): QueueJobRecord["requestContext"] {
   try {
     const parsed = JSON.parse(value) as Record<string, unknown>;
@@ -96,9 +107,10 @@ function insertOutbox<K extends JobQueueName>(
   options: EnqueueJobOptions = {},
 ): string {
   const id = randomUUID();
+  const enqueueSequence = nextEnqueueSequence(database);
   const result = database
     .prepare(
-      "INSERT OR IGNORE INTO workflow_outbox(id, tenant_id, queue_name, task_type, payload_version, payload_json, idempotency_key, priority, available_at, request_context_json, created_at) VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)",
+      "INSERT OR IGNORE INTO workflow_outbox(id, tenant_id, queue_name, task_type, payload_version, payload_json, idempotency_key, priority, available_at, enqueue_sequence, request_context_json, created_at) VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)",
     )
     .run(
       id,
@@ -109,6 +121,7 @@ function insertOutbox<K extends JobQueueName>(
       options.dedupeKey?.trim() || null,
       options.priority ?? 0,
       iso(new Date(now.getTime() + Math.max(0, options.delayMs ?? 0))),
+      enqueueSequence,
       requestContextJson(),
       iso(now),
     );
@@ -173,24 +186,28 @@ export class SqliteJobQueue implements JobQueue {
       };
     const id = randomUUID();
     try {
-      this.database
-        .prepare(
-          `INSERT INTO workflow_tasks (id, tenant_id, queue_name, task_type, payload_version, payload_json, idempotency_key, state, priority, available_at, attempt_count, max_attempts, request_context_json, created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, ?, 'ready', ?, ?, 0, ?, ?, ?, ?)`,
-        )
-        .run(
-          id,
-          tenantId,
-          queue,
-          options.taskType?.trim() || queue,
-          JSON.stringify(payload),
-          dedupeKey ?? null,
-          options.priority ?? 0,
-          iso(new Date(now.getTime() + Math.max(0, options.delayMs ?? 0))),
-          options.maxAttempts ?? 3,
-          requestContextJson(),
-          iso(now),
-          iso(now),
-        );
+      this.database.transaction(() => {
+        const enqueueSequence = nextEnqueueSequence(this.database);
+        this.database
+          .prepare(
+            `INSERT INTO workflow_tasks (id, tenant_id, queue_name, task_type, payload_version, payload_json, idempotency_key, state, priority, available_at, enqueue_sequence, attempt_count, max_attempts, request_context_json, created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, ?, 'ready', ?, ?, ?, 0, ?, ?, ?, ?)`,
+          )
+          .run(
+            id,
+            tenantId,
+            queue,
+            options.taskType?.trim() || queue,
+            JSON.stringify(payload),
+            dedupeKey ?? null,
+            options.priority ?? 0,
+            iso(new Date(now.getTime() + Math.max(0, options.delayMs ?? 0))),
+            enqueueSequence,
+            options.maxAttempts ?? 3,
+            requestContextJson(),
+            iso(now),
+            iso(now),
+          );
+      })();
     } catch (error) {
       if (
         dedupeKey &&
@@ -208,12 +225,9 @@ export class SqliteJobQueue implements JobQueue {
     payload: QueueJobRecord<K>["payload"],
     options: EnqueueJobOptions = {},
   ): Promise<string> {
-    return this.enqueueOutboxInTransaction(
-      this.database,
-      queue,
-      payload,
-      options,
-    );
+    return this.database.transaction(() =>
+      this.enqueueOutboxInTransaction(this.database, queue, payload, options),
+    )();
   }
 
   /** Inserts into the caller's SQLite transaction; it never uses global DB state. */
@@ -231,7 +245,7 @@ export class SqliteJobQueue implements JobQueue {
     return this.database.transaction(() => {
       const rows = this.database
         .prepare(
-          "SELECT * FROM workflow_outbox WHERE dispatched_at IS NULL AND available_at <= ? ORDER BY created_at, id LIMIT ?",
+          "SELECT * FROM workflow_outbox WHERE dispatched_at IS NULL AND available_at <= ? ORDER BY created_at, enqueue_sequence LIMIT ?",
         )
         .all(iso(now), limit) as OutboxRow[];
       for (const row of rows) {
@@ -250,7 +264,7 @@ export class SqliteJobQueue implements JobQueue {
         if (!existing) {
           this.database
             .prepare(
-              "INSERT INTO workflow_tasks (id, tenant_id, queue_name, task_type, payload_version, payload_json, idempotency_key, state, priority, available_at, attempt_count, max_attempts, request_context_json, created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, ?, 'ready', ?, ?, 0, 3, ?, ?, ?)",
+              "INSERT INTO workflow_tasks (id, tenant_id, queue_name, task_type, payload_version, payload_json, idempotency_key, state, priority, available_at, enqueue_sequence, attempt_count, max_attempts, request_context_json, created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, ?, 'ready', ?, ?, ?, 0, 3, ?, ?, ?)",
             )
             .run(
               randomUUID(),
@@ -261,6 +275,7 @@ export class SqliteJobQueue implements JobQueue {
               row.idempotency_key,
               row.priority,
               iso(now),
+              row.enqueue_sequence,
               row.request_context_json,
               iso(now),
               iso(now),
@@ -289,7 +304,7 @@ export class SqliteJobQueue implements JobQueue {
     return this.database.transaction(() => {
       const row = this.database
         .prepare(
-          `SELECT * FROM workflow_tasks WHERE queue_name = ? AND state = 'ready' AND available_at <= ? ORDER BY priority DESC, created_at, id LIMIT 1`,
+          `SELECT * FROM workflow_tasks WHERE queue_name = ? AND state = 'ready' AND available_at <= ? ORDER BY priority DESC, created_at, enqueue_sequence LIMIT 1`,
         )
         .get(queue, iso(now)) as TaskRow | undefined;
       if (!row) return null;
@@ -664,12 +679,13 @@ export class SqliteJobQueue implements JobQueue {
         }
 
         const replayTaskId = randomUUID();
+        const enqueueSequence = nextEnqueueSequence(this.database);
         this.database
           .prepare(
             `INSERT INTO workflow_tasks (id, tenant_id, queue_name, task_type, payload_version,
-             payload_json, state, priority, available_at, attempt_count, max_attempts,
+             payload_json, state, priority, available_at, enqueue_sequence, attempt_count, max_attempts,
              request_context_json, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, 'ready', 0, ?, 0, ?, ?, ?, ?)`,
+           VALUES (?, ?, ?, ?, ?, ?, 'ready', 0, ?, ?, 0, ?, ?, ?, ?)`,
           )
           .run(
             replayTaskId,
@@ -679,6 +695,7 @@ export class SqliteJobQueue implements JobQueue {
             deadLetter.payload_version,
             deadLetter.payload_json,
             now,
+            enqueueSequence,
             deadLetter.max_attempts,
             JSON.stringify({
               requestId: safeAuditValue(input.requestId) ?? undefined,

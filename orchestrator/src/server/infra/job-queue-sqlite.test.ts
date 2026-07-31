@@ -115,6 +115,77 @@ describe("SqliteJobQueue", () => {
     ).toBeNull();
   });
 
+  it("keeps equal-timestamp tasks FIFO across restart and VACUUM", async () => {
+    const jobs = queue();
+    const first = await jobs.enqueue(
+      "auto_pdf_regeneration",
+      payload("tenant-a", "first"),
+    );
+    const second = await jobs.enqueue(
+      "auto_pdf_regeneration",
+      payload("tenant-a", "second"),
+    );
+    const database = jobs.getDatabase();
+
+    database
+      .prepare("UPDATE workflow_tasks SET id = ? WHERE id = ?")
+      .run("z-first", first.id);
+    database
+      .prepare("UPDATE workflow_tasks SET id = ? WHERE id = ?")
+      .run("a-second", second.id);
+    database.exec("VACUUM");
+
+    const restarted = new SqliteJobQueue(database, {
+      now: () => now,
+      random: () => 0,
+    });
+    const firstClaim = await restarted.claimNext(
+      "auto_pdf_regeneration",
+      "worker-a",
+    );
+    const secondClaim = await restarted.claimNext(
+      "auto_pdf_regeneration",
+      "worker-b",
+    );
+
+    expect(expectAutoPdfPayload(firstClaim?.payload).jobId).toBe("first");
+    expect(expectAutoPdfPayload(secondClaim?.payload).jobId).toBe("second");
+  });
+
+  it("rolls back direct enqueue sequence allocation when task insertion fails", async () => {
+    const jobs = queue();
+    const database = jobs.getDatabase();
+
+    await expect(
+      jobs.enqueue(
+        "auto_pdf_regeneration",
+        payload("tenant-missing", "cannot-commit"),
+      ),
+    ).rejects.toThrow(/FOREIGN KEY constraint failed/);
+    expect(
+      database.prepare("SELECT count(*) AS count FROM workflow_tasks").get(),
+    ).toEqual({ count: 0 });
+    expect(
+      database
+        .prepare(
+          "SELECT last_value AS lastValue FROM workflow_enqueue_sequence WHERE singleton = 1",
+        )
+        .get(),
+    ).toEqual({ lastValue: 0 });
+
+    const committed = await jobs.enqueue(
+      "auto_pdf_regeneration",
+      payload("tenant-a", "committed"),
+    );
+    expect(
+      database
+        .prepare(
+          "SELECT enqueue_sequence AS enqueueSequence FROM workflow_tasks WHERE id = ?",
+        )
+        .get(committed.id),
+    ).toEqual({ enqueueSequence: 1 });
+  });
+
   it("exclusively leases then recovers expired leases", async () => {
     const jobs = queue();
     await jobs.enqueue("auto_pdf_regeneration", payload("tenant-a", "job-1"));
@@ -393,6 +464,25 @@ describe("SqliteJobQueue", () => {
     expect(expectAutoPdfPayload(claimed.payload).jobId).toBe("job-1");
   });
 
+  it("preserves outbox enqueue sequence when dispatch creates its task", async () => {
+    const jobs = queue();
+    await jobs.enqueueOutbox(
+      "auto_pdf_regeneration",
+      payload("tenant-a", "outbox-first"),
+    );
+    await jobs.enqueue(
+      "auto_pdf_regeneration",
+      payload("tenant-a", "direct-second"),
+    );
+
+    expect(await jobs.dispatchOutbox()).toBe(1);
+    const first = await jobs.claimNext("auto_pdf_regeneration", "worker-a");
+    const second = await jobs.claimNext("auto_pdf_regeneration", "worker-b");
+
+    expect(expectAutoPdfPayload(first?.payload).jobId).toBe("outbox-first");
+    expect(expectAutoPdfPayload(second?.payload).jobId).toBe("direct-second");
+  });
+
   it("allows a completed child invalidation to be enqueued again while deduplicating active work", async () => {
     const jobs = queue();
     const options = {
@@ -562,6 +652,16 @@ describe("SqliteJobQueue", () => {
     expect(replay.replayTaskId).not.toBe(claim.id);
     expect(
       database
+        .prepare(
+          "SELECT id, enqueue_sequence AS enqueueSequence FROM workflow_tasks WHERE id IN (?, ?) ORDER BY enqueue_sequence",
+        )
+        .all(claim.id, replay.replayTaskId),
+    ).toEqual([
+      { id: claim.id, enqueueSequence: 1 },
+      { id: replay.replayTaskId, enqueueSequence: 2 },
+    ]);
+    expect(
+      database
         .prepare("SELECT state, attempt_count FROM workflow_tasks WHERE id = ?")
         .get(claim.id),
     ).toEqual({ state: "dead_letter", attempt_count: 1 });
@@ -707,6 +807,13 @@ describe("SqliteJobQueue", () => {
     expect(
       database.prepare("SELECT count(*) AS count FROM workflow_outbox").get(),
     ).toEqual({ count: 0 });
+    expect(
+      database
+        .prepare(
+          "SELECT last_value AS lastValue FROM workflow_enqueue_sequence WHERE singleton = 1",
+        )
+        .get(),
+    ).toEqual({ lastValue: 0 });
 
     database.transaction(() => {
       database
@@ -719,7 +826,11 @@ describe("SqliteJobQueue", () => {
       );
     })();
     expect(
-      database.prepare("SELECT count(*) AS count FROM workflow_outbox").get(),
-    ).toEqual({ count: 1 });
+      database
+        .prepare(
+          "SELECT enqueue_sequence AS enqueueSequence FROM workflow_outbox",
+        )
+        .get(),
+    ).toEqual({ enqueueSequence: 1 });
   });
 });

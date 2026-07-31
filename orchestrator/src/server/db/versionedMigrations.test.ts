@@ -89,7 +89,7 @@ describe("versioned SQLite migrations", () => {
 
     expect(
       database.prepare("SELECT count(*) AS count FROM schema_migrations").get(),
-    ).toEqual({ count: 10 });
+    ).toEqual({ count: 11 });
     assertCompositeForeignKey(database);
   });
 
@@ -134,6 +134,71 @@ describe("versioned SQLite migrations", () => {
           .get(trigger),
       ).toEqual({ name: trigger });
     }
+    expect(
+      database
+        .prepare(
+          "SELECT last_value AS lastValue FROM workflow_enqueue_sequence WHERE singleton = 1",
+        )
+        .get(),
+    ).toEqual({ lastValue: 0 });
+    for (const table of ["workflow_tasks", "workflow_outbox"]) {
+      expect(
+        database
+          .prepare(
+            `SELECT name FROM pragma_table_info('${table}') WHERE name = ?`,
+          )
+          .get("enqueue_sequence"),
+      ).toEqual({ name: "enqueue_sequence" });
+    }
+  });
+
+  it("backfills a durable enqueue sequence for existing workflow rows", () => {
+    const database = databaseWithJobs();
+    runVersionedMigrations(database, VERSIONED_MIGRATIONS.slice(0, 10));
+    database.exec(`
+      INSERT INTO tenants(id) VALUES ('tenant-a');
+      INSERT INTO workflow_tasks(
+        id, tenant_id, queue_name, task_type, payload_version, payload_json,
+        state, priority, available_at, attempt_count, max_attempts,
+        request_context_json, created_at, updated_at
+      ) VALUES (
+        'z-task', 'tenant-a', 'auto_pdf_regeneration', 'auto_pdf_regeneration',
+        1, '{}', 'ready', 0, '2026-07-12T10:00:00.000Z', 0, 3, '{}',
+        '2026-07-12T10:00:00.000Z', '2026-07-12T10:00:00.000Z'
+      );
+      INSERT INTO workflow_outbox(
+        id, tenant_id, queue_name, task_type, payload_version, payload_json,
+        priority, available_at, request_context_json, created_at
+      ) VALUES (
+        'a-outbox', 'tenant-a', 'auto_pdf_regeneration', 'auto_pdf_regeneration',
+        1, '{}', 0, '2026-07-12T10:00:00.000Z', '{}',
+        '2026-07-12T10:00:00.000Z'
+      );
+    `);
+
+    runVersionedMigrations(database);
+    runVersionedMigrations(database);
+
+    expect(
+      database
+        .prepare(
+          `SELECT id, enqueue_sequence AS enqueueSequence FROM workflow_tasks
+           UNION ALL
+           SELECT id, enqueue_sequence AS enqueueSequence FROM workflow_outbox
+           ORDER BY enqueueSequence`,
+        )
+        .all(),
+    ).toEqual([
+      { id: "z-task", enqueueSequence: 1 },
+      { id: "a-outbox", enqueueSequence: 2 },
+    ]);
+    expect(
+      database
+        .prepare(
+          "SELECT last_value AS lastValue FROM workflow_enqueue_sequence",
+        )
+        .get(),
+    ).toEqual({ lastValue: 2 });
   });
 
   it("rejects duplicate versions and checksum drift", () => {

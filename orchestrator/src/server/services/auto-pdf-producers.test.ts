@@ -138,10 +138,16 @@ describe("Design Resume PATCH durable producer integration", () => {
         idempotency_key TEXT,
         priority INTEGER NOT NULL,
         available_at TEXT NOT NULL,
+        enqueue_sequence INTEGER NOT NULL,
         request_context_json TEXT NOT NULL,
         created_at TEXT NOT NULL,
         dispatched_at TEXT
       );
+      CREATE TABLE workflow_enqueue_sequence (
+        singleton INTEGER PRIMARY KEY,
+        last_value INTEGER NOT NULL
+      );
+      INSERT INTO workflow_enqueue_sequence(singleton, last_value) VALUES (1, 0);
       CREATE UNIQUE INDEX workflow_outbox_immutable_idempotency
         ON workflow_outbox(tenant_id, queue_name, task_type, idempotency_key)
         WHERE idempotency_key IS NOT NULL;
@@ -294,6 +300,7 @@ describe("transactional auto PDF producers", () => {
         idempotency_key TEXT,
         priority INTEGER NOT NULL,
         available_at TEXT NOT NULL,
+        enqueue_sequence INTEGER NOT NULL,
         request_context_json TEXT NOT NULL,
         created_at TEXT NOT NULL,
         dispatched_at TEXT
@@ -312,6 +319,7 @@ describe("transactional auto PDF producers", () => {
         state TEXT NOT NULL,
         priority INTEGER NOT NULL,
         available_at TEXT NOT NULL,
+        enqueue_sequence INTEGER NOT NULL,
         attempt_count INTEGER NOT NULL,
         max_attempts INTEGER NOT NULL,
         request_context_json TEXT NOT NULL,
@@ -323,6 +331,11 @@ describe("transactional auto PDF producers", () => {
         completed_at TEXT,
         last_error TEXT
       );
+      CREATE TABLE workflow_enqueue_sequence (
+        singleton INTEGER PRIMARY KEY,
+        last_value INTEGER NOT NULL
+      );
+      INSERT INTO workflow_enqueue_sequence(singleton, last_value) VALUES (1, 0);
     `);
     database
       .prepare(
@@ -474,10 +487,16 @@ describe("transactional auto PDF producers", () => {
         idempotency_key TEXT,
         priority INTEGER NOT NULL,
         available_at TEXT NOT NULL,
+        enqueue_sequence INTEGER NOT NULL,
         request_context_json TEXT NOT NULL,
         created_at TEXT NOT NULL,
         dispatched_at TEXT
       );
+      CREATE TABLE workflow_enqueue_sequence (
+        singleton INTEGER PRIMARY KEY,
+        last_value INTEGER NOT NULL
+      );
+      INSERT INTO workflow_enqueue_sequence(singleton, last_value) VALUES (1, 0);
     `);
     database
       .prepare(
@@ -555,10 +574,16 @@ describe("transactional settings auto PDF producer", () => {
         idempotency_key TEXT,
         priority INTEGER NOT NULL,
         available_at TEXT NOT NULL,
+        enqueue_sequence INTEGER NOT NULL,
         request_context_json TEXT NOT NULL,
         created_at TEXT NOT NULL,
         dispatched_at TEXT
       );
+      CREATE TABLE workflow_enqueue_sequence (
+        singleton INTEGER PRIMARY KEY,
+        last_value INTEGER NOT NULL
+      );
+      INSERT INTO workflow_enqueue_sequence(singleton, last_value) VALUES (1, 0);
     `);
     database
       .prepare(

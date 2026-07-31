@@ -618,6 +618,66 @@ export const VERSIONED_MIGRATIONS: readonly VersionedMigration[] = [
         BEFORE DELETE ON workflow_dead_letter_replays BEGIN SELECT RAISE(ABORT, 'workflow_dead_letter_replays are append-only'); END;
     `,
   },
+  {
+    version: 11,
+    sql: `
+      ALTER TABLE workflow_tasks
+        ADD COLUMN enqueue_sequence INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE workflow_outbox
+        ADD COLUMN enqueue_sequence INTEGER NOT NULL DEFAULT 0;
+      CREATE TABLE workflow_enqueue_sequence (
+        singleton INTEGER PRIMARY KEY CHECK(singleton = 1),
+        last_value INTEGER NOT NULL CHECK(last_value >= 0)
+      );
+
+      WITH ordered_workflow_rows AS (
+        SELECT id, row_kind,
+          ROW_NUMBER() OVER (ORDER BY created_at, row_kind, id) AS enqueue_sequence
+        FROM (
+          SELECT id, created_at, 0 AS row_kind FROM workflow_tasks
+          UNION ALL
+          SELECT id, created_at, 1 AS row_kind FROM workflow_outbox
+        )
+      )
+      UPDATE workflow_tasks AS task
+      SET enqueue_sequence = (
+        SELECT enqueue_sequence FROM ordered_workflow_rows
+        WHERE row_kind = 0 AND id = task.id
+      );
+
+      WITH ordered_workflow_rows AS (
+        SELECT id, row_kind,
+          ROW_NUMBER() OVER (ORDER BY created_at, row_kind, id) AS enqueue_sequence
+        FROM (
+          SELECT id, created_at, 0 AS row_kind FROM workflow_tasks
+          UNION ALL
+          SELECT id, created_at, 1 AS row_kind FROM workflow_outbox
+        )
+      )
+      UPDATE workflow_outbox AS outbox
+      SET enqueue_sequence = (
+        SELECT enqueue_sequence FROM ordered_workflow_rows
+        WHERE row_kind = 1 AND id = outbox.id
+      );
+
+      INSERT INTO workflow_enqueue_sequence(singleton, last_value)
+      SELECT 1, COUNT(*)
+      FROM (
+        SELECT id FROM workflow_tasks
+        UNION ALL
+        SELECT id FROM workflow_outbox
+      );
+
+      DROP INDEX idx_workflow_tasks_ready_claim;
+      CREATE INDEX idx_workflow_tasks_ready_claim
+        ON workflow_tasks(
+          queue_name, state, available_at, priority DESC, created_at, enqueue_sequence
+        );
+      DROP INDEX idx_workflow_outbox_pending;
+      CREATE INDEX idx_workflow_outbox_pending
+        ON workflow_outbox(dispatched_at, available_at, created_at, enqueue_sequence);
+    `,
+  },
 ];
 
 function checksum(sql: string): string {
