@@ -62,6 +62,15 @@ describe("Jobindex Stash parsing", () => {
     expect(response.results).toEqual([{ tid: "h1" }]);
   });
 
+  it("parses Stash payloads followed by a CDATA closing marker", () => {
+    const html =
+      '<script>//<![CDATA[\nvar Stash = {"jobsearch/result_app":{"storeData":{"searchResponse":{"results":[{"tid":"h1"}],"total_pages":1}}}};\n//]]></script>';
+
+    const response = extractJobindexSearchResponse(html);
+
+    expect(response.results).toEqual([{ tid: "h1" }]);
+  });
+
   it("builds query-only search URLs and adds page after the first page", () => {
     expect(buildJobindexSearchUrl("software engineering", 1)).toBe(
       "https://www.jobindex.dk/jobsoegning?q=software+engineering",

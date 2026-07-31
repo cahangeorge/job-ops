@@ -256,6 +256,39 @@ function parseAddresses(value: unknown): JobindexAddress[] {
   );
 }
 
+function extractJsonObject(html: string, start: number): string {
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let index = start; index < html.length; index += 1) {
+    const character = html[index];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (character === "\\") {
+        escaped = true;
+      } else if (character === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (character === '"') {
+      inString = true;
+    } else if (character === "{") {
+      depth += 1;
+    } else if (character === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        return html.slice(start, index + 1);
+      }
+    }
+  }
+
+  throw new Error("Jobindex Stash JSON end was not found.");
+}
+
 export function extractJobindexStoreData(html: string): JobindexStoreData {
   const assignmentStart = html.indexOf("var Stash =");
   if (assignmentStart < 0) {
@@ -267,17 +300,7 @@ export function extractJobindexStoreData(html: string): JobindexStoreData {
     throw new Error("Jobindex Stash JSON start was not found.");
   }
 
-  const scriptEnd = html.indexOf("</script>", jsonStart);
-  if (scriptEnd < 0) {
-    throw new Error("Jobindex Stash script end was not found.");
-  }
-
-  const jsonText = html.slice(jsonStart, scriptEnd).trim().replace(/;\s*$/, "");
-  if (!jsonText.endsWith("}")) {
-    throw new Error("Jobindex Stash JSON end was not found.");
-  }
-
-  const stash = JSON.parse(jsonText) as JobindexStash;
+  const stash = JSON.parse(extractJsonObject(html, jsonStart)) as JobindexStash;
   const storeData = stash["jobsearch/result_app"]?.storeData;
   if (!storeData || typeof storeData !== "object") {
     throw new Error("Jobindex storeData payload was not found.");
