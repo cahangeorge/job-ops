@@ -14,7 +14,6 @@
       "!!vendor/career-ops",
       "!!**/.venv",
       "!!.claude",
-      "!!/.worktrees",
       "!!data",
       "!!storage"
     ]
@@ -23,6 +22,11 @@
     "parser": {
       "tailwindDirectives": true
     }
+  },
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
   },
   "linter": {
     "rules": {
